@@ -1,0 +1,62 @@
+version: "3.8"
+
+services:
+  code:
+    networks:
+      - code
+      - local-shared
+    build:
+      context: src/code
+      args:
+        - GITHUB_USER=${GITHUB_USER}
+        - GITHUB_TOKEN=${GITHUB_TOKEN}
+    environment:
+      - PORT=${CODE_SVC_ADDR}
+      - DB_MASTER_HOST=${DB_MASTER_HOST}
+      - DB_MASTER_USER=${DB_MASTER_USER}
+      - DB_MASTER_PASSWORD=${DB_MASTER_PASSWORD}
+      - DB_SLAVE_HOST=${DB_SLAVE_HOST}
+      - DB_SLAVE_USER=${DB_SLAVE_USER}
+      - DB_SLAVE_PASSWORD=${DB_SLAVE_PASSWORD}
+      - DB_PORT=3306
+      - DB_SCHEMA=mimosa
+      - DB_LOG_MODE=${DB_LOG_MODE}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      - SQS_ENDPOINT=${SQS_ENDPOINT}
+      - GITLEAKS_QUEUE_URL=${GUARD_DUTY_QUEUE_URL}
+    ports:
+      - "10001:10001"
+
+  gitleaks:
+    networks:
+      - aws
+      - local-shared
+    build:
+      context: src/gitleaks
+      args:
+        - GITHUB_USER=${GITHUB_USER}
+        - GITHUB_TOKEN=${GITHUB_TOKEN}
+    environment:
+      - DEBUG=true
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      - SQS_ENDPOINT=${SQS_ENDPOINT}
+      - GITLEAKS_QUEUE_NAME=${GUARD_DUTY_QUEUE_NAME}
+      - GITLEAKS_QUEUE_URL=${GUARD_DUTY_QUEUE_URL}
+      - FINDING_SVC_ADDR=${FINDING_SVC_ADDR}
+      - ALERT_SVC_ADDR=${ALERT_SVC_ADDR}
+      - CODE_SVC_ADDR=${CODE_SVC_ADDR}
+    ports:
+      - "10002"
+
+networks:
+  code:
+    driver: bridge
+    attachable: true
+  local-shared:
+    external: true
