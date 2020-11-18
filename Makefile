@@ -31,15 +31,17 @@ build: fmt
 go-test: build
 	cd proto/code && go test ./...
 	cd pkg/common && go test ./...
+	cd src/code   && go test ./...
 
 go-mod-tidy: build
 	cd proto/code && go mod tidy
 	cd pkg/common && go mod tidy
+	cd src/code   && go mod tidy
 
-# go-mod-update:
-# 	cd src/code \
-# 		&& go get -u \
-# 			github.com/CyberAgent/mimosa-code/...
+go-mod-update:
+	cd src/code \
+		&& go get -u \
+			github.com/CyberAgent/mimosa-code/...
 
 # @see https://github.com/CyberAgent/mimosa-common/tree/master/local
 network:

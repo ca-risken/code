@@ -63,7 +63,8 @@ Gitleaks
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | gitleaks_id | [uint32](#uint32) |  |  |
-| code_data_source_id | [string](#string) |  |  |
+| code_data_source_id | [uint32](#uint32) |  |  |
+| name | [string](#string) |  |  |
 | project_id | [uint32](#uint32) |  |  |
 | type | [Type](#code.code.Type) |  |  |
 | target_resource | [string](#string) |  |  |
