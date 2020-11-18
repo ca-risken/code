@@ -17,6 +17,7 @@ export DB_SLAVE_PASSWORD="moge"
 export DB_LOG_MODE="false"
 
 # CODE
+export PORT="10001"
 export AWS_REGION="ap-northeast-1"
 export SQS_ENDPOINT="http://sqs:9324"
 export GITLEAKS_QUEUE_NAME="code-gitleaks"
