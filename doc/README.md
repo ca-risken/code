@@ -91,7 +91,9 @@ GitleaksForUpsert
 
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
-| name | [string](#string) |  | Unique key for Gitleaks entity. |
+| gitleaks_id | [uint32](#uint32) |  | Unique key for Gitleaks entity. |
+| code_data_source_id | [uint32](#uint32) |  |  |
+| name | [string](#string) |  |  |
 | project_id | [uint32](#uint32) |  |  |
 | type | [Type](#code.code.Type) |  |  |
 | target_resource | [string](#string) |  |  |
