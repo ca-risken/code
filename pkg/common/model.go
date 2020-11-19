@@ -12,8 +12,8 @@ type CodeDataSource struct {
 	UpdatedAt        time.Time
 }
 
-// Gitleaks entity
-type Gitleaks struct {
+// CodeGitleaks entity
+type CodeGitleaks struct {
 	GitleaksID          uint32
 	CodeDataSourceID    uint32
 	Name                string
