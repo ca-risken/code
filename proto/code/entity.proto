@@ -55,15 +55,17 @@ enum Status {
 
 // GitleaksForUpsert
 message GitleaksForUpsert {
-  string name = 1; // Unique key for Gitleaks entity.
-  uint32 project_id = 2;
-  Type type = 3;
-  string target_resource = 4;
-  string repository_pattern = 5;
-  string github_user = 6;
-  string personal_access_token = 7;
-  string gitleaks_config = 8;
-  Status status = 9;
-  string status_detail = 10;
-  int64 scan_at = 11;
+  uint32 gitleaks_id = 1; // Unique key for Gitleaks entity.
+  uint32 code_data_source_id = 2;
+  string name = 3;
+  uint32 project_id = 4;
+  Type type = 5;
+  string target_resource = 6;
+  string repository_pattern = 7;
+  string github_user = 8;
+  string personal_access_token = 9;
+  string gitleaks_config = 10;
+  Status status = 11;
+  string status_detail = 12;
+  int64 scan_at = 13;
 }

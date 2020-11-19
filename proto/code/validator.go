@@ -58,6 +58,7 @@ func (i *InvokeScanGitleaksRequest) Validate() error {
 // Validate GitleaksForUpsert
 func (g *GitleaksForUpsert) Validate() error {
 	return validation.ValidateStruct(g,
+		validation.Field(&g.CodeDataSourceId, validation.Required),
 		validation.Field(&g.Name, validation.Length(0, 64)),
 		validation.Field(&g.ProjectId, validation.Required),
 		// validation.Field(&g.Type, validation.In(Type_ENTERPRISE, Type_ORGANIZATION, Type_USER)),
