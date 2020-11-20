@@ -18,6 +18,7 @@ export DB_LOG_MODE="false"
 
 # CODE
 export PORT="10001"
+export DATA_KEY="12345678901234567890123456789012"
 export AWS_REGION="ap-northeast-1"
 export SQS_ENDPOINT="http://sqs:9324"
 export GITLEAKS_QUEUE_NAME="code-gitleaks"
