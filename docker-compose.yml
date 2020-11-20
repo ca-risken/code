@@ -27,6 +27,7 @@ services:
       - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
       - SQS_ENDPOINT=${SQS_ENDPOINT}
       - GITLEAKS_QUEUE_URL=${GITLEAKS_QUEUE_URL}
+      - DATA_KEY=${DATA_KEY}
     ports:
       - "10001:10001"
 
