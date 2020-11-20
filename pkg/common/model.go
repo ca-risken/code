@@ -4,7 +4,7 @@ import "time"
 
 // CodeDataSource entity
 type CodeDataSource struct {
-	CodeDataSourceID uint32
+	CodeDataSourceID uint32 `gorm:"primary_key"`
 	Name             string
 	Description      string
 	MaxScore         float32
@@ -14,7 +14,7 @@ type CodeDataSource struct {
 
 // CodeGitleaks entity
 type CodeGitleaks struct {
-	GitleaksID          uint32
+	GitleaksID          uint32 `gorm:"primary_key"`
 	CodeDataSourceID    uint32
 	Name                string
 	ProjectID           uint32
