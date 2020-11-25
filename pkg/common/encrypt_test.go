@@ -31,7 +31,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			encrypted, err := encryptWithBase64(&block, c.input)
+			encrypted, err := EncryptWithBase64(&block, c.input)
 			if c.wantEncError && err == nil {
 				t.Fatal("Unexpected no error")
 			}
@@ -39,7 +39,7 @@ func TestEncryptDecrypt(t *testing.T) {
 				t.Fatalf("Unexpected error occured, err=%+v", err)
 			}
 
-			decrypted, err := decryptWithBase64(&block, encrypted)
+			decrypted, err := DecryptWithBase64(&block, encrypted)
 			if c.wantDecError && err == nil {
 				t.Fatal("Unexpected no error")
 			}
