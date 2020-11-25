@@ -31,29 +31,31 @@ services:
     ports:
       - "10001:10001"
 
-  # gitleaks:
-  #   networks:
-  #     - aws
-  #     - local-shared
-  #   build:
-  #     context: src/gitleaks
-  #     args:
-  #       - GITHUB_USER=${GITHUB_USER}
-  #       - GITHUB_TOKEN=${GITHUB_TOKEN}
-  #   environment:
-  #     - DEBUG=true
-  #     - AWS_REGION=${AWS_REGION}
-  #     - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-  #     - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-  #     - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
-  #     - SQS_ENDPOINT=${SQS_ENDPOINT}
-  #     - GITLEAKS_QUEUE_NAME=${GUARD_DUTY_QUEUE_NAME}
-  #     - GITLEAKS_QUEUE_URL=${GUARD_DUTY_QUEUE_URL}
-  #     - FINDING_SVC_ADDR=${FINDING_SVC_ADDR}
-  #     - ALERT_SVC_ADDR=${ALERT_SVC_ADDR}
-  #     - CODE_SVC_ADDR=${CODE_SVC_ADDR}
-  #   ports:
-  #     - "10002"
+  gitleaks:
+    networks:
+      - code
+      - local-shared
+    build:
+      context: src/gitleaks
+      args:
+        - GITHUB_USER=${GITHUB_USER}
+        - GITHUB_TOKEN=${GITHUB_TOKEN}
+    environment:
+      - DEBUG=true
+      - AWS_REGION=${AWS_REGION}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_SESSION_TOKEN=${AWS_SESSION_TOKEN}
+      - SQS_ENDPOINT=${SQS_ENDPOINT}
+      - GITLEAKS_QUEUE_NAME=${GITLEAKS_QUEUE_NAME}
+      - GITLEAKS_QUEUE_URL=${GITLEAKS_QUEUE_URL}
+      - FINDING_SVC_ADDR=${FINDING_SVC_ADDR}
+      - ALERT_SVC_ADDR=${ALERT_SVC_ADDR}
+      - CODE_SVC_ADDR=${CODE_SVC_ADDR}
+      - DATA_KEY=${DATA_KEY}
+      - GITHUB_DEFAULT_TOKEN=${GITHUB_DEFAULT_TOKEN}
+    ports:
+      - "10002"
 
 networks:
   code:
