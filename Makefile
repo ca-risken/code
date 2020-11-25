@@ -34,12 +34,16 @@ go-test: build
 	cd src/code   && go test ./...
 
 go-mod-tidy: build
-	cd proto/code && go mod tidy
-	cd pkg/common && go mod tidy
-	cd src/code   && go mod tidy
+	cd proto/code   && go mod tidy
+	cd pkg/common   && go mod tidy
+	cd src/code     && go mod tidy
+	cd src/gitleaks && go mod tidy
 
 go-mod-update:
 	cd src/code \
+		&& go get -u \
+			github.com/CyberAgent/mimosa-code/...
+	cd src/gitleaks \
 		&& go get -u \
 			github.com/CyberAgent/mimosa-code/...
 

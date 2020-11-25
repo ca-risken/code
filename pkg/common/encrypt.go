@@ -9,15 +9,17 @@ import (
 	"io"
 )
 
-func encryptWithBase64(block *cipher.Block, plainText string) (string, error) {
-	buf, err := encrypt(block, plainText)
+// EncryptWithBase64 Encrypt the `plainText` and base64 encoding.
+func EncryptWithBase64(block *cipher.Block, plainText string) (string, error) {
+	buf, err := Encrypt(block, plainText)
 	if err != nil {
 		return "", err
 	}
 	return base64.RawStdEncoding.EncodeToString(buf), nil
 }
 
-func encrypt(block *cipher.Block, plainText string) ([]byte, error) {
+// Encrypt Encrypt the `plainText`.
+func Encrypt(block *cipher.Block, plainText string) ([]byte, error) {
 	// PKCS#7 Padding (CBCブロック暗号モードで暗号化したいので、長さが16byteの倍数じゃない場合は末尾をパディングしとく)
 	padSize := aes.BlockSize - (len(plainText) % aes.BlockSize)
 	pad := bytes.Repeat([]byte{byte(padSize)}, padSize)
@@ -33,19 +35,21 @@ func encrypt(block *cipher.Block, plainText string) ([]byte, error) {
 	return encrypted, nil
 }
 
-func decryptWithBase64(block *cipher.Block, encrypted string) (string, error) {
+// DecryptWithBase64 Decrypt the `encrypted` and base64 decoding.
+func DecryptWithBase64(block *cipher.Block, encrypted string) (string, error) {
 	decoded, err := base64.RawStdEncoding.DecodeString(encrypted)
 	if err != nil {
 		return "", err
 	}
-	decrypted := decrypt(block, decoded)
+	decrypted := Decrypt(block, decoded)
 
 	// Unpadding
 	padSize := int(decrypted[len(decrypted)-1])
 	return string(decrypted[:len(decrypted)-padSize]), nil
 }
 
-func decrypt(block *cipher.Block, encrypted []byte) []byte {
+// Decrypt Decrypt the `encrypted`.
+func Decrypt(block *cipher.Block, encrypted []byte) []byte {
 	iv := encrypted[:aes.BlockSize] // Get Initial Vector form first head block.
 	decrypted := make([]byte, len(encrypted[aes.BlockSize:]))
 	decrypter := cipher.NewCBCDecrypter(*block, iv)
