@@ -23,6 +23,7 @@ export AWS_REGION="ap-northeast-1"
 export SQS_ENDPOINT="http://sqs:9324"
 export GITLEAKS_QUEUE_NAME="code-gitleaks"
 export GITLEAKS_QUEUE_URL="http://sqs:9324/queue/code-gitleaks"
+export GITHUB_DEFAULT_TOKEN="your-token"
 
 # gRPC server
 export FINDING_SVC_ADDR="finding:8001"
