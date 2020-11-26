@@ -50,6 +50,9 @@ func DecryptWithBase64(block *cipher.Block, encrypted string) (string, error) {
 
 // Decrypt Decrypt the `encrypted`.
 func Decrypt(block *cipher.Block, encrypted []byte) []byte {
+	if len(encrypted) < aes.BlockSize {
+		return []byte("")
+	}
 	iv := encrypted[:aes.BlockSize] // Get Initial Vector form first head block.
 	decrypted := make([]byte, len(encrypted[aes.BlockSize:]))
 	decrypter := cipher.NewCBCDecrypter(*block, iv)
