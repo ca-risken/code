@@ -42,6 +42,9 @@ func DecryptWithBase64(block *cipher.Block, encrypted string) (string, error) {
 		return "", err
 	}
 	decrypted := Decrypt(block, decoded)
+	if len(decrypted) < 1 {
+		return "", nil
+	}
 
 	// Unpadding
 	padSize := int(decrypted[len(decrypted)-1])
