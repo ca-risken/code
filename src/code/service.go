@@ -1,13 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
-	"encoding/base64"
-	"io"
 	"strings"
 	"time"
 
@@ -20,9 +16,9 @@ import (
 )
 
 type codeService struct {
-	repository codeRepoInterface
-	sqs        sqsAPI
-	cipher     cipher.Block
+	repository  codeRepoInterface
+	sqs         sqsAPI
+	cipherBlock cipher.Block
 }
 
 type codeServiceConf struct {
@@ -41,9 +37,9 @@ func newCodeService() code.CodeServiceServer {
 		appLogger.Fatal(err.Error())
 	}
 	return &codeService{
-		repository: newCodeRepository(),
-		sqs:        newSQSClient(),
-		cipher:     block,
+		repository:  newCodeRepository(),
+		sqs:         newSQSClient(),
+		cipherBlock: block,
 	}
 }
 
@@ -100,6 +96,14 @@ func (c *codeService) ListGitleaks(ctx context.Context, req *code.ListGitleaksRe
 func (c *codeService) PutGitleaks(ctx context.Context, req *code.PutGitleaksRequest) (*code.PutGitleaksResponse, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err
+	}
+	if req.Gitleaks.PersonalAccessToken != "" {
+		encrypted, err := common.EncryptWithBase64(&c.cipherBlock, req.Gitleaks.PersonalAccessToken)
+		if err != nil {
+			appLogger.Errorf("Failed to encrypt PAT: err=%+v", err)
+			return nil, err
+		}
+		req.Gitleaks.PersonalAccessToken = encrypted
 	}
 	registerd, err := c.repository.UpsertGitleaks(req.Gitleaks)
 	if err != nil {
@@ -228,51 +232,4 @@ func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty)
 		time.Sleep(time.Millisecond * 100) // jitter
 	}
 	return &empty.Empty{}, nil
-}
-
-func (c *codeService) encryptWithBase64(plainText string) (string, error) {
-	buf, err := c.encrypt(plainText)
-	if err != nil {
-		appLogger.Error("Failed to encrypt data")
-		return "", err
-	}
-	return base64.RawStdEncoding.EncodeToString(buf), nil
-}
-
-func (c *codeService) encrypt(plainText string) ([]byte, error) {
-	// PKCS#7 Padding (CBCブロック暗号モードで暗号化したいので、長さが16byteの倍数じゃない場合は末尾をパディングしとく)
-	padSize := aes.BlockSize - (len(plainText) % aes.BlockSize)
-	pad := bytes.Repeat([]byte{byte(padSize)}, padSize)
-	paddedText := append([]byte(plainText), pad...)
-
-	encrypted := make([]byte, aes.BlockSize+len(paddedText))
-	iv := encrypted[:aes.BlockSize]
-	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
-		appLogger.Error("Failed to generate random Initial Vector")
-		return encrypted, err
-	}
-	encrypter := cipher.NewCBCEncrypter(c.cipher, iv)
-	encrypter.CryptBlocks(encrypted[aes.BlockSize:], []byte(paddedText))
-	return encrypted, nil
-}
-
-func (c *codeService) decryptWithBase64(encrypted string) (string, error) {
-	decoded, err := base64.RawStdEncoding.DecodeString(encrypted)
-	if err != nil {
-		appLogger.Error("Failed to base64 decoded")
-		return "", err
-	}
-	decrypted := c.decrypt(decoded)
-
-	// Unpadding
-	padSize := int(decrypted[len(decrypted)-1])
-	return string(decrypted[:len(decrypted)-padSize]), nil
-}
-
-func (c *codeService) decrypt(encrypted []byte) []byte {
-	iv := encrypted[:aes.BlockSize] // Get Initial Vector form first head block.
-	decrypted := make([]byte, len(encrypted[aes.BlockSize:]))
-	decrypter := cipher.NewCBCDecrypter(c.cipher, iv)
-	decrypter.CryptBlocks(decrypted, encrypted[aes.BlockSize:])
-	return decrypted
 }

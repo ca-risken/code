@@ -8,6 +8,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
 	"github.com/kelseyhightower/envconfig"
+	"github.com/vikyd/zero"
 )
 
 type codeRepoInterface interface {
@@ -71,4 +72,11 @@ func initDB(isMaster bool) *gorm.DB {
 	db.SingularTable(true) // if set this to true, `User`'s default table name will be `user`
 	appLogger.Infof("Connected to Database. isMaster: %t", isMaster)
 	return db
+}
+
+func convertZeroValueToNull(input interface{}) interface{} {
+	if zero.IsZeroVal(input) {
+		return gorm.Expr("NULL")
+	}
+	return input
 }

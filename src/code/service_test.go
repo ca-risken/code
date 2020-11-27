@@ -144,8 +144,16 @@ func TestListGitleaks(t *testing.T) {
 func TestPutGitleaks(t *testing.T) {
 	var ctx context.Context
 	now := time.Now()
+	key := []byte("1234567890123456")
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		appLogger.Fatal(err.Error())
+	}
 	mockDB := mockCodeRepository{}
-	svc := codeService{repository: &mockDB}
+	svc := codeService{
+		repository:  &mockDB,
+		cipherBlock: block,
+	}
 	cases := []struct {
 		name         string
 		input        *code.PutGitleaksRequest
@@ -231,56 +239,6 @@ func TestDeleteGitleaks(t *testing.T) {
 			_, err := svc.DeleteGitleaks(ctx, c.input)
 			if !c.wantErr && err != nil {
 				t.Fatalf("Unexpected error occured: %+v", err)
-			}
-		})
-	}
-}
-
-func TestEncryptDecrypt(t *testing.T) {
-	block, err := aes.NewCipher([]byte("12345678901234567890123456789012")) // AES128=16bytes, AES192=24bytes, AES256=32bytes
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc := codeService{cipher: block}
-
-	cases := []struct {
-		name         string
-		input        string
-		want         string
-		wantEncError bool
-		wantDecError bool
-	}{
-		{
-			name:  "OK",
-			input: "plain text",
-			want:  "plain text",
-		},
-		{
-			name:  "OK (black))",
-			input: "",
-			want:  "",
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			encrypted, err := svc.encryptWithBase64(c.input)
-			if c.wantEncError && err == nil {
-				t.Fatal("Unexpected no error")
-			}
-			if !c.wantEncError && err != nil {
-				t.Fatalf("Unexpected error occured, err=%+v", err)
-			}
-
-			decrypted, err := svc.decryptWithBase64(encrypted)
-			if c.wantDecError && err == nil {
-				t.Fatal("Unexpected no error")
-			}
-			if !c.wantDecError && err != nil {
-				t.Fatalf("Unexpected error occured, err=%+v", err)
-			}
-
-			if !reflect.DeepEqual(c.want, decrypted) {
-				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, decrypted)
 			}
 		})
 	}

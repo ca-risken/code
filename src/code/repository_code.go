@@ -54,25 +54,41 @@ func (c *codeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.C
 	var updated common.CodeGitleaks
 	if err := c.MasterDB.
 		Where("gitleaks_id = ?", data.GitleaksId).
-		Assign(common.CodeGitleaks{
-			CodeDataSourceID:    data.CodeDataSourceId,
-			Name:                data.Name,
-			ProjectID:           data.ProjectId,
-			Type:                data.Type.String(),
-			TargetResource:      data.TargetResource,
-			RepositoryPattern:   data.RepositoryPattern,
-			GithubUser:          data.GithubUser,
-			PersonalAccessToken: data.PersonalAccessToken,
-			GitleaksConfig:      data.GitleaksConfig,
-			Status:              data.Status.String(),
-			StatusDetail:        data.StatusDetail,
-			ScanAt:              time.Unix(data.ScanAt, 0),
+		Assign(map[string]interface{}{
+			"code_data_source_id":   data.CodeDataSourceId,
+			"name":                  convertZeroValueToNull(data.Name),
+			"project_id":            data.ProjectId,
+			"type":                  data.Type.String(),
+			"target_resource":       data.TargetResource,
+			"repository_pattern":    convertZeroValueToNull(data.RepositoryPattern),
+			"github_user":           convertZeroValueToNull(data.GithubUser),
+			"personal_access_token": convertZeroValueToNull(data.PersonalAccessToken),
+			"gitleaks_config":       convertZeroValueToNull(data.GitleaksConfig),
+			"status":                data.Status.String(),
+			"status_detail":         convertZeroValueToNull(data.StatusDetail),
+			"scan_at":               time.Unix(data.ScanAt, 0),
 		}).
 		FirstOrCreate(&updated).
 		Error; err != nil {
 		return nil, err
 	}
-	return &updated, nil
+	return &common.CodeGitleaks{
+		GitleaksID:          updated.GitleaksID,
+		CodeDataSourceID:    data.CodeDataSourceId,
+		Name:                data.Name,
+		ProjectID:           data.ProjectId,
+		Type:                data.Type.String(),
+		TargetResource:      data.TargetResource,
+		RepositoryPattern:   data.RepositoryPattern,
+		GithubUser:          data.GithubUser,
+		PersonalAccessToken: data.PersonalAccessToken,
+		GitleaksConfig:      data.GitleaksConfig,
+		Status:              data.Status.String(),
+		StatusDetail:        data.StatusDetail,
+		ScanAt:              time.Unix(data.ScanAt, 0),
+		UpdatedAt:           updated.UpdatedAt,
+		CreatedAt:           updated.CreatedAt,
+	}, nil
 }
 
 const deleteGitleaks = `delete from code_gitleaks where project_id = ? and gitleaks_id = ?`
