@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -73,29 +74,41 @@ func (s *sqsHandler) HandleMessage(msg *sqs.Message) error {
 	}
 
 	// Get repositories
-	repos, err := s.githubClient.listRepository(ctx, decryptedKey, scanStatus)
-	if err != nil {
-		appLogger.Errorf("Faild to list repositories: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+	findings := []repositoryFinding{}
+	if err := s.githubClient.listRepository(ctx,
+		scanStatus.Gitleaks.Type,
+		scanStatus.Gitleaks.TargetResource,
+		scanStatus.Gitleaks.RepositoryPattern,
+		decryptedKey,
+		&findings,
+	); err != nil {
+		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
 		return s.updateScanStatusError(ctx, scanStatus, err.Error())
 	}
-	appLogger.Debugf("Got repositories, count=%d", len(repos))
+	appLogger.Debugf("Got repositories, count=%d", len(findings))
 
-	// Scan repository
-	leaks, err := s.gitleaksClient.scanRepository(ctx, repos)
-	if err != nil {
-		appLogger.Errorf("Faild to scan repositories: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
-		return s.updateScanStatusError(ctx, scanStatus, err.Error())
+	for _, f := range findings {
+		// Set LastScanedAt
+		if err := s.setLastScanedAt(ctx, message.ProjectID, &f); err != nil {
+			appLogger.Errorf("Failed to set LastScanedAt: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+		}
+
+		// Scan repository
+		if err := s.gitleaksClient.scanRepository(ctx, decryptedKey, &f); err != nil {
+			appLogger.Errorf("Failed to scan repositories: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+		}
+
+		// Put finding
+		if err := s.putFindings(ctx, message.ProjectID, &f); err != nil {
+			appLogger.Errorf("Failed to put findngs: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+		}
+		if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
+			return err
+		}
 	}
-	appLogger.Debugf("Got leaks: gitleaks_id=%d, leaks=%+v", message.GitleaksID, leaks)
-
-	// Put finding
-	// if err := s.putFindings(ctx, findings); err != nil {
-	// 	appLogger.Errorf("Faild to put findngs: AccountID=%+v, err=%+v", message.AccountID, err)
-	// 	return s.updateScanStatusError(ctx, &putStatus, err.Error())
-	// }
-	// if err := s.updateScanStatusSuccess(ctx, &putStatus); err != nil {
-	// 	return err
-	// }
 	return s.analyzeAlert(ctx, message.ProjectID)
 }
 
@@ -132,17 +145,78 @@ func (s *sqsHandler) getInitScanStatus(ctx context.Context, projectID, gitleaksI
 	return &scanStatus, nil
 }
 
-func (s *sqsHandler) putFindings(ctx context.Context, findings []*finding.FindingForUpsert) error {
-	for _, f := range findings {
-		// finding
-		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{Finding: f})
+func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repositoryFinding) error {
+	if len(f.LeakFindings) < 1 {
+		// put Resource only (for cacheing scaned time.)
+		resp, err := s.findingClient.PutResource(ctx, &finding.PutResourceRequest{
+			ProjectId: projectID,
+			Resource: &finding.ResourceForUpsert{
+				ResourceName: *f.FullName,
+				ProjectId:    projectID,
+			},
+		})
 		if err != nil {
+			appLogger.Errorf("Failed to put resource project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
+			return err
+		}
+		appLogger.Infof("Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
+		return nil
+	}
+
+	// Exists leaks
+	for _, leak := range f.LeakFindings {
+		// finding
+		leak.generateDataSourceID()
+		buf, err := json.Marshal(leak)
+		if err != nil {
+			appLogger.Errorf("Failed to marshal user data, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
+			return err
+		}
+		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{
+			Finding: &finding.FindingForUpsert{
+				Description:      fmt.Sprintf("Code secrets scanning by the gitleas for %s", *f.FullName),
+				DataSource:       common.GitleaksDataSource,
+				DataSourceId:     leak.DataSourceID,
+				ResourceName:     *f.FullName,
+				ProjectId:        projectID,
+				OriginalScore:    scoreGitleaks(f),
+				OriginalMaxScore: 1.0,
+				Data:             string(buf),
+			},
+		})
+		if err != nil {
+			appLogger.Errorf("Failed to put finding project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 			return err
 		}
 		// finding-tag
 		s.tagFinding(ctx, common.TagCode, resp.Finding.FindingId, resp.Finding.ProjectId)
 		s.tagFinding(ctx, common.TagGitleaks, resp.Finding.FindingId, resp.Finding.ProjectId)
+		s.tagFinding(ctx, *f.Visibility, resp.Finding.FindingId, resp.Finding.ProjectId)
 		appLogger.Infof("Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
+	}
+	return nil
+}
+
+func (s *sqsHandler) setLastScanedAt(ctx context.Context, projectID uint32, f *repositoryFinding) error {
+	resp, err := s.findingClient.ListResource(ctx, &finding.ListResourceRequest{
+		ProjectId:    projectID,
+		ResourceName: []string{*f.FullName},
+	})
+	if err != nil {
+		appLogger.Errorf("Failed to ListResource, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
+		return err
+	}
+	for _, resourceID := range resp.ResourceId {
+		resp, err := s.findingClient.GetResource(ctx, &finding.GetResourceRequest{
+			ProjectId:  projectID,
+			ResourceId: resourceID,
+		})
+		if err != nil {
+			appLogger.Errorf("Failed to GetResource, project_id=%d, resource_id=%d, err=%+v", projectID, resourceID, err)
+			return err
+		}
+		*f.LastScanedAt = time.Unix(resp.Resource.UpdatedAt, 0)
+		break
 	}
 	return nil
 }
@@ -164,9 +238,7 @@ func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint6
 
 func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutGitleaksRequest, statusDetail string) error {
 	putData.Gitleaks.Status = code.Status_ERROR
-	if len(statusDetail) > 200 {
-		statusDetail = statusDetail[:200] + " ..." // cut long text
-	}
+	statusDetail = cutString(statusDetail, 200)
 	putData.Gitleaks.StatusDetail = statusDetail
 	return s.updateScanStatus(ctx, putData)
 }
@@ -193,16 +265,16 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
-// func scoreGitleaks(user *iamUser) float32 {
-// 	isAdmin := false
-// 	if user.IsUserAdmin || user.IsGroupAdmin {
-// 		isAdmin = true
-// 	}
-// 	if !isAdmin {
-// 		return 0.3
-// 	}
-// 	if isAdmin && user.EnabledPermissionBoundory {
-// 		return 0.7
-// 	}
-// 	return 0.9
-// }
+func cutString(input string, cut int) string {
+	if len(input) > cut {
+		return input[:cut] + " ..." // cut long text
+	}
+	return input
+}
+
+func scoreGitleaks(f *repositoryFinding) float32 {
+	if len(f.LeakFindings) < 1 {
+		return 0.1
+	}
+	return 0.6
+}

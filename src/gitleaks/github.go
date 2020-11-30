@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/CyberAgent/mimosa-code/proto/code"
 	"github.com/google/go-github/v32/github"
@@ -13,7 +14,7 @@ import (
 )
 
 type githubServiceClient interface {
-	listRepository(ctx context.Context, token string, gitInfo *code.PutGitleaksRequest) ([]*github.Repository, error)
+	listRepository(ctx context.Context, githubType code.Type, target, filter, token string, findings *[]repositoryFinding) error
 }
 
 type githubClient struct {
@@ -36,50 +37,75 @@ func newGithubClient() githubServiceClient {
 }
 
 func (g *githubClient) newV3Client(ctx context.Context, token string) *github.Client {
-	githubToken := g.defaultToken
-	if token != "" {
-		githubToken = token
-	}
 	httpClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: githubToken},
+		&oauth2.Token{AccessToken: getToken(token, g.defaultToken)},
 	))
 	return github.NewClient(httpClient)
 }
 
 func (g *githubClient) newV4Client(ctx context.Context, token string) *githubv4.Client {
-	githubToken := g.defaultToken
-	if token != "" {
-		githubToken = token
-	}
 	httpClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: githubToken},
+		&oauth2.Token{AccessToken: getToken(token, g.defaultToken)},
 	))
 	return githubv4.NewClient(httpClient)
 }
 
-func (g *githubClient) listRepository(ctx context.Context, token string, gitInfo *code.PutGitleaksRequest) ([]*github.Repository, error) {
+func getToken(token, defaultToken string) string {
+	if token != "" {
+		return token
+	}
+	return defaultToken
+}
+
+type repositoryFinding struct {
+	ID          *int64            `json:"id,omitempty"`
+	Name        *string           `json:"name,omitempty"`
+	FullName    *string           `json:"full_name,omitempty"`
+	Description *string           `json:"description,omitempty"`
+	CloneURL    *string           `json:"clone_url,omitempty"`
+	Fork        *bool             `json:"fork,omitempty"`
+	Archived    *bool             `json:"archived,omitempty"`
+	Disabled    *bool             `json:"disabled,omitempty"`
+	Visibility  *string           `json:"visibility,omitempty"`
+	CreatedAt   *github.Timestamp `json:"created_at,omitempty"`
+	PushedAt    *github.Timestamp `json:"pushed_at,omitempty"`
+	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
+
+	LeakFindings []*leakFinding `json:"leak_findings,omitempty"`
+	LastScanedAt *time.Time     `json:"last_scaned_at"`
+}
+
+func (r *repositoryFinding) alreadyScaned() bool {
+	if r.PushedAt != nil && r.LastScanedAt != nil {
+		return r.PushedAt.Time.Unix() <= r.LastScanedAt.Unix()
+	}
+	return false
+}
+
+func (g *githubClient) listRepository(ctx context.Context, githubType code.Type, target, filter, token string, findings *[]repositoryFinding) error {
 	var repos []*github.Repository
 	var err error
-	switch gitInfo.Gitleaks.Type {
+	switch githubType {
 	case code.Type_ENTERPRISE:
-		repos, err = g.listEnterpriseRepository(ctx, token, gitInfo.Gitleaks.TargetResource)
+		repos, err = g.listEnterpriseRepository(ctx, token, target)
 		if err != nil {
-			return repos, err
+			return err
 		}
 	case code.Type_ORGANIZATION:
-		repos, err = g.listRepositoryForOrg(ctx, token, gitInfo.Gitleaks.TargetResource)
+		repos, err = g.listRepositoryForOrg(ctx, token, target)
 		if err != nil {
-			return repos, err
+			return err
 		}
 	case code.Type_USER:
-		repos, err = g.listRepositoryForUser(ctx, token, gitInfo.Gitleaks.TargetResource)
+		repos, err = g.listRepositoryForUser(ctx, token, target)
 		if err != nil {
-			return repos, err
+			return err
 		}
 	default:
-		return nil, fmt.Errorf("Unknown github type: type=%+v", gitInfo.Gitleaks.Type)
+		return fmt.Errorf("Unknown github type: type=%+v", githubType)
 	}
-	return filterRepository(repos, gitInfo.Gitleaks.RepositoryPattern), nil
+	setRepositoryFinding(repos, filter, findings)
+	return nil
 }
 
 type githubOrganization struct {
@@ -158,24 +184,27 @@ func (g *githubClient) listRepositoryForUser(ctx context.Context, token, login s
 
 func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, token, login, visibility string) ([]*github.Repository, error) {
 	client := g.newV3Client(ctx, token)
-	var repos []*github.Repository
+	var allRepo []*github.Repository
 	opt := &github.RepositoryListOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 		Type:        visibility,
 	}
 	for {
-		repo, resp, err := client.Repositories.List(ctx, login, opt)
+		repos, resp, err := client.Repositories.List(ctx, login, opt)
 		if err != nil {
 			return nil, err
 		}
-		appLogger.Debugf("Success GitHub API for user repos, login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repo), resp)
-		repos = append(repos, repo...)
+		appLogger.Debugf("Success GitHub API for user repos, login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
+		for _, r := range repos {
+			r.Visibility = &visibility
+		}
+		allRepo = append(allRepo, repos...)
 		if resp.NextPage == 0 {
 			break
 		}
 		opt.Page = resp.NextPage
 	}
-	return repos, nil
+	return allRepo, nil
 }
 
 func (g *githubClient) listRepositoryForOrg(ctx context.Context, token, login string) ([]*github.Repository, error) {
@@ -209,32 +238,46 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, token, login st
 func (g *githubClient) listRepositoryForOrgWithOption(ctx context.Context, token, login, visibility string) ([]*github.Repository, error) {
 	appLogger.Debugf("token: %s", token) //delete
 	client := g.newV3Client(ctx, token)
-	var repos []*github.Repository
+	var allRepo []*github.Repository
 	opt := &github.RepositoryListByOrgOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 		Type:        visibility,
 	}
 	for {
-		repo, resp, err := client.Repositories.ListByOrg(ctx, login, opt)
+		repos, resp, err := client.Repositories.ListByOrg(ctx, login, opt)
 		if err != nil {
 			return nil, err
 		}
-		appLogger.Debugf("Success GitHub API for organization repos, login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repo), resp)
-		repos = append(repos, repo...)
+		appLogger.Debugf("Success GitHub API for organization repos, login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
+		for _, r := range repos {
+			r.Visibility = &visibility
+		}
+		allRepo = append(allRepo, repos...)
 		if resp.NextPage == 0 {
 			break
 		}
 		opt.Page = resp.NextPage
 	}
-	return repos, nil
+	return allRepo, nil
 }
 
-func filterRepository(repos []*github.Repository, pattern string) []*github.Repository {
-	var filteredRepos []*github.Repository
+func setRepositoryFinding(repos []*github.Repository, pattern string, findings *[]repositoryFinding) {
 	for _, repo := range repos {
 		if strings.Contains(*repo.Name, pattern) {
-			filteredRepos = append(filteredRepos, repo)
+			*findings = append(*findings, repositoryFinding{
+				ID:          repo.ID,
+				Name:        repo.Name,
+				FullName:    repo.FullName,
+				Description: repo.Description,
+				CloneURL:    repo.CloneURL,
+				Fork:        repo.Fork,
+				Archived:    repo.Archived,
+				Disabled:    repo.Disabled,
+				Visibility:  repo.Visibility,
+				CreatedAt:   repo.CreatedAt,
+				PushedAt:    repo.PushedAt,
+				UpdatedAt:   repo.UpdatedAt,
+			})
 		}
 	}
-	return filteredRepos
 }
