@@ -54,6 +54,12 @@ network:
 run: go-test network
 	. env.sh && docker-compose up -d --build
 
+run-code: go-test network
+	. env.sh && docker-compose up -d --build code
+
+run-gitleaks: go-test network
+	. env.sh && docker-compose up -d --build gitleaks
+
 log:
 	. env.sh && docker-compose logs -f
 

@@ -32,7 +32,7 @@ list-gitleaks:
 put-gitleaks:
 	grpcurl \
 		-plaintext \
-		-d '{"project_id":1001, "gitleaks": {"gitleaks_id":1002, "code_data_source_id":1001, "name":"test-gitleaks", "project_id":1001, "type":1, "target_resource":"CyberAgent/mimosa-code", "github_user":"mimosa-bot", "personal_access_token":"miomsa-bot-PAT", "status":1, "status_detail":"status detail", "scan_at": 1605816082}}' \
+		-d '{"project_id":1001, "gitleaks": {"gitleaks_id":1001, "code_data_source_id":1001, "name":"test-gitleaks", "project_id":1001, "type":2, "target_resource":"gitleakstest", "github_user":"", "personal_access_token":"", "status":1}}' \
 		localhost:10001 code.code.CodeService.PutGitleaks
 
 .PHONY: delete-gitleaks
