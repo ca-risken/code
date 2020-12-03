@@ -206,18 +206,22 @@ func (s *sqsHandler) setLastScanedAt(ctx context.Context, projectID uint32, f *r
 		appLogger.Errorf("Failed to ListResource, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 		return err
 	}
-	for _, resourceID := range resp.ResourceId {
-		resp, err := s.findingClient.GetResource(ctx, &finding.GetResourceRequest{
-			ProjectId:  projectID,
-			ResourceId: resourceID,
-		})
-		if err != nil {
-			appLogger.Errorf("Failed to GetResource, project_id=%d, resource_id=%d, err=%+v", projectID, resourceID, err)
-			return err
-		}
-		*f.LastScanedAt = time.Unix(resp.Resource.UpdatedAt, 0)
-		break
+	if len(resp.ResourceId) < 1 {
+		return nil
 	}
+	resourceID := resp.ResourceId[0]
+	resp2, err := s.findingClient.GetResource(ctx, &finding.GetResourceRequest{
+		ProjectId:  projectID,
+		ResourceId: resourceID,
+	})
+	if err != nil {
+		appLogger.Errorf("Failed to GetResource, project_id=%d, resource_id=%d, err=%+v", projectID, resourceID, err)
+		return err
+	}
+	if resp2 == nil || resp2.Resource == nil {
+		return nil
+	}
+	f.LastScanedAt = time.Unix(resp2.Resource.UpdatedAt, 0)
 	return nil
 }
 

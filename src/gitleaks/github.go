@@ -72,11 +72,11 @@ type repositoryFinding struct {
 	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
 
 	LeakFindings []*leakFinding `json:"leak_findings,omitempty"`
-	LastScanedAt *time.Time     `json:"last_scaned_at"`
+	LastScanedAt time.Time      `json:"last_scaned_at"`
 }
 
 func (r *repositoryFinding) alreadyScaned() bool {
-	if r.PushedAt != nil && r.LastScanedAt != nil {
+	if r.PushedAt != nil {
 		return r.PushedAt.Time.Unix() <= r.LastScanedAt.Unix()
 	}
 	return false

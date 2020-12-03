@@ -16,7 +16,6 @@ func (c *codeRepository) ListDataSource(codeDataSourceID uint32, name string) (*
 		query += " and code_data_source_id = ?"
 		params = append(params, codeDataSourceID)
 	}
-	params = append(params, codeDataSourceID)
 	if !zero.IsZeroVal(name) {
 		query += " and name = ?"
 		params = append(params, name)
