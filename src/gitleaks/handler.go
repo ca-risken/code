@@ -6,6 +6,7 @@ import (
 	"crypto/cipher"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/CyberAgent/mimosa-code/pkg/common"
@@ -192,6 +193,11 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 		s.tagFinding(ctx, common.TagCode, resp.Finding.FindingId, resp.Finding.ProjectId)
 		s.tagFinding(ctx, common.TagGitleaks, resp.Finding.FindingId, resp.Finding.ProjectId)
 		s.tagFinding(ctx, *f.Visibility, resp.Finding.FindingId, resp.Finding.ProjectId)
+		if leak.Tags != "" {
+			for _, tag := range strings.Split(leak.Tags, ",") {
+				s.tagFinding(ctx, strings.TrimSpace(tag), resp.Finding.FindingId, resp.Finding.ProjectId)
+			}
+		}
 		appLogger.Infof("Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
 	}
 	return nil
