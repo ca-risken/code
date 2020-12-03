@@ -286,5 +286,30 @@ func scoreGitleaks(f *repositoryFinding) float32 {
 	if len(f.LeakFindings) < 1 {
 		return 0.1
 	}
+	for _, leak := range f.LeakFindings {
+		if leak.Tags == "" {
+			continue
+		}
+		for _, tag := range strings.Split(leak.Tags, ",") {
+			if existsCriticalTag(strings.TrimSpace(tag)) {
+				return 0.8
+			}
+		}
+	}
 	return 0.6
+}
+
+// https://github.com/zricethezav/gitleaks/blob/master/config/default.go
+var criticalTag = []string{
+	"AWS",
+	"google",
+}
+
+func existsCriticalTag(tag string) bool {
+	for _, t := range criticalTag {
+		if t == tag {
+			return true
+		}
+	}
+	return false
 }
