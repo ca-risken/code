@@ -28,12 +28,15 @@ message Gitleaks {
   string repository_pattern = 7;
   string github_user = 8;
   string personal_access_token = 9;
-  string gitleaks_config = 10;
-  Status status = 11;
-  string status_detail = 12;
-  int64 scan_at = 13;
-  int64 created_at = 14;
-  int64 updated_at = 15;
+  bool scan_pubilc = 10;
+  bool scan_internal = 11;
+  bool scan_private = 12;
+  string gitleaks_config = 13;
+  Status status = 14;
+  string status_detail = 15;
+  int64 scan_at = 16;
+  int64 created_at = 17;
+  int64 updated_at = 18;
 }
 
 // Type
@@ -64,8 +67,27 @@ message GitleaksForUpsert {
   string repository_pattern = 7;
   string github_user = 8;
   string personal_access_token = 9;
-  string gitleaks_config = 10;
-  Status status = 11;
-  string status_detail = 12;
-  int64 scan_at = 13;
+  bool scan_pubilc = 10;
+  bool scan_internal = 11;
+  bool scan_private = 12;
+  string gitleaks_config = 13;
+  Status status = 14;
+  string status_detail = 15;
+  int64 scan_at = 16;
+}
+
+// EnterpriseOrg
+message EnterpriseOrg {
+  uint32 gitleaks_id = 1;
+  string login = 2;
+  uint32 project_id = 3;
+  int64 created_at = 4;
+  int64 updated_at = 5;
+}
+
+// EnterpriseOrgForUpsert
+message EnterpriseOrgForUpsert {
+  uint32 gitleaks_id = 1;
+  string login = 2;
+  uint32 project_id = 3;
 }

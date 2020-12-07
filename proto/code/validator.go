@@ -43,6 +43,35 @@ func (d *DeleteGitleaksRequest) Validate() error {
 	)
 }
 
+// Validate ListGitleaksRequest
+func (l *ListEnterpriseOrgRequest) Validate() error {
+	return validation.ValidateStruct(l,
+		validation.Field(&l.GitleaksId, validation.Required),
+		validation.Field(&l.ProjectId, validation.Required),
+	)
+}
+
+// Validate PutGitleaksRequest
+func (p *PutEnterpriseOrgRequest) Validate() error {
+	if p.EnterpriseOrg == nil {
+		return errors.New("Required EnterpriseOrg")
+	}
+	if err := validation.ValidateStruct(p,
+		validation.Field(&p.ProjectId, validation.Required, validation.In(p.EnterpriseOrg.ProjectId)),
+	); err != nil {
+		return err
+	}
+	return p.EnterpriseOrg.Validate()
+}
+
+// Validate DeleteGitleaksRequest
+func (d *DeleteEnterpriseOrgRequest) Validate() error {
+	return validation.ValidateStruct(d,
+		validation.Field(&d.ProjectId, validation.Required),
+		validation.Field(&d.GitleaksId, validation.Required),
+	)
+}
+
 // Validate InvokeScanRequest
 func (i *InvokeScanGitleaksRequest) Validate() error {
 	return validation.ValidateStruct(i,
@@ -69,6 +98,15 @@ func (g *GitleaksForUpsert) Validate() error {
 		// validation.Field(&g.Status, validation.In(Status_CONFIGURED, Status_NOT_CONFIGURED, Status_OK, Status_ERROR)),
 		validation.Field(&g.StatusDetail, validation.Length(0, 255)),
 		validation.Field(&g.ScanAt, validation.Min(0), validation.Max(253402268399)), //  1970-01-01T00:00:00 ~ 9999-12-31T23:59:59
+	)
+}
+
+// Validate EnterpriseOrgForUpsert
+func (e *EnterpriseOrgForUpsert) Validate() error {
+	return validation.ValidateStruct(e,
+		validation.Field(&e.GitleaksId, validation.Required),
+		validation.Field(&e.Login, validation.Required, validation.Length(0, 128)),
+		validation.Field(&e.ProjectId, validation.Required),
 	)
 }
 

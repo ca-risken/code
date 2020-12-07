@@ -144,6 +144,109 @@ func TestValidate_DeleteGitleaksRequest(t *testing.T) {
 	}
 }
 
+func TestValidate_ListEnterpriseOrgRequest(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   *ListEnterpriseOrgRequest
+		wantErr bool
+	}{
+		{
+			name:  "OK",
+			input: &ListEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
+		},
+		{
+			name:    "NG Required(project_id)",
+			input:   &ListEnterpriseOrgRequest{GitleaksId: 1},
+			wantErr: true,
+		},
+		{
+			name:    "NG Required(gitleaks_id)",
+			input:   &ListEnterpriseOrgRequest{ProjectId: 1},
+			wantErr: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.input.Validate()
+			if c.wantErr && err == nil {
+				t.Fatal("Unexpected no error")
+			} else if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: wantErr=%t, err=%+v", c.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestValidate_PutEnterpriseOrgRequest(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   *PutEnterpriseOrgRequest
+		wantErr bool
+	}{
+		{
+			name: "OK",
+			input: &PutEnterpriseOrgRequest{ProjectId: 1, EnterpriseOrg: &EnterpriseOrgForUpsert{
+				GitleaksId: 1, ProjectId: 1, Login: "login",
+			}},
+		},
+		{
+			name:    "NG No enterprise_org",
+			input:   &PutEnterpriseOrgRequest{ProjectId: 1},
+			wantErr: true,
+		},
+		{
+			name: "NG Invalid project_id",
+			input: &PutEnterpriseOrgRequest{ProjectId: 999, EnterpriseOrg: &EnterpriseOrgForUpsert{
+				GitleaksId: 1, ProjectId: 1, Login: "login",
+			}},
+			wantErr: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.input.Validate()
+			if c.wantErr && err == nil {
+				t.Fatal("Unexpected no error")
+			} else if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: wantErr=%t, err=%+v", c.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestValidate_DeleteEnterpriseOrgRequest(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   *DeleteEnterpriseOrgRequest
+		wantErr bool
+	}{
+		{
+			name:  "OK",
+			input: &DeleteEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
+		},
+		{
+			name:    "NG Required(project_id)",
+			input:   &DeleteEnterpriseOrgRequest{GitleaksId: 1},
+			wantErr: true,
+		},
+		{
+			name:    "NG Required(gitleaks_id)",
+			input:   &DeleteEnterpriseOrgRequest{ProjectId: 1},
+			wantErr: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.input.Validate()
+			if c.wantErr && err == nil {
+				t.Fatal("Unexpected no error")
+			} else if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: wantErr=%t, err=%+v", c.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestValidate_InvokeScanGitleaksRequest(t *testing.T) {
 	cases := []struct {
 		name    string

@@ -5,6 +5,8 @@
 
 - [code/entity.proto](#code/entity.proto)
     - [CodeDataSource](#code.code.CodeDataSource)
+    - [EnterpriseOrg](#code.code.EnterpriseOrg)
+    - [EnterpriseOrgForUpsert](#code.code.EnterpriseOrgForUpsert)
     - [Gitleaks](#code.code.Gitleaks)
     - [GitleaksForUpsert](#code.code.GitleaksForUpsert)
   
@@ -12,12 +14,17 @@
     - [Type](#code.code.Type)
   
 - [code/service.proto](#code/service.proto)
+    - [DeleteEnterpriseOrgRequest](#code.code.DeleteEnterpriseOrgRequest)
     - [DeleteGitleaksRequest](#code.code.DeleteGitleaksRequest)
     - [InvokeScanGitleaksRequest](#code.code.InvokeScanGitleaksRequest)
     - [ListDataSourceRequest](#code.code.ListDataSourceRequest)
     - [ListDataSourceResponse](#code.code.ListDataSourceResponse)
+    - [ListEnterpriseOrgRequest](#code.code.ListEnterpriseOrgRequest)
+    - [ListEnterpriseOrgResponse](#code.code.ListEnterpriseOrgResponse)
     - [ListGitleaksRequest](#code.code.ListGitleaksRequest)
     - [ListGitleaksResponse](#code.code.ListGitleaksResponse)
+    - [PutEnterpriseOrgRequest](#code.code.PutEnterpriseOrgRequest)
+    - [PutEnterpriseOrgResponse](#code.code.PutEnterpriseOrgResponse)
     - [PutGitleaksRequest](#code.code.PutGitleaksRequest)
     - [PutGitleaksResponse](#code.code.PutGitleaksResponse)
   
@@ -54,6 +61,42 @@ CodeDataSource
 
 
 
+<a name="code.code.EnterpriseOrg"></a>
+
+### EnterpriseOrg
+EnterpriseOrg
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| gitleaks_id | [uint32](#uint32) |  |  |
+| login | [string](#string) |  |  |
+| project_id | [uint32](#uint32) |  |  |
+| created_at | [int64](#int64) |  |  |
+| updated_at | [int64](#int64) |  |  |
+
+
+
+
+
+
+<a name="code.code.EnterpriseOrgForUpsert"></a>
+
+### EnterpriseOrgForUpsert
+EnterpriseOrgForUpsert
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| gitleaks_id | [uint32](#uint32) |  |  |
+| login | [string](#string) |  |  |
+| project_id | [uint32](#uint32) |  |  |
+
+
+
+
+
+
 <a name="code.code.Gitleaks"></a>
 
 ### Gitleaks
@@ -71,6 +114,9 @@ Gitleaks
 | repository_pattern | [string](#string) |  |  |
 | github_user | [string](#string) |  |  |
 | personal_access_token | [string](#string) |  |  |
+| scan_pubilc | [bool](#bool) |  |  |
+| scan_internal | [bool](#bool) |  |  |
+| scan_private | [bool](#bool) |  |  |
 | gitleaks_config | [string](#string) |  |  |
 | status | [Status](#code.code.Status) |  |  |
 | status_detail | [string](#string) |  |  |
@@ -100,6 +146,9 @@ GitleaksForUpsert
 | repository_pattern | [string](#string) |  |  |
 | github_user | [string](#string) |  |  |
 | personal_access_token | [string](#string) |  |  |
+| scan_pubilc | [bool](#bool) |  |  |
+| scan_internal | [bool](#bool) |  |  |
+| scan_private | [bool](#bool) |  |  |
 | gitleaks_config | [string](#string) |  |  |
 | status | [Status](#code.code.Status) |  |  |
 | status_detail | [string](#string) |  |  |
@@ -152,6 +201,22 @@ Type
 <p align="right"><a href="#top">Top</a></p>
 
 ## code/service.proto
+
+
+
+<a name="code.code.DeleteEnterpriseOrgRequest"></a>
+
+### DeleteEnterpriseOrgRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| project_id | [uint32](#uint32) |  |  |
+| gitleaks_id | [uint32](#uint32) |  |  |
+
+
+
 
 
 
@@ -218,6 +283,37 @@ Type
 
 
 
+<a name="code.code.ListEnterpriseOrgRequest"></a>
+
+### ListEnterpriseOrgRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| project_id | [uint32](#uint32) |  |  |
+| gitleaks_id | [uint32](#uint32) |  |  |
+
+
+
+
+
+
+<a name="code.code.ListEnterpriseOrgResponse"></a>
+
+### ListEnterpriseOrgResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| enterprise_org | [EnterpriseOrg](#code.code.EnterpriseOrg) | repeated |  |
+
+
+
+
+
+
 <a name="code.code.ListGitleaksRequest"></a>
 
 ### ListGitleaksRequest
@@ -244,6 +340,37 @@ Type
 | Field | Type | Label | Description |
 | ----- | ---- | ----- | ----------- |
 | gitleaks | [Gitleaks](#code.code.Gitleaks) | repeated |  |
+
+
+
+
+
+
+<a name="code.code.PutEnterpriseOrgRequest"></a>
+
+### PutEnterpriseOrgRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| project_id | [uint32](#uint32) |  |  |
+| enterprise_org | [EnterpriseOrgForUpsert](#code.code.EnterpriseOrgForUpsert) |  |  |
+
+
+
+
+
+
+<a name="code.code.PutEnterpriseOrgResponse"></a>
+
+### PutEnterpriseOrgResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| enterprise_org | [EnterpriseOrg](#code.code.EnterpriseOrg) |  |  |
 
 
 
@@ -298,6 +425,9 @@ Type
 | ListGitleaks | [ListGitleaksRequest](#code.code.ListGitleaksRequest) | [ListGitleaksResponse](#code.code.ListGitleaksResponse) | Gitleaks |
 | PutGitleaks | [PutGitleaksRequest](#code.code.PutGitleaksRequest) | [PutGitleaksResponse](#code.code.PutGitleaksResponse) |  |
 | DeleteGitleaks | [DeleteGitleaksRequest](#code.code.DeleteGitleaksRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) |  |
+| ListEnterpriseOrg | [ListEnterpriseOrgRequest](#code.code.ListEnterpriseOrgRequest) | [ListEnterpriseOrgResponse](#code.code.ListEnterpriseOrgResponse) | Enterprise |
+| PutEnterpriseOrg | [PutEnterpriseOrgRequest](#code.code.PutEnterpriseOrgRequest) | [PutEnterpriseOrgResponse](#code.code.PutEnterpriseOrgResponse) |  |
+| DeleteEnterpriseOrg | [DeleteEnterpriseOrgRequest](#code.code.DeleteEnterpriseOrgRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) |  |
 | InvokeScanGitleaks | [InvokeScanGitleaksRequest](#code.code.InvokeScanGitleaksRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) | Scan
 
 For ondeamnd |

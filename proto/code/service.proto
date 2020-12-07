@@ -15,6 +15,14 @@ service CodeService {
   rpc PutGitleaks(PutGitleaksRequest) returns (PutGitleaksResponse);
   rpc DeleteGitleaks(DeleteGitleaksRequest) returns (google.protobuf.Empty);
 
+  // Enterprise
+  rpc ListEnterpriseOrg(ListEnterpriseOrgRequest)
+      returns (ListEnterpriseOrgResponse);
+  rpc PutEnterpriseOrg(PutEnterpriseOrgRequest)
+      returns (PutEnterpriseOrgResponse);
+  rpc DeleteEnterpriseOrg(DeleteEnterpriseOrgRequest)
+      returns (google.protobuf.Empty);
+
   // Scan
   rpc InvokeScanGitleaks(InvokeScanGitleaksRequest)
       returns (google.protobuf.Empty); // For ondeamnd
@@ -45,6 +53,25 @@ message PutGitleaksRequest {
 message PutGitleaksResponse { Gitleaks gitleaks = 1; }
 
 message DeleteGitleaksRequest {
+  uint32 project_id = 1;
+  uint32 gitleaks_id = 2;
+}
+
+message ListEnterpriseOrgRequest {
+  uint32 project_id = 1;
+  uint32 gitleaks_id = 2;
+}
+
+message ListEnterpriseOrgResponse { repeated EnterpriseOrg enterprise_org = 1; }
+
+message PutEnterpriseOrgRequest {
+  uint32 project_id = 1;
+  EnterpriseOrgForUpsert enterprise_org = 2;
+}
+
+message PutEnterpriseOrgResponse { EnterpriseOrg enterprise_org = 1; }
+
+message DeleteEnterpriseOrgRequest {
   uint32 project_id = 1;
   uint32 gitleaks_id = 2;
 }

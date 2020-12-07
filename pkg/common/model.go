@@ -23,10 +23,22 @@ type CodeGitleaks struct {
 	RepositoryPattern   string
 	GithubUser          string
 	PersonalAccessToken string
+	ScanPublic          bool
+	ScanInternal        bool
+	ScanPrivate         bool
 	GitleaksConfig      string
 	Status              string
 	StatusDetail        string
 	ScanAt              time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
+}
+
+// CodeEnterpriseOrg entity
+type CodeEnterpriseOrg struct {
+	GitleaksID uint32 `gorm:"primary_key"`
+	Login      string `gorm:"primary_key"`
+	ProjectID  uint32
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
