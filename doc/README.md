@@ -114,7 +114,7 @@ Gitleaks
 | repository_pattern | [string](#string) |  |  |
 | github_user | [string](#string) |  |  |
 | personal_access_token | [string](#string) |  |  |
-| scan_pubilc | [bool](#bool) |  |  |
+| scan_public | [bool](#bool) |  |  |
 | scan_internal | [bool](#bool) |  |  |
 | scan_private | [bool](#bool) |  |  |
 | gitleaks_config | [string](#string) |  |  |
@@ -146,7 +146,7 @@ GitleaksForUpsert
 | repository_pattern | [string](#string) |  |  |
 | github_user | [string](#string) |  |  |
 | personal_access_token | [string](#string) |  |  |
-| scan_pubilc | [bool](#bool) |  |  |
+| scan_public | [bool](#bool) |  |  |
 | scan_internal | [bool](#bool) |  |  |
 | scan_private | [bool](#bool) |  |  |
 | gitleaks_config | [string](#string) |  |  |

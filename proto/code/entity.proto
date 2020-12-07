@@ -28,7 +28,7 @@ message Gitleaks {
   string repository_pattern = 7;
   string github_user = 8;
   string personal_access_token = 9;
-  bool scan_pubilc = 10;
+  bool scan_public = 10;
   bool scan_internal = 11;
   bool scan_private = 12;
   string gitleaks_config = 13;
@@ -67,7 +67,7 @@ message GitleaksForUpsert {
   string repository_pattern = 7;
   string github_user = 8;
   string personal_access_token = 9;
-  bool scan_pubilc = 10;
+  bool scan_public = 10;
   bool scan_internal = 11;
   bool scan_private = 12;
   string gitleaks_config = 13;
