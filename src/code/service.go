@@ -240,10 +240,10 @@ func (c *codeService) DeleteEnterpriseOrg(ctx context.Context, req *code.DeleteE
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	// err := c.repository.DeleteEnterpriseOrg(req.ProjectId, req.GitleaksId, req.Login)
-	// if err != nil {
-	// 	return nil, err
-	// }
+	err := c.repository.DeleteEnterpriseOrg(req.ProjectId, req.GitleaksId, req.Login)
+	if err != nil {
+		return nil, err
+	}
 	return &empty.Empty{}, nil
 }
 

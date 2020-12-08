@@ -12,6 +12,7 @@ service CodeService {
 
   // Gitleaks
   rpc ListGitleaks(ListGitleaksRequest) returns (ListGitleaksResponse);
+  rpc GetGitleaks(GetGitleaksRequest) returns (GetGitleaksResponse);
   rpc PutGitleaks(PutGitleaksRequest) returns (PutGitleaksResponse);
   rpc DeleteGitleaks(DeleteGitleaksRequest) returns (google.protobuf.Empty);
 
@@ -44,6 +45,13 @@ message ListGitleaksRequest {
 }
 
 message ListGitleaksResponse { repeated Gitleaks gitleaks = 1; }
+
+message GetGitleaksRequest {
+  uint32 project_id = 1;
+  uint32 gitleaks_id = 2;
+}
+
+message GetGitleaksResponse { Gitleaks gitleaks = 1; }
 
 message PutGitleaksRequest {
   uint32 project_id = 1;

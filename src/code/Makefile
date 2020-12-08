@@ -42,6 +42,27 @@ delete-gitleaks:
 		-d '{"project_id":1001, "gitleaks_id":1002}' \
 		localhost:10001 code.code.CodeService.DeleteGitleaks
 
+.PHONY: list-enterprise-org
+list-enterprise-org:
+	grpcurl \
+		-plaintext \
+		-d '{"project_id": 1001, "gitleaks_id":1001}' \
+		localhost:10001 code.code.CodeService.ListEnterpriseOrg
+
+.PHONY: put-enterprise-org
+put-enterprise-org:
+	grpcurl \
+		-plaintext \
+		-d '{"project_id":1001, "enterprise_org": {"gitleaks_id":1001, "login":"login", "project_id":1001}}' \
+		localhost:10001 code.code.CodeService.PutEnterpriseOrg
+
+.PHONY: delete-enterprise-org
+delete-enterprise-org:
+	grpcurl \
+		-plaintext \
+		-d '{"project_id":1001, "gitleaks_id":1001, "login": "login"}' \
+		localhost:10001 code.code.CodeService.DeleteEnterpriseOrg
+
 .PHONY: invoke-scan-gitleaks
 invoke-scan-gitleaks:
 	grpcurl \

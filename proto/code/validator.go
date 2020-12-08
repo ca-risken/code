@@ -22,6 +22,14 @@ func (l *ListGitleaksRequest) Validate() error {
 	)
 }
 
+// Validate ListGitleaksRequest
+func (l *GetGitleaksRequest) Validate() error {
+	return validation.ValidateStruct(l,
+		validation.Field(&l.ProjectId, validation.Required),
+		validation.Field(&l.GitleaksId, validation.Required),
+	)
+}
+
 // Validate PutGitleaksRequest
 func (p *PutGitleaksRequest) Validate() error {
 	if p.Gitleaks == nil {
