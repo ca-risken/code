@@ -244,6 +244,163 @@ func TestDeleteGitleaks(t *testing.T) {
 	}
 }
 
+func TestListEnterpriseOrg(t *testing.T) {
+	var ctx context.Context
+	now := time.Now()
+	mockDB := mockCodeRepository{}
+	svc := codeService{repository: &mockDB}
+	cases := []struct {
+		name         string
+		input        *code.ListEnterpriseOrgRequest
+		want         *code.ListEnterpriseOrgResponse
+		mockResponce *[]common.CodeEnterpriseOrg
+		mockError    error
+		wantErr      bool
+	}{
+		{
+			name:  "OK",
+			input: &code.ListEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
+			want: &code.ListEnterpriseOrgResponse{EnterpriseOrg: []*code.EnterpriseOrg{
+				{GitleaksId: 1, Login: "one", ProjectId: 1, CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+				{GitleaksId: 2, Login: "two", ProjectId: 1, CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+			}},
+			mockResponce: &[]common.CodeEnterpriseOrg{
+				{GitleaksID: 1, Login: "one", ProjectID: 1, CreatedAt: now, UpdatedAt: now},
+				{GitleaksID: 2, Login: "two", ProjectID: 1, CreatedAt: now, UpdatedAt: now},
+			},
+		},
+		{
+			name:      "OK empty",
+			input:     &code.ListEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
+			want:      &code.ListEnterpriseOrgResponse{},
+			mockError: gorm.ErrRecordNotFound,
+		},
+		{
+			name:    "NG invalid param",
+			input:   &code.ListEnterpriseOrgRequest{GitleaksId: 1},
+			wantErr: true,
+		},
+		{
+			name:      "NG DB error",
+			input:     &code.ListEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
+			mockError: gorm.ErrInvalidSQL,
+			wantErr:   true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if c.mockResponce != nil || c.mockError != nil {
+				mockDB.On("ListEnterpriseOrg").Return(c.mockResponce, c.mockError).Once()
+			}
+			got, err := svc.ListEnterpriseOrg(ctx, c.input)
+			if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: %+v", err)
+			}
+			if c.wantErr && err == nil {
+				t.Fatalf("Unexpected no error")
+			}
+			if !reflect.DeepEqual(c.want, got) {
+				t.Fatalf("Unexpected mapping: want=%+v, got=%+v", c.want, got)
+			}
+		})
+	}
+}
+
+func TestPutEnterpriseOrg(t *testing.T) {
+	var ctx context.Context
+	now := time.Now()
+	mockDB := mockCodeRepository{}
+	svc := codeService{repository: &mockDB}
+	cases := []struct {
+		name         string
+		input        *code.PutEnterpriseOrgRequest
+		want         *code.PutEnterpriseOrgResponse
+		mockResponce *common.CodeEnterpriseOrg
+		mockError    error
+		wantErr      bool
+	}{
+		{
+			name: "OK",
+			input: &code.PutEnterpriseOrgRequest{ProjectId: 1, EnterpriseOrg: &code.EnterpriseOrgForUpsert{
+				GitleaksId: 1, Login: "one", ProjectId: 1},
+			},
+			want: &code.PutEnterpriseOrgResponse{EnterpriseOrg: &code.EnterpriseOrg{
+				GitleaksId: 1, Login: "one", ProjectId: 1, CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+			},
+			mockResponce: &common.CodeEnterpriseOrg{
+				GitleaksID: 1, Login: "one", ProjectID: 1, CreatedAt: now, UpdatedAt: now,
+			},
+		},
+		{
+			name:    "NG invalid param",
+			input:   &code.PutEnterpriseOrgRequest{ProjectId: 1},
+			wantErr: true,
+		},
+		{
+			name: "NG DB error",
+			input: &code.PutEnterpriseOrgRequest{ProjectId: 1, EnterpriseOrg: &code.EnterpriseOrgForUpsert{
+				GitleaksId: 1, Login: "one", ProjectId: 1},
+			},
+			mockError: gorm.ErrInvalidSQL,
+			wantErr:   true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if c.mockResponce != nil || c.mockError != nil {
+				mockDB.On("UpsertEnterpriseOrg").Return(c.mockResponce, c.mockError).Once()
+			}
+			got, err := svc.PutEnterpriseOrg(ctx, c.input)
+			if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: %+v", err)
+			}
+			if c.wantErr && err == nil {
+				t.Fatalf("Unexpected no error")
+			}
+			if !reflect.DeepEqual(c.want, got) {
+				t.Fatalf("Unexpected mapping: want=%+v, got=%+v", c.want, got)
+			}
+		})
+	}
+}
+
+func TestDeleteEnterpriseOrg(t *testing.T) {
+	var ctx context.Context
+	mockDB := mockCodeRepository{}
+	svc := codeService{repository: &mockDB}
+	cases := []struct {
+		name      string
+		input     *code.DeleteEnterpriseOrgRequest
+		mockError error
+		wantErr   bool
+	}{
+		{
+			name:  "OK",
+			input: &code.DeleteEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1, Login: "login"},
+		},
+		{
+			name:    "NG invalid param",
+			input:   &code.DeleteEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
+			wantErr: true,
+		},
+		{
+			name:      "NG DB error",
+			input:     &code.DeleteEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1, Login: "login"},
+			mockError: gorm.ErrInvalidSQL,
+			wantErr:   true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mockDB.On("DeleteEnterpriseOrg").Return(c.mockError).Once()
+			_, err := svc.DeleteEnterpriseOrg(ctx, c.input)
+			if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: %+v", err)
+			}
+		})
+	}
+}
+
 type mockCodeRepository struct {
 	mock.Mock
 }
