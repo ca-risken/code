@@ -222,16 +222,21 @@ func TestValidate_DeleteEnterpriseOrgRequest(t *testing.T) {
 	}{
 		{
 			name:  "OK",
-			input: &DeleteEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
+			input: &DeleteEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1, Login: "lgoin"},
 		},
 		{
 			name:    "NG Required(project_id)",
-			input:   &DeleteEnterpriseOrgRequest{GitleaksId: 1},
+			input:   &DeleteEnterpriseOrgRequest{GitleaksId: 1, Login: "lgoin"},
 			wantErr: true,
 		},
 		{
 			name:    "NG Required(gitleaks_id)",
-			input:   &DeleteEnterpriseOrgRequest{ProjectId: 1},
+			input:   &DeleteEnterpriseOrgRequest{ProjectId: 1, Login: "lgoin"},
+			wantErr: true,
+		},
+		{
+			name:    "NG Required(login)",
+			input:   &DeleteEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
 			wantErr: true,
 		},
 	}
@@ -381,6 +386,49 @@ func TestValidate_GitleaksForUpsert(t *testing.T) {
 			input: &GitleaksForUpsert{
 				CodeDataSourceId: 1, Name: "name", ProjectId: 1, Type: Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, ScanAt: unixtime100000101T000000,
 			},
+			wantErr: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.input.Validate()
+			if c.wantErr && err == nil {
+				t.Fatal("Unexpected no error")
+			} else if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: wantErr=%t, err=%+v", c.wantErr, err)
+			}
+		})
+	}
+}
+
+func TestValidate_EnterpriseOrgForUpsert(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   *EnterpriseOrgForUpsert
+		wantErr bool
+	}{
+		{
+			name:  "OK",
+			input: &EnterpriseOrgForUpsert{GitleaksId: 1, Login: "login", ProjectId: 1},
+		},
+		{
+			name:    "NG Required(gitleaks_id)",
+			input:   &EnterpriseOrgForUpsert{Login: "login", ProjectId: 1},
+			wantErr: true,
+		},
+		{
+			name:    "NG Required(login)",
+			input:   &EnterpriseOrgForUpsert{GitleaksId: 1, ProjectId: 1},
+			wantErr: true,
+		},
+		{
+			name:    "NG Length(login)",
+			input:   &EnterpriseOrgForUpsert{GitleaksId: 1, Login: stringLength129, ProjectId: 1},
+			wantErr: true,
+		},
+		{
+			name:    "NG Required(project_id)",
+			input:   &EnterpriseOrgForUpsert{GitleaksId: 1, Login: "login"},
 			wantErr: true,
 		},
 	}

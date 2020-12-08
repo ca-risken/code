@@ -214,6 +214,7 @@ Type
 | ----- | ---- | ----- | ----------- |
 | project_id | [uint32](#uint32) |  |  |
 | gitleaks_id | [uint32](#uint32) |  |  |
+| login | [string](#string) |  |  |
 
 
 

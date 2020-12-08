@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/CyberAgent/mimosa-code/pkg/common"
@@ -52,7 +53,7 @@ func (c *codeRepository) ListGitleaks(projectID, codeDataSourceID, gitleaksID ui
 func (c *codeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
 	var updated common.CodeGitleaks
 	if err := c.MasterDB.
-		Where("gitleaks_id = ?", data.GitleaksId).
+		Where("gitleaks_id = ? and project_id ", data.GitleaksId, data.ProjectId).
 		Assign(map[string]interface{}{
 			"code_data_source_id":   data.CodeDataSourceId,
 			"name":                  convertZeroValueToNull(data.Name),
@@ -62,6 +63,9 @@ func (c *codeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.C
 			"repository_pattern":    convertZeroValueToNull(data.RepositoryPattern),
 			"github_user":           convertZeroValueToNull(data.GithubUser),
 			"personal_access_token": convertZeroValueToNull(data.PersonalAccessToken),
+			"scan_public":           fmt.Sprintf("%t", data.ScanPublic),
+			"scan_internal":         fmt.Sprintf("%t", data.ScanInternal),
+			"scan_private":          fmt.Sprintf("%t", data.ScanPrivate),
 			"gitleaks_config":       convertZeroValueToNull(data.GitleaksConfig),
 			"status":                data.Status.String(),
 			"status_detail":         convertZeroValueToNull(data.StatusDetail),
@@ -107,4 +111,53 @@ func (c *codeRepository) GetGitleaks(projectID, gitleaksID uint32) (*common.Code
 		return nil, err
 	}
 	return &data, nil
+}
+
+func (c *codeRepository) ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error) {
+	query := `select * from code_enterprise_org where 1=1`
+	var params []interface{}
+	if !zero.IsZeroVal(projectID) {
+		query += " and project_id = ?"
+		params = append(params, projectID)
+	}
+	if !zero.IsZeroVal(gitleaksID) {
+		query += " and gitleaks_id = ?"
+		params = append(params, gitleaksID)
+	}
+	data := []common.CodeEnterpriseOrg{}
+	if err := c.SlaveDB.Raw(query, params...).Scan(&data).Error; err != nil {
+		return nil, err
+	}
+	return &data, nil
+}
+
+func (c *codeRepository) UpsertEnterpriseOrg(data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error) {
+	var updated common.CodeEnterpriseOrg
+	if err := c.MasterDB.
+		Where("gitleaks_id=? and login=? and project_id=?", data.GitleaksId, data.Login, data.ProjectId).
+		Assign(map[string]interface{}{
+			"gitleaks_id": data.GitleaksId,
+			"login":       data.Login,
+			"project_id":  data.ProjectId,
+		}).
+		FirstOrCreate(&updated).
+		Error; err != nil {
+		return nil, err
+	}
+	return &common.CodeEnterpriseOrg{
+		GitleaksID: updated.GitleaksID,
+		Login:      updated.Login,
+		ProjectID:  data.ProjectId,
+		UpdatedAt:  updated.UpdatedAt,
+		CreatedAt:  updated.CreatedAt,
+	}, nil
+}
+
+const deleteEnterpriseOrg = `delete from code_enterprise_org where project_id=? and gitleaks_id=? and login=?`
+
+func (c *codeRepository) DeleteEnterpriseOrg(projectID, gitleaksID uint32, login string) error {
+	if err := c.MasterDB.Exec(deleteEnterpriseOrg, projectID, gitleaksID, login).Error; err != nil {
+		return err
+	}
+	return nil
 }

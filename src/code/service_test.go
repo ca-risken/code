@@ -96,12 +96,12 @@ func TestListGitleaks(t *testing.T) {
 			name:  "OK",
 			input: &code.ListGitleaksRequest{ProjectId: 1, CodeDataSourceId: 1},
 			want: &code.ListGitleaksResponse{Gitleaks: []*code.Gitleaks{
-				{GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
-				{GitleaksId: 2, CodeDataSourceId: 1, Name: "two", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+				{GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+				{GitleaksId: 2, CodeDataSourceId: 1, Name: "two", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
 			}},
 			mockResponce: &[]common.CodeGitleaks{
-				{GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now},
-				{GitleaksID: 2, CodeDataSourceID: 1, Name: "two", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now},
+				{GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now},
+				{GitleaksID: 2, CodeDataSourceID: 1, Name: "two", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now},
 			},
 		},
 		{
@@ -267,4 +267,17 @@ func (m *mockCodeRepository) DeleteGitleaks(projectID uint32, gitleaksID uint32)
 func (m *mockCodeRepository) GetGitleaks(projectID, gitleaksID uint32) (*common.CodeGitleaks, error) {
 	args := m.Called()
 	return args.Get(0).(*common.CodeGitleaks), args.Error(1)
+}
+
+func (m *mockCodeRepository) ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error) {
+	args := m.Called()
+	return args.Get(0).(*[]common.CodeEnterpriseOrg), args.Error(1)
+}
+func (m *mockCodeRepository) UpsertEnterpriseOrg(data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error) {
+	args := m.Called()
+	return args.Get(0).(*common.CodeEnterpriseOrg), args.Error(1)
+}
+func (m *mockCodeRepository) DeleteEnterpriseOrg(projectID, gitleaksID uint32, login string) error {
+	args := m.Called()
+	return args.Error(0)
 }
