@@ -12,11 +12,19 @@ import (
 )
 
 type codeRepoInterface interface {
+	// code_data_source
 	ListDataSource(codeDataSourceID uint32, name string) (*[]common.CodeDataSource, error)
+
+	// code_gitleaks
 	ListGitleaks(projectID, codeDataSourceID, gitleaksID uint32) (*[]common.CodeGitleaks, error)
 	UpsertGitleaks(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error)
 	DeleteGitleaks(projectID uint32, gitleaksID uint32) error
 	GetGitleaks(projectID, gitleaksID uint32) (*common.CodeGitleaks, error)
+
+	// code_enterprise_org
+	ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error)
+	UpsertEnterpriseOrg(data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error)
+	DeleteEnterpriseOrg(projectID, gitleaksID uint32, login string) error
 }
 
 type codeRepository struct {

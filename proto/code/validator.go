@@ -43,7 +43,7 @@ func (d *DeleteGitleaksRequest) Validate() error {
 	)
 }
 
-// Validate ListGitleaksRequest
+// Validate ListEnterpriseOrgRequest
 func (l *ListEnterpriseOrgRequest) Validate() error {
 	return validation.ValidateStruct(l,
 		validation.Field(&l.GitleaksId, validation.Required),
@@ -51,7 +51,7 @@ func (l *ListEnterpriseOrgRequest) Validate() error {
 	)
 }
 
-// Validate PutGitleaksRequest
+// Validate PutEnterpriseOrgRequest
 func (p *PutEnterpriseOrgRequest) Validate() error {
 	if p.EnterpriseOrg == nil {
 		return errors.New("Required EnterpriseOrg")
@@ -64,11 +64,12 @@ func (p *PutEnterpriseOrgRequest) Validate() error {
 	return p.EnterpriseOrg.Validate()
 }
 
-// Validate DeleteGitleaksRequest
+// Validate DeleteEnterpriseOrgRequest
 func (d *DeleteEnterpriseOrgRequest) Validate() error {
 	return validation.ValidateStruct(d,
 		validation.Field(&d.ProjectId, validation.Required),
 		validation.Field(&d.GitleaksId, validation.Required),
+		validation.Field(&d.Login, validation.Required),
 	)
 }
 

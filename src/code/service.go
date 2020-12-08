@@ -43,6 +43,20 @@ func newCodeService() code.CodeServiceServer {
 	}
 }
 
+func convertDataSource(data *common.CodeDataSource) *code.CodeDataSource {
+	if data == nil {
+		return &code.CodeDataSource{}
+	}
+	return &code.CodeDataSource{
+		CodeDataSourceId: data.CodeDataSourceID,
+		Name:             data.Name,
+		Description:      data.Description,
+		MaxScore:         data.MaxScore,
+		CreatedAt:        data.CreatedAt.Unix(),
+		UpdatedAt:        data.CreatedAt.Unix(),
+	}
+}
+
 func (c *codeService) ListDataSource(ctx context.Context, req *code.ListDataSourceRequest) (*code.ListDataSourceResponse, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err
@@ -61,18 +75,39 @@ func (c *codeService) ListDataSource(ctx context.Context, req *code.ListDataSour
 	return &data, nil
 }
 
-func convertDataSource(data *common.CodeDataSource) *code.CodeDataSource {
+const maskData = "xxxxxxxxxx"
+
+func convertGitleaks(data *common.CodeGitleaks) *code.Gitleaks {
+	var gitlekas code.Gitleaks
 	if data == nil {
-		return &code.CodeDataSource{}
+		return &gitlekas
 	}
-	return &code.CodeDataSource{
-		CodeDataSourceId: data.CodeDataSourceID,
-		Name:             data.Name,
-		Description:      data.Description,
-		MaxScore:         data.MaxScore,
-		CreatedAt:        data.CreatedAt.Unix(),
-		UpdatedAt:        data.CreatedAt.Unix(),
+	gitlekas = code.Gitleaks{
+		GitleaksId:          data.GitleaksID,
+		CodeDataSourceId:    data.CodeDataSourceID,
+		Name:                data.Name,
+		ProjectId:           data.ProjectID,
+		Type:                getType(data.Type),
+		TargetResource:      data.TargetResource,
+		RepositoryPattern:   data.RepositoryPattern,
+		GithubUser:          data.GithubUser,
+		PersonalAccessToken: data.PersonalAccessToken,
+		ScanPublic:          data.ScanPublic,
+		ScanInternal:        data.ScanInternal,
+		ScanPrivate:         data.ScanPrivate,
+		GitleaksConfig:      data.GitleaksConfig,
+		Status:              getStatus(data.Status),
+		StatusDetail:        data.StatusDetail,
+		CreatedAt:           data.CreatedAt.Unix(),
+		UpdatedAt:           data.CreatedAt.Unix(),
 	}
+	if gitlekas.PersonalAccessToken != "" {
+		gitlekas.PersonalAccessToken = maskData // Masking sensitive data.
+	}
+	if !zero.IsZeroVal(data.ScanAt) {
+		gitlekas.ScanAt = data.ScanAt.Unix()
+	}
+	return &gitlekas
 }
 
 func (c *codeService) ListGitleaks(ctx context.Context, req *code.ListGitleaksRequest) (*code.ListGitleaksResponse, error) {
@@ -110,38 +145,6 @@ func (c *codeService) PutGitleaks(ctx context.Context, req *code.PutGitleaksRequ
 		return nil, err
 	}
 	return &code.PutGitleaksResponse{Gitleaks: convertGitleaks(registerd)}, nil
-}
-
-const maskData = "xxxxxxxxxx"
-
-func convertGitleaks(data *common.CodeGitleaks) *code.Gitleaks {
-	var gitlekas code.Gitleaks
-	if data == nil {
-		return &gitlekas
-	}
-	gitlekas = code.Gitleaks{
-		GitleaksId:          data.GitleaksID,
-		CodeDataSourceId:    data.CodeDataSourceID,
-		Name:                data.Name,
-		ProjectId:           data.ProjectID,
-		Type:                getType(data.Type),
-		TargetResource:      data.TargetResource,
-		RepositoryPattern:   data.RepositoryPattern,
-		GithubUser:          data.GithubUser,
-		PersonalAccessToken: data.PersonalAccessToken,
-		GitleaksConfig:      data.GitleaksConfig,
-		Status:              getStatus(data.Status),
-		StatusDetail:        data.StatusDetail,
-		CreatedAt:           data.CreatedAt.Unix(),
-		UpdatedAt:           data.CreatedAt.Unix(),
-	}
-	if gitlekas.PersonalAccessToken != "" {
-		gitlekas.PersonalAccessToken = maskData // Masking sensitive data.
-	}
-	if !zero.IsZeroVal(data.ScanAt) {
-		gitlekas.ScanAt = data.ScanAt.Unix()
-	}
-	return &gitlekas
 }
 
 func (c *codeService) DeleteGitleaks(ctx context.Context, req *code.DeleteGitleaksRequest) (*empty.Empty, error) {
@@ -189,6 +192,59 @@ func getStatus(s string) code.Status {
 	default:
 		return code.Status_UNKNOWN
 	}
+}
+
+func convertEnterpriseOrg(data *common.CodeEnterpriseOrg) *code.EnterpriseOrg {
+	if data == nil {
+		return &code.EnterpriseOrg{}
+	}
+	return &code.EnterpriseOrg{
+		GitleaksId: data.GitleaksID,
+		Login:      data.Login,
+		ProjectId:  data.ProjectID,
+		CreatedAt:  data.CreatedAt.Unix(),
+		UpdatedAt:  data.CreatedAt.Unix(),
+	}
+}
+
+func (c *codeService) ListEnterpriseOrg(ctx context.Context, req *code.ListEnterpriseOrgRequest) (*code.ListEnterpriseOrgResponse, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	list, err := c.repository.ListEnterpriseOrg(req.ProjectId, req.GitleaksId)
+	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return &code.ListEnterpriseOrgResponse{}, nil
+		}
+		return nil, err
+	}
+	data := code.ListEnterpriseOrgResponse{}
+	for _, d := range *list {
+		data.EnterpriseOrg = append(data.EnterpriseOrg, convertEnterpriseOrg(&d))
+	}
+	return &data, nil
+}
+
+func (c *codeService) PutEnterpriseOrg(ctx context.Context, req *code.PutEnterpriseOrgRequest) (*code.PutEnterpriseOrgResponse, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	registerd, err := c.repository.UpsertEnterpriseOrg(req.EnterpriseOrg)
+	if err != nil {
+		return nil, err
+	}
+	return &code.PutEnterpriseOrgResponse{EnterpriseOrg: convertEnterpriseOrg(registerd)}, nil
+}
+
+func (c *codeService) DeleteEnterpriseOrg(ctx context.Context, req *code.DeleteEnterpriseOrgRequest) (*empty.Empty, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	// err := c.repository.DeleteEnterpriseOrg(req.ProjectId, req.GitleaksId, req.Login)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	return &empty.Empty{}, nil
 }
 
 func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeScanGitleaksRequest) (*empty.Empty, error) {
