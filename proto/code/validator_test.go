@@ -73,6 +73,39 @@ func TestValidate_ListGitleaksRequest(t *testing.T) {
 	}
 }
 
+func TestValidate_GetGitleaksRequest(t *testing.T) {
+	cases := []struct {
+		name    string
+		input   *GetGitleaksRequest
+		wantErr bool
+	}{
+		{
+			name:  "OK",
+			input: &GetGitleaksRequest{ProjectId: 1, GitleaksId: 1},
+		},
+		{
+			name:    "NG Required(project_id)",
+			input:   &GetGitleaksRequest{GitleaksId: 1},
+			wantErr: true,
+		},
+		{
+			name:    "NG Required(gitleaks_id)",
+			input:   &GetGitleaksRequest{ProjectId: 1},
+			wantErr: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.input.Validate()
+			if c.wantErr && err == nil {
+				t.Fatal("Unexpected no error")
+			} else if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: wantErr=%t, err=%+v", c.wantErr, err)
+			}
+		})
+	}
+}
+
 func TestValidate_PutGitleaksRequest(t *testing.T) {
 	now := time.Now()
 	cases := []struct {

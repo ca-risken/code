@@ -16,6 +16,8 @@
 - [code/service.proto](#code/service.proto)
     - [DeleteEnterpriseOrgRequest](#code.code.DeleteEnterpriseOrgRequest)
     - [DeleteGitleaksRequest](#code.code.DeleteGitleaksRequest)
+    - [GetGitleaksRequest](#code.code.GetGitleaksRequest)
+    - [GetGitleaksResponse](#code.code.GetGitleaksResponse)
     - [InvokeScanGitleaksRequest](#code.code.InvokeScanGitleaksRequest)
     - [ListDataSourceRequest](#code.code.ListDataSourceRequest)
     - [ListDataSourceResponse](#code.code.ListDataSourceResponse)
@@ -237,6 +239,37 @@ Type
 
 
 
+<a name="code.code.GetGitleaksRequest"></a>
+
+### GetGitleaksRequest
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| project_id | [uint32](#uint32) |  |  |
+| gitleaks_id | [uint32](#uint32) |  |  |
+
+
+
+
+
+
+<a name="code.code.GetGitleaksResponse"></a>
+
+### GetGitleaksResponse
+
+
+
+| Field | Type | Label | Description |
+| ----- | ---- | ----- | ----------- |
+| gitleaks | [Gitleaks](#code.code.Gitleaks) |  |  |
+
+
+
+
+
+
 <a name="code.code.InvokeScanGitleaksRequest"></a>
 
 ### InvokeScanGitleaksRequest
@@ -424,6 +457,7 @@ Type
 | ----------- | ------------ | ------------- | ------------|
 | ListDataSource | [ListDataSourceRequest](#code.code.ListDataSourceRequest) | [ListDataSourceResponse](#code.code.ListDataSourceResponse) | Code DataSource |
 | ListGitleaks | [ListGitleaksRequest](#code.code.ListGitleaksRequest) | [ListGitleaksResponse](#code.code.ListGitleaksResponse) | Gitleaks |
+| GetGitleaks | [GetGitleaksRequest](#code.code.GetGitleaksRequest) | [GetGitleaksResponse](#code.code.GetGitleaksResponse) |  |
 | PutGitleaks | [PutGitleaksRequest](#code.code.PutGitleaksRequest) | [PutGitleaksResponse](#code.code.PutGitleaksResponse) |  |
 | DeleteGitleaks | [DeleteGitleaksRequest](#code.code.DeleteGitleaksRequest) | [.google.protobuf.Empty](#google.protobuf.Empty) |  |
 | ListEnterpriseOrg | [ListEnterpriseOrgRequest](#code.code.ListEnterpriseOrgRequest) | [ListEnterpriseOrgResponse](#code.code.ListEnterpriseOrgResponse) | Enterprise |
