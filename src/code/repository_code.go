@@ -111,59 +111,6 @@ func (c *codeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.C
 		return nil, err
 	}
 	return c.GetGitleaksByUniqueIndex(data.ProjectId, data.CodeDataSourceId, data.Name)
-	// var updated common.CodeGitleaks
-	// if err := c.MasterDB.
-	// 	Where("gitleaks_id=? and project_id=?", data.GitleaksId, data.ProjectId).
-	// 	Assign(map[string]interface{}{
-	// 		"code_data_source_id":   data.CodeDataSourceId,
-	// 		"name":                  convertZeroValueToNull(data.Name),
-	// 		"project_id":            data.ProjectId,
-	// 		"type":                  data.Type.String(),
-	// 		"target_resource":       data.TargetResource,
-	// 		"repository_pattern":    convertZeroValueToNull(data.RepositoryPattern),
-	// 		"github_user":           convertZeroValueToNull(data.GithubUser),
-	// 		"personal_access_token": convertZeroValueToNull(data.PersonalAccessToken),
-	// 		// "scan_public":           fmt.Sprintf("%t", data.ScanPublic),
-	// 		// "scan_internal":         fmt.Sprintf("%t", data.ScanInternal),
-	// 		// "scan_private":          fmt.Sprintf("%t", data.ScanPrivate),
-	// 		"gitleaks_config": convertZeroValueToNull(data.GitleaksConfig),
-	// 		"status":          data.Status.String(),
-	// 		"status_detail":   convertZeroValueToNull(data.StatusDetail),
-	// 		"scan_at":         time.Unix(data.ScanAt, 0),
-	// 	}).
-	// 	FirstOrCreate(&updated).
-	// 	Error; err != nil {
-	// 	return nil, err
-	// }
-
-	// // scan settings
-	// if err := c.MasterDB.Exec(updateCodeGitleaksForScanSetting,
-	// 	fmt.Sprintf("%t", data.ScanPublic), fmt.Sprintf("%t", data.ScanInternal), fmt.Sprintf("%t", data.ScanPrivate),
-	// 	data.GitleaksId, data.ProjectId,
-	// ).Error; err != nil {
-	// 	return nil, err
-	// }
-
-	// return &common.CodeGitleaks{
-	// 	GitleaksID:          updated.GitleaksID,
-	// 	CodeDataSourceID:    data.CodeDataSourceId,
-	// 	Name:                data.Name,
-	// 	ProjectID:           data.ProjectId,
-	// 	Type:                data.Type.String(),
-	// 	TargetResource:      data.TargetResource,
-	// 	RepositoryPattern:   data.RepositoryPattern,
-	// 	GithubUser:          data.GithubUser,
-	// 	PersonalAccessToken: data.PersonalAccessToken,
-	// 	ScanPublic:          data.ScanPublic,
-	// 	ScanInternal:        data.ScanInternal,
-	// 	ScanPrivate:         data.ScanPrivate,
-	// 	GitleaksConfig:      data.GitleaksConfig,
-	// 	Status:              data.Status.String(),
-	// 	StatusDetail:        data.StatusDetail,
-	// 	ScanAt:              time.Unix(data.ScanAt, 0),
-	// 	UpdatedAt:           updated.UpdatedAt,
-	// 	CreatedAt:           updated.CreatedAt,
-	// }, nil
 }
 
 const deleteGitleaks = `delete from code_gitleaks where project_id=? and gitleaks_id=?`
@@ -207,7 +154,7 @@ func (c *codeRepository) ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]com
 		params = append(params, gitleaksID)
 	}
 	data := []common.CodeEnterpriseOrg{}
-	if err := c.SlaveDB.Raw(query, params...).Scan(&data).Error; err != nil {
+	if err := c.MasterDB.Raw(query, params...).Scan(&data).Error; err != nil {
 		return nil, err
 	}
 	return &data, nil

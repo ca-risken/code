@@ -35,7 +35,7 @@ func TestScoreGitleaks(t *testing.T) {
 				Name: github.String("danger_repository"),
 				LeakFindings: []*leakFinding{
 					{Tags: "aaa"},
-					{Tags: "AWS"}, // critical
+					{Tags: "AWS"}, // critical tag
 				},
 			},
 			want: 0.8,
