@@ -14,7 +14,8 @@ import (
 )
 
 type githubServiceClient interface {
-	listRepository(ctx context.Context, githubType code.Type, target, filter, token string, findings *[]repositoryFinding) error
+	listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, token, enterpriseName string) (*[]githubOrganization, error)
+	listRepository(ctx context.Context, config *code.Gitleaks, token string, findings *[]repositoryFinding) error
 }
 
 type githubClient struct {
@@ -82,29 +83,24 @@ func (r *repositoryFinding) alreadyScaned() bool {
 	return false
 }
 
-func (g *githubClient) listRepository(ctx context.Context, githubType code.Type, target, filter, token string, findings *[]repositoryFinding) error {
+func (g *githubClient) listRepository(ctx context.Context, config *code.Gitleaks, token string, findings *[]repositoryFinding) error {
 	var repos []*github.Repository
 	var err error
-	switch githubType {
-	case code.Type_ENTERPRISE:
-		repos, err = g.listEnterpriseRepository(ctx, token, target)
-		if err != nil {
-			return err
-		}
+	switch config.Type {
 	case code.Type_ORGANIZATION:
-		repos, err = g.listRepositoryForOrg(ctx, token, target)
+		repos, err = g.listRepositoryForOrg(ctx, config, token, config.TargetResource)
 		if err != nil {
 			return err
 		}
 	case code.Type_USER:
-		repos, err = g.listRepositoryForUser(ctx, token, target)
+		repos, err = g.listRepositoryForUser(ctx, config, token, config.TargetResource)
 		if err != nil {
 			return err
 		}
 	default:
-		return fmt.Errorf("Unknown github type: type=%+v", githubType)
+		return fmt.Errorf("Unknown github type: type=%+v", config.Type)
 	}
-	setRepositoryFinding(repos, filter, findings)
+	setRepositoryFinding(repos, config.RepositoryPattern, findings)
 	return nil
 }
 
@@ -112,7 +108,7 @@ type githubOrganization struct {
 	Login string
 }
 
-func (g *githubClient) listEnterpriseRepository(ctx context.Context, token, enterpriseName string) ([]*github.Repository, error) {
+func (g *githubClient) listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, token, enterpriseName string) (*[]githubOrganization, error) {
 	client := g.newV4Client(ctx, token)
 	var q struct {
 		Enterprise struct {
@@ -143,16 +139,7 @@ func (g *githubClient) listEnterpriseRepository(ctx context.Context, token, ente
 		variables["orgCursor"] = githubv4.NewString(q.Enterprise.Organizations.PageInfo.EndCursor)
 	}
 	appLogger.Debugf("Got organizations: %+v", q.Enterprise.Organizations.Nodes)
-
-	var allRepo []*github.Repository
-	for _, org := range allOrg {
-		repos, err := g.listRepositoryForOrg(ctx, token, org.Login)
-		if err != nil {
-			return nil, err
-		}
-		allRepo = append(allRepo, repos...)
-	}
-	return allRepo, nil
+	return &allOrg, nil
 }
 
 const (
@@ -161,24 +148,25 @@ const (
 	githubVisibilityPrivate  string = "private"
 )
 
-func (g *githubClient) listRepositoryForUser(ctx context.Context, token, login string) ([]*github.Repository, error) {
+func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.Gitleaks, token, login string) ([]*github.Repository, error) {
 	var allRepos []*github.Repository
 	// public
-	repos, err := g.listRepositoryForUserWithOption(ctx, token, login, githubVisibilityPublic)
-	if err != nil {
-		return nil, err
+	if config.ScanPublic {
+		repos, err := g.listRepositoryForUserWithOption(ctx, token, login, githubVisibilityPublic)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, repos...)
 	}
-	allRepos = append(allRepos, repos...)
 
 	// private
-	if token == "" {
-		return allRepos, nil // skip private repository
+	if config.ScanPrivate {
+		repos, err := g.listRepositoryForUserWithOption(ctx, token, login, githubVisibilityPrivate)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, repos...)
 	}
-	repos, err = g.listRepositoryForUserWithOption(ctx, token, login, githubVisibilityPrivate)
-	if err != nil {
-		return nil, err
-	}
-	allRepos = append(allRepos, repos...)
 	return allRepos, nil
 }
 
@@ -207,31 +195,34 @@ func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, toke
 	return allRepo, nil
 }
 
-func (g *githubClient) listRepositoryForOrg(ctx context.Context, token, login string) ([]*github.Repository, error) {
+func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gitleaks, token, login string) ([]*github.Repository, error) {
 	var allRepos []*github.Repository
 	// public
-	repos, err := g.listRepositoryForOrgWithOption(ctx, token, login, githubVisibilityPublic)
-	if err != nil {
-		return nil, err
+	if config.ScanPublic {
+		repos, err := g.listRepositoryForOrgWithOption(ctx, token, login, githubVisibilityPublic)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, repos...)
 	}
-	allRepos = append(allRepos, repos...)
 
 	// internal
-	repos, err = g.listRepositoryForOrgWithOption(ctx, token, login, githubVisibilityInternal)
-	if err != nil {
-		return nil, err
+	if config.ScanInternal {
+		repos, err := g.listRepositoryForOrgWithOption(ctx, token, login, githubVisibilityInternal)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, repos...)
 	}
-	allRepos = append(allRepos, repos...)
 
 	// private
-	if token == "" {
-		return allRepos, nil // skip private repository
+	if config.ScanPrivate {
+		repos, err := g.listRepositoryForOrgWithOption(ctx, token, login, githubVisibilityPrivate)
+		if err != nil {
+			return nil, err
+		}
+		allRepos = append(allRepos, repos...)
 	}
-	repos, err = g.listRepositoryForOrgWithOption(ctx, token, login, githubVisibilityPrivate)
-	if err != nil {
-		return nil, err
-	}
-	allRepos = append(allRepos, repos...)
 	return allRepos, nil
 }
 

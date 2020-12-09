@@ -62,70 +62,70 @@ func (s *sqsHandler) HandleMessage(msg *sqs.Message) error {
 	}
 
 	ctx := context.Background()
-	// Get saved configuration form codeService
-	scanStatus, err := s.getInitScanStatus(ctx, message.ProjectID, message.GitleaksID)
+	gitleaksConfig, err := s.getGitleaks(ctx, message.ProjectID, message.GitleaksID)
 	if err != nil {
 		appLogger.Errorf("Failed to get scan status: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
 		return err
 	}
-	decryptedKey, err := common.DecryptWithBase64(&s.cipherBlock, scanStatus.Gitleaks.PersonalAccessToken)
+	decryptedKey, err := common.DecryptWithBase64(&s.cipherBlock, gitleaksConfig.PersonalAccessToken)
 	if err != nil {
 		appLogger.Errorf("Failed to decrypted personal access token: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
-		return s.updateScanStatusError(ctx, scanStatus, err.Error())
+		return s.updateScanStatusError(ctx, s.initScanStatus(gitleaksConfig), err.Error())
 	}
+
+	// TODO delete
+	// appLogger.Debugf("encryptedKey: %s", gitleaksConfig.PersonalAccessToken)
+	// appLogger.Debugf("decryptedKey: %s", decryptedKey)
 
 	// Get repositories
 	findings := []repositoryFinding{}
-	if err := s.githubClient.listRepository(ctx,
-		scanStatus.Gitleaks.Type,
-		scanStatus.Gitleaks.TargetResource,
-		scanStatus.Gitleaks.RepositoryPattern,
-		decryptedKey,
-		&findings,
-	); err != nil {
+	if err := s.listRepository(ctx, gitleaksConfig, decryptedKey, &findings); err != nil {
 		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
-		return s.updateScanStatusError(ctx, scanStatus, err.Error())
+		return s.updateScanStatusError(ctx, s.initScanStatus(gitleaksConfig), err.Error())
 	}
-	appLogger.Debugf("Got repositories, count=%d", len(findings))
+	appLogger.Debugf("Got repositories, count=%d, target=%s", len(findings), gitleaksConfig.TargetResource)
 
 	for _, f := range findings {
 		// Set LastScanedAt
 		if err := s.setLastScanedAt(ctx, message.ProjectID, &f); err != nil {
 			appLogger.Errorf("Failed to set LastScanedAt: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
-			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+			return s.updateScanStatusError(ctx, s.initScanStatus(gitleaksConfig), err.Error())
 		}
 
 		// Scan repository
 		if err := s.gitleaksClient.scanRepository(ctx, decryptedKey, &f); err != nil {
 			appLogger.Errorf("Failed to scan repositories: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
-			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+			return s.updateScanStatusError(ctx, s.initScanStatus(gitleaksConfig), err.Error())
 		}
 
 		// Put finding
 		if err := s.putFindings(ctx, message.ProjectID, &f); err != nil {
 			appLogger.Errorf("Failed to put findngs: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
-			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+			return s.updateScanStatusError(ctx, s.initScanStatus(gitleaksConfig), err.Error())
 		}
-		if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
+		if err := s.updateScanStatusSuccess(ctx, s.initScanStatus(gitleaksConfig)); err != nil {
 			return err
 		}
 	}
 	return s.analyzeAlert(ctx, message.ProjectID)
 }
 
-func (s *sqsHandler) getInitScanStatus(ctx context.Context, projectID, gitleaksID uint32) (*code.PutGitleaksRequest, error) {
-	data, err := s.codeClient.ListGitleaks(ctx, &code.ListGitleaksRequest{
+func (s *sqsHandler) getGitleaks(ctx context.Context, projectID, gitleaksID uint32) (*code.Gitleaks, error) {
+	data, err := s.codeClient.GetGitleaks(ctx, &code.GetGitleaksRequest{
 		ProjectId:  projectID,
 		GitleaksId: gitleaksID,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if data == nil || len(data.Gitleaks) < 1 {
+	if data == nil || data.Gitleaks == nil {
 		return nil, fmt.Errorf("No data for scan gitleaks, project_id=%d, gitleaks_id=%d", projectID, gitleaksID)
 	}
-	g := data.Gitleaks[0]
-	scanStatus := code.PutGitleaksRequest{
+	return data.Gitleaks, nil
+}
+
+func (s *sqsHandler) initScanStatus(g *code.Gitleaks) *code.PutGitleaksRequest {
+	return &code.PutGitleaksRequest{
 		ProjectId: g.ProjectId,
 		Gitleaks: &code.GitleaksForUpsert{
 			GitleaksId:          g.GitleaksId,
@@ -136,6 +136,9 @@ func (s *sqsHandler) getInitScanStatus(ctx context.Context, projectID, gitleaksI
 			RepositoryPattern:   g.RepositoryPattern,
 			GithubUser:          g.GithubUser,
 			PersonalAccessToken: g.PersonalAccessToken,
+			ScanPublic:          g.ScanPublic,
+			ScanInternal:        g.ScanInternal,
+			ScanPrivate:         g.ScanPrivate,
 			GitleaksConfig:      g.GitleaksConfig,
 			ProjectId:           g.ProjectId,
 			ScanAt:              time.Now().Unix(),
@@ -143,7 +146,30 @@ func (s *sqsHandler) getInitScanStatus(ctx context.Context, projectID, gitleaksI
 			StatusDetail:        "",
 		},
 	}
-	return &scanStatus, nil
+}
+
+func (s *sqsHandler) listRepository(ctx context.Context, config *code.Gitleaks, token string, findings *[]repositoryFinding) error {
+	switch config.Type {
+	case code.Type_ENTERPRISE:
+		orgs, err := s.githubClient.listEnterpriseOrg(ctx, config, token, config.TargetResource)
+		if err != nil {
+			return err
+		}
+		for _, org := range *orgs {
+			config.Type = code.Type_ORGANIZATION
+			config.TargetResource = org.Login
+			if err := s.githubClient.listRepository(ctx, config, token, findings); err != nil {
+				return err
+			}
+		}
+	case code.Type_ORGANIZATION, code.Type_USER:
+		if err := s.githubClient.listRepository(ctx, config, token, findings); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("Unknown github type: type=%+v", config.Type)
+	}
+	return nil
 }
 
 func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repositoryFinding) error {

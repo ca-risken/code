@@ -77,7 +77,7 @@ func (c *codeService) ListDataSource(ctx context.Context, req *code.ListDataSour
 
 const maskData = "xxxxxxxxxx"
 
-func convertGitleaks(data *common.CodeGitleaks) *code.Gitleaks {
+func convertGitleaks(data *common.CodeGitleaks, maskKey bool) *code.Gitleaks {
 	var gitlekas code.Gitleaks
 	if data == nil {
 		return &gitlekas
@@ -101,7 +101,7 @@ func convertGitleaks(data *common.CodeGitleaks) *code.Gitleaks {
 		CreatedAt:           data.CreatedAt.Unix(),
 		UpdatedAt:           data.CreatedAt.Unix(),
 	}
-	if gitlekas.PersonalAccessToken != "" {
+	if gitlekas.PersonalAccessToken != "" && maskKey {
 		gitlekas.PersonalAccessToken = maskData // Masking sensitive data.
 	}
 	if !zero.IsZeroVal(data.ScanAt) {
@@ -123,9 +123,23 @@ func (c *codeService) ListGitleaks(ctx context.Context, req *code.ListGitleaksRe
 	}
 	data := code.ListGitleaksResponse{}
 	for _, d := range *list {
-		data.Gitleaks = append(data.Gitleaks, convertGitleaks(&d))
+		data.Gitleaks = append(data.Gitleaks, convertGitleaks(&d, true))
 	}
 	return &data, nil
+}
+
+func (c *codeService) GetGitleaks(ctx context.Context, req *code.GetGitleaksRequest) (*code.GetGitleaksResponse, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	data, err := c.repository.GetGitleaks(req.ProjectId, req.GitleaksId)
+	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return &code.GetGitleaksResponse{}, nil
+		}
+		return nil, err
+	}
+	return &code.GetGitleaksResponse{Gitleaks: convertGitleaks(data, false)}, nil
 }
 
 func (c *codeService) PutGitleaks(ctx context.Context, req *code.PutGitleaksRequest) (*code.PutGitleaksResponse, error) {
@@ -144,7 +158,7 @@ func (c *codeService) PutGitleaks(ctx context.Context, req *code.PutGitleaksRequ
 	if err != nil {
 		return nil, err
 	}
-	return &code.PutGitleaksResponse{Gitleaks: convertGitleaks(registerd)}, nil
+	return &code.PutGitleaksResponse{Gitleaks: convertGitleaks(registerd, true)}, nil
 }
 
 func (c *codeService) DeleteGitleaks(ctx context.Context, req *code.DeleteGitleaksRequest) (*empty.Empty, error) {
