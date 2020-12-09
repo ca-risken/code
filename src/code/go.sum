@@ -8,6 +8,8 @@ github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20201207121040-c3911a673833 
 github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20201207121040-c3911a673833/go.mod h1:eMdF9d3nrq23vOuMxDA6PgohVwi8a9U4PYoCSITzTmU=
 github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20201208024732-b7093f24f85a h1:In1JWlQtOVwT1umIH8+00Xt/a/sNxADTIluS7fHbtyc=
 github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20201208024732-b7093f24f85a/go.mod h1:eMdF9d3nrq23vOuMxDA6PgohVwi8a9U4PYoCSITzTmU=
+github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20201208133923-d1c0d55a18d0 h1:fdT5niy8bcisY7pEfyojNGwrutQTpLFqS8WBmDi3A3Q=
+github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20201208133923-d1c0d55a18d0/go.mod h1:eMdF9d3nrq23vOuMxDA6PgohVwi8a9U4PYoCSITzTmU=
 github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201126104802-ef3c9b7132bb h1:UW06eDg9j9wo20PGPuONUcKJcs0qJEc7zlzLzIYFBJw=
 github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201126104802-ef3c9b7132bb/go.mod h1:LDj7GA+nPuNqVToEQK/PniXlI/MI0dXNRIpNfZ4TpYw=
 github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201207083131-1739a11ed45a h1:26Pb5K/nJNvugvSqPInihnPjgwck6dncZzmBXTZ16ro=
@@ -16,6 +18,8 @@ github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201207121040-c3911a673833 
 github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201207121040-c3911a673833/go.mod h1:LDj7GA+nPuNqVToEQK/PniXlI/MI0dXNRIpNfZ4TpYw=
 github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201208024732-b7093f24f85a h1:TOTbr0a/v9y7JcVZoNvdbbc+wgw5bDgbFhxGYMOFMIg=
 github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201208024732-b7093f24f85a/go.mod h1:LDj7GA+nPuNqVToEQK/PniXlI/MI0dXNRIpNfZ4TpYw=
+github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201208133923-d1c0d55a18d0 h1:kR3NKtiJ7l5bEhJwMdrt8PYENviJHOweRksQrPyqmXI=
+github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201208133923-d1c0d55a18d0/go.mod h1:LDj7GA+nPuNqVToEQK/PniXlI/MI0dXNRIpNfZ4TpYw=
 github.com/PuerkitoBio/goquery v1.5.1/go.mod h1:GsLWisAFVj4WgDibEWF4pvYnkVQBpKBKeU+7zCJoLcc=
 github.com/andybalholm/cascadia v1.1.0/go.mod h1:GsXiBklL0woXo1j/WYWtSYYC4ouU9PqHO0sqidkEA4Y=
 github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496/go.mod h1:oGkLhpf+kjZl6xBf758TQhh5XrAeiJv/7FRz/2spLIg=

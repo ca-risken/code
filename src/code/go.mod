@@ -3,8 +3,8 @@ module github.com/CyberAgent/mimosa-code/src/code
 go 1.15
 
 require (
-	github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20201208024732-b7093f24f85a
-	github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201208024732-b7093f24f85a
+	github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20201208133923-d1c0d55a18d0
+	github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20201208133923-d1c0d55a18d0
 	github.com/aws/aws-sdk-go v1.36.3
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/golang/protobuf v1.4.3

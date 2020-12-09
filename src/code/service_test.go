@@ -141,6 +141,62 @@ func TestListGitleaks(t *testing.T) {
 	}
 }
 
+func TestGetGitleaks(t *testing.T) {
+	var ctx context.Context
+	now := time.Now()
+	mockDB := mockCodeRepository{}
+	svc := codeService{repository: &mockDB}
+	cases := []struct {
+		name         string
+		input        *code.GetGitleaksRequest
+		want         *code.GetGitleaksResponse
+		mockResponce *common.CodeGitleaks
+		mockError    error
+		wantErr      bool
+	}{
+		{
+			name:         "OK",
+			input:        &code.GetGitleaksRequest{ProjectId: 1, GitleaksId: 1},
+			want:         &code.GetGitleaksResponse{Gitleaks: &code.Gitleaks{GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()}},
+			mockResponce: &common.CodeGitleaks{GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now},
+		},
+		{
+			name:      "OK empty",
+			input:     &code.GetGitleaksRequest{ProjectId: 1, GitleaksId: 1},
+			want:      &code.GetGitleaksResponse{},
+			mockError: gorm.ErrRecordNotFound,
+		},
+		{
+			name:    "NG invalid param",
+			input:   &code.GetGitleaksRequest{ProjectId: 1},
+			wantErr: true,
+		},
+		{
+			name:      "NG DB error",
+			input:     &code.GetGitleaksRequest{ProjectId: 1, GitleaksId: 1},
+			mockError: gorm.ErrInvalidSQL,
+			wantErr:   true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if c.mockResponce != nil || c.mockError != nil {
+				mockDB.On("GetGitleaks").Return(c.mockResponce, c.mockError).Once()
+			}
+			got, err := svc.GetGitleaks(ctx, c.input)
+			if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured: %+v", err)
+			}
+			if c.wantErr && err == nil {
+				t.Fatalf("Unexpected no error")
+			}
+			if !reflect.DeepEqual(c.want, got) {
+				t.Fatalf("Unexpected mapping: want=%+v, got=%+v", c.want, got)
+			}
+		})
+	}
+}
+
 func TestPutGitleaks(t *testing.T) {
 	var ctx context.Context
 	now := time.Now()
@@ -425,7 +481,6 @@ func (m *mockCodeRepository) GetGitleaks(projectID, gitleaksID uint32) (*common.
 	args := m.Called()
 	return args.Get(0).(*common.CodeGitleaks), args.Error(1)
 }
-
 func (m *mockCodeRepository) ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error) {
 	args := m.Called()
 	return args.Get(0).(*[]common.CodeEnterpriseOrg), args.Error(1)
