@@ -380,27 +380,45 @@ func scoreGitleaks(f *repositoryFinding) float32 {
 		return 0.1
 	}
 	for _, leak := range f.LeakFindings {
-		if leak.Tags == "" {
+		if leak.Rule == "" {
 			continue
 		}
-		for _, tag := range strings.Split(leak.Tags, ",") {
-			if existsCriticalTag(strings.TrimSpace(tag)) {
-				return 0.8
-			}
+		if existsCriticalRule(strings.TrimSpace(leak.Rule)) {
+			return 0.8
 		}
 	}
 	return 0.6
 }
 
-// https://github.com/zricethezav/gitleaks/blob/master/config/default.go
-var criticalTag = []string{
-	"AWS",
-	"google",
+// check default ruleset(description) https://github.com/zricethezav/gitleaks/blob/master/config/default.go
+var criticalRule = []string{
+	"AWS Access Key",
+	"AWS Secret Key",
+	"AWS MWS key",
+	"Facebook Secret Key",
+	"Twitter Secret Key",
+	"LinkedIn Secret Key",
+	"Google (GCP) Service Account",
+	"Heroku API key",
+	"MailChimp API key",
+	"Mailgun API key",
+	"PayPal Braintree access token",
+	"Picatic API key",
+	"SendGrid API Key",
+	"Stripe API key",
+	"Square access token",
+	"Square OAuth secret",
+	"Twilio API key",
+	"Dynatrace ttoken",
+	"Shopify shared secret",
+	"Shopify access token",
+	"Shopify custom app access token",
+	"Shopify private app access token",
 }
 
-func existsCriticalTag(tag string) bool {
-	for _, t := range criticalTag {
-		if t == tag {
+func existsCriticalRule(rule string) bool {
+	for _, r := range criticalRule {
+		if r == rule {
 			return true
 		}
 	}

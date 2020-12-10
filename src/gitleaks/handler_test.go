@@ -23,8 +23,8 @@ func TestScoreGitleaks(t *testing.T) {
 			input: &repositoryFinding{
 				Name: github.String("danger_repository"),
 				LeakFindings: []*leakFinding{
-					{Tags: "aaa"},
-					{Tags: "bbb"},
+					{Rule: "aaa"},
+					{Rule: "bbb"},
 				},
 			},
 			want: 0.6,
@@ -34,8 +34,8 @@ func TestScoreGitleaks(t *testing.T) {
 			input: &repositoryFinding{
 				Name: github.String("danger_repository"),
 				LeakFindings: []*leakFinding{
-					{Tags: "aaa"},
-					{Tags: "AWS"}, // critical tag
+					{Rule: "aaa"},
+					{Rule: "Google (GCP) Service Account"}, // critical rule
 				},
 			},
 			want: 0.8,
