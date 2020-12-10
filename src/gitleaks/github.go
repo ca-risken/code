@@ -59,18 +59,49 @@ func getToken(token, defaultToken string) string {
 }
 
 type repositoryFinding struct {
-	ID          *int64            `json:"id,omitempty"`
-	Name        *string           `json:"name,omitempty"`
-	FullName    *string           `json:"full_name,omitempty"`
-	Description *string           `json:"description,omitempty"`
-	CloneURL    *string           `json:"clone_url,omitempty"`
-	Fork        *bool             `json:"fork,omitempty"`
-	Archived    *bool             `json:"archived,omitempty"`
-	Disabled    *bool             `json:"disabled,omitempty"`
-	Visibility  *string           `json:"visibility,omitempty"`
-	CreatedAt   *github.Timestamp `json:"created_at,omitempty"`
-	PushedAt    *github.Timestamp `json:"pushed_at,omitempty"`
-	UpdatedAt   *github.Timestamp `json:"updated_at,omitempty"`
+	ID                  *int64           `json:"id,omitempty"`
+	NodeID              *string          `json:"node_id,omitempty"`
+	Name                *string          `json:"name,omitempty"`
+	FullName            *string          `json:"full_name,omitempty"`
+	Description         *string          `json:"description,omitempty"`
+	Homepage            *string          `json:"homepage,omitempty"`
+	CloneURL            *string          `json:"clone_url,omitempty"`
+	GitURL              *string          `json:"git_url,omitempty"`
+	MirrorURL           *string          `json:"mirror_url,omitempty"`
+	SSHURL              *string          `json:"ssh_url,omitempty"`
+	Language            *string          `json:"language,omitempty"`
+	Fork                *bool            `json:"fork,omitempty"`
+	ForksCount          *int             `json:"forks_count,omitempty"`
+	NetworkCount        *int             `json:"network_count,omitempty"`
+	OpenIssuesCount     *int             `json:"open_issues_count,omitempty"`
+	StargazersCount     *int             `json:"stargazers_count,omitempty"`
+	SubscribersCount    *int             `json:"subscribers_count,omitempty"`
+	WatchersCount       *int             `json:"watchers_count,omitempty"`
+	Size                *int             `json:"size,omitempty"`
+	AutoInit            *bool            `json:"auto_init,omitempty"`
+	AllowRebaseMerge    *bool            `json:"allow_rebase_merge,omitempty"`
+	AllowSquashMerge    *bool            `json:"allow_squash_merge,omitempty"`
+	AllowMergeCommit    *bool            `json:"allow_merge_commit,omitempty"`
+	DeleteBranchOnMerge *bool            `json:"delete_branch_on_merge,omitempty"`
+	Topics              []string         `json:"topics,omitempty"`
+	Archived            *bool            `json:"archived,omitempty"`
+	Disabled            *bool            `json:"disabled,omitempty"`
+	Permissions         *map[string]bool `json:"permissions,omitempty"`
+	Private             *bool            `json:"private,omitempty"`
+	HasIssues           *bool            `json:"has_issues,omitempty"`
+	HasWiki             *bool            `json:"has_wiki,omitempty"`
+	HasPages            *bool            `json:"has_pages,omitempty"`
+	HasProjects         *bool            `json:"has_projects,omitempty"`
+	HasDownloads        *bool            `json:"has_downloads,omitempty"`
+	IsTemplate          *bool            `json:"is_template,omitempty"`
+	LicenseTemplate     *string          `json:"license_template,omitempty"`
+	GitignoreTemplate   *string          `json:"gitignore_template,omitempty"`
+	TeamID              *int64           `json:"team_id,omitempty"`
+	Visibility          *string          `json:"visibility,omitempty"`
+
+	CreatedAt *github.Timestamp `json:"created_at,omitempty"`
+	PushedAt  *github.Timestamp `json:"pushed_at,omitempty"`
+	UpdatedAt *github.Timestamp `json:"updated_at,omitempty"`
 
 	LeakFindings []*leakFinding `json:"leak_findings,omitempty"`
 	LastScanedAt time.Time      `json:"last_scaned_at"`
@@ -255,18 +286,49 @@ func setRepositoryFinding(repos []*github.Repository, pattern string, findings *
 	for _, repo := range repos {
 		if strings.Contains(*repo.Name, pattern) {
 			*findings = append(*findings, repositoryFinding{
-				ID:          repo.ID,
-				Name:        repo.Name,
-				FullName:    repo.FullName,
-				Description: repo.Description,
-				CloneURL:    repo.CloneURL,
-				Fork:        repo.Fork,
-				Archived:    repo.Archived,
-				Disabled:    repo.Disabled,
-				Visibility:  repo.Visibility,
-				CreatedAt:   repo.CreatedAt,
-				PushedAt:    repo.PushedAt,
-				UpdatedAt:   repo.UpdatedAt,
+				ID:                  repo.ID,
+				NodeID:              repo.NodeID,
+				Name:                repo.Name,
+				FullName:            repo.FullName,
+				Description:         repo.Description,
+				Homepage:            repo.Homepage,
+				CloneURL:            repo.CloneURL,
+				GitURL:              repo.GitURL,
+				MirrorURL:           repo.MirrorURL,
+				SSHURL:              repo.SSHURL,
+				Language:            repo.Language,
+				Fork:                repo.Fork,
+				ForksCount:          repo.ForksCount,
+				NetworkCount:        repo.NetworkCount,
+				OpenIssuesCount:     repo.OpenIssuesCount,
+				StargazersCount:     repo.StargazersCount,
+				SubscribersCount:    repo.SubscribersCount,
+				WatchersCount:       repo.WatchersCount,
+				Size:                repo.Size,
+				AutoInit:            repo.AutoInit,
+				AllowRebaseMerge:    repo.AllowRebaseMerge,
+				AllowSquashMerge:    repo.AllowSquashMerge,
+				AllowMergeCommit:    repo.AllowMergeCommit,
+				DeleteBranchOnMerge: repo.DeleteBranchOnMerge,
+				Topics:              repo.Topics,
+				Archived:            repo.Archived,
+				Disabled:            repo.Disabled,
+				Permissions:         repo.Permissions,
+				Private:             repo.Private,
+				HasIssues:           repo.HasIssues,
+				HasWiki:             repo.HasWiki,
+				HasPages:            repo.HasPages,
+				HasProjects:         repo.HasProjects,
+				HasDownloads:        repo.HasDownloads,
+				IsTemplate:          repo.IsTemplate,
+				LicenseTemplate:     repo.LicenseTemplate,
+				GitignoreTemplate:   repo.GitignoreTemplate,
+				TeamID:              repo.TeamID,
+				Visibility:          repo.Visibility,
+
+				CreatedAt: repo.CreatedAt,
+				PushedAt:  repo.PushedAt,
+				UpdatedAt: repo.UpdatedAt,
 			})
 		}
 	}

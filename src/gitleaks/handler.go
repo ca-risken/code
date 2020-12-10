@@ -257,8 +257,11 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 	// Exists leaks
 	for _, leak := range f.LeakFindings {
 		// finding
+		repository := f
 		leak.generateDataSourceID()
-		buf, err := json.Marshal(leak)
+		repository.LastScanedAt = time.Now()
+		repository.LeakFindings = []*leakFinding{leak} // set only one lesk for putting the finding json data.
+		buf, err := json.Marshal(repository)
 		if err != nil {
 			appLogger.Errorf("Failed to marshal user data, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 			return err
