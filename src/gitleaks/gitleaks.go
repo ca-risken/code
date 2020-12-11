@@ -19,7 +19,8 @@ type gitleaksServiceClient interface {
 }
 
 type gitleaksClient struct {
-	defaultToken string
+	defaultToken          string
+	limitRepositorySizeKb int
 }
 
 func newGitleaksClient() gitleaksServiceClient {
@@ -29,7 +30,8 @@ func newGitleaksClient() gitleaksServiceClient {
 		appLogger.Fatalf("Could not read githubConfig. err: %+v", err)
 	}
 	return &gitleaksClient{
-		defaultToken: conf.GithubDefaultToken,
+		defaultToken:          conf.GithubDefaultToken,
+		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
 	}
 }
 
@@ -57,8 +59,7 @@ func (l *leakFinding) generateDataSourceID() {
 }
 
 func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *repositoryFinding) error {
-	if skipScan(f) {
-		appLogger.Debugf("Skip scan gitleaks: repository=%s", *f.FullName)
+	if g.skipScan(f) {
 		return nil
 	}
 	appLogger.Infof("Start scan gitleaks: repository=%s", *f.FullName)
@@ -99,13 +100,20 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 	return nil
 }
 
-func skipScan(repo *repositoryFinding) bool {
+func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
 	// Check the repo status
 	if repo == nil || *repo.Archived || *repo.Fork || *repo.Disabled {
+		appLogger.Infof("Skip scan for %s, because repository is archived or disabled or fork repo.", *repo.FullName)
+		return true
+	}
+	// Hard limit size
+	if *repo.Size > g.limitRepositorySizeKb {
+		appLogger.Warnf("Skip scan for %s, because repository is too big size, limit=%dkb, size(kb)=%dkb", *repo.FullName, g.limitRepositorySizeKb, *repo.Size)
 		return true
 	}
 	// Check coparing pushedAt and lastScanedAt
 	if repo.alreadyScaned() {
+		appLogger.Infof("Skip scan for %s, because the repository was already scaned.", *repo.FullName)
 		return true
 	}
 	return false

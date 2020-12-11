@@ -23,7 +23,8 @@ type githubClient struct {
 }
 
 type gihubConfig struct {
-	GithubDefaultToken string `required:"true" split_words:"true"`
+	GithubDefaultToken    string `required:"true" split_words:"true"`
+	LimitRepositorySizeKb int    `required:"true" split_words:"true"`
 }
 
 func newGithubClient() githubServiceClient {

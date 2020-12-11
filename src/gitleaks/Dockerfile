@@ -30,6 +30,7 @@ ENV DEBUG= \
     CODE_SVC_ADDR= \
     GITHUB_DEFAULT_TOKEN= \
     DATA_KEY= \
+    LIMIT_REPOSITORY_SIZE_KB= \
     TZ=Asia/Tokyo
 WORKDIR /usr/local/gitleaks
 ENTRYPOINT ["/usr/local/bin/env-injector"]
