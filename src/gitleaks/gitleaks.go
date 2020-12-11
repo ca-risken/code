@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
@@ -66,6 +67,8 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 	opt := options.Options{
 		Repo:        *f.CloneURL,
 		AccessToken: getToken(token, g.defaultToken),
+		Timeout:     "10m",
+		Debug:       true,
 	}
 	cfg, err := config.NewConfig(opt)
 	if err != nil {
@@ -106,11 +109,25 @@ func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
 		appLogger.Infof("Skip scan for %s, because repository is archived or disabled or fork repo.", *repo.FullName)
 		return true
 	}
+
 	// Hard limit size
 	if *repo.Size > g.limitRepositorySizeKb {
 		appLogger.Warnf("Skip scan for %s, because repository is too big size, limit=%dkb, size(kb)=%dkb", *repo.FullName, g.limitRepositorySizeKb, *repo.Size)
 		return true
 	}
+
+	// HTTP OK?
+	resp, err := http.Get(*repo.CloneURL)
+	if err != nil {
+		appLogger.Warnf("Skip scan for %s, because failed to http request, err=%+v", *repo.FullName, err)
+		return true
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		appLogger.Warnf("Skip scan for %s, because failed to http response error, status=%d", *repo.FullName, resp.StatusCode)
+		return true
+	}
+
 	// Check coparing pushedAt and lastScanedAt
 	if repo.alreadyScaned() {
 		appLogger.Infof("Skip scan for %s, because the repository was already scaned.", *repo.FullName)
