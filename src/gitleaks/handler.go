@@ -100,9 +100,9 @@ func (s *sqsHandler) HandleMessage(msg *sqs.Message) error {
 			appLogger.Errorf("Failed to put findngs: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
 			return s.updateScanStatusError(ctx, scanStatus, err.Error())
 		}
-		if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
-			return err
-		}
+	}
+	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
+		return err
 	}
 	return s.analyzeAlert(ctx, message.ProjectID)
 }
