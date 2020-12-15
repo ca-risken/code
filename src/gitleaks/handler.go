@@ -237,6 +237,9 @@ func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.Gitleak
 }
 
 func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repositoryFinding) error {
+	if f.SkipScan {
+		return nil
+	}
 	if len(f.LeakFindings) < 1 {
 		// put Resource only (for cacheing scaned time.)
 		resp, err := s.findingClient.PutResource(ctx, &finding.PutResourceRequest{

@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/zricethezav/gitleaks/v6/config"
-	"github.com/zricethezav/gitleaks/v6/manager"
-	"github.com/zricethezav/gitleaks/v6/options"
-	"github.com/zricethezav/gitleaks/v6/scan"
+	"github.com/zricethezav/gitleaks/v7/config"
+	"github.com/zricethezav/gitleaks/v7/options"
+	"github.com/zricethezav/gitleaks/v7/scan"
 )
 
 type gitleaksServiceClient interface {
@@ -44,6 +43,8 @@ type leakFinding struct {
 	Offender   string    `json:"offender,omitempty"`
 	Commit     string    `json:"commit,omitempty"`
 	Repo       string    `json:"repo,omitempty"`
+	RepoURL    string    `json:"repoURL,omitempty"`
+	LeakURL    string    `json:"leakURL"`
 	Rule       string    `json:"rule,omitempty"`
 	Message    string    `json:"commitMessage,omitempty"`
 	Author     string    `json:"author,omitempty"`
@@ -51,7 +52,6 @@ type leakFinding struct {
 	File       string    `json:"file,omitempty"`
 	Date       time.Time `json:"date,omitempty"`
 	Tags       string    `json:"tags,omitempty"`
-	Operation  string    `json:"operation,omitempty"`
 }
 
 func (l *leakFinding) generateDataSourceID() {
@@ -61,35 +61,41 @@ func (l *leakFinding) generateDataSourceID() {
 
 func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *repositoryFinding) error {
 	if g.skipScan(f) {
+		f.SkipScan = true
 		return nil
 	}
-	appLogger.Infof("Start scan gitleaks: repository=%s", *f.FullName)
-	opt := options.Options{
-		Repo:        *f.CloneURL,
+	opts := options.Options{
+		RepoURL:     *f.CloneURL,
 		AccessToken: getToken(token, g.defaultToken),
-		Timeout:     "10m",
-		Debug:       true,
+		Verbose:     true,
+		// Threads:     1,
+		Depth: 1,
+		Debug: true,
 	}
-	cfg, err := config.NewConfig(opt)
+	cfg, err := config.NewConfig(opts)
 	if err != nil {
 		return err
 	}
-	mng, err := manager.NewManager(opt, cfg)
+	appLogger.Infof("Start scan gitleaks: repository=%s, size=%d(kb)", *f.FullName, *f.Size)
+	scanner, err := scan.NewScanner(opts, cfg)
 	if err != nil {
 		return err
 	}
-	if err := scan.Run(mng); err != nil {
+	scannerReport, err := scanner.Scan()
+	if err != nil {
 		// A scanning error occurred, but continue scanning the other repositories...
 		appLogger.Errorf("Failed to scan `Gitleaks`: repository=%s, err=%+v", *f.FullName, err)
 		return nil
 	}
-	for _, leak := range mng.GetLeaks() {
+	for _, leak := range scannerReport.Leaks {
 		f.LeakFindings = append(f.LeakFindings, &leakFinding{
 			Line:       cutString(leak.Line, 200),
 			LineNumber: leak.LineNumber,
 			Offender:   leak.Offender,
 			Commit:     leak.Commit,
 			Repo:       leak.Repo,
+			RepoURL:    leak.RepoURL,
+			LeakURL:    leak.LeakURL,
 			Rule:       leak.Rule,
 			Message:    leak.Message,
 			Author:     leak.Author,
@@ -97,7 +103,6 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 			File:       leak.File,
 			Date:       leak.Date,
 			Tags:       leak.Tags,
-			Operation:  leak.Operation,
 		})
 	}
 	return nil
@@ -119,12 +124,12 @@ func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
 	// HTTP OK?
 	resp, err := http.Get(*repo.CloneURL)
 	if err != nil {
-		appLogger.Warnf("Skip scan for %s, because failed to http request, err=%+v", *repo.FullName, err)
+		appLogger.Warnf("Skip scan for %s, because failed to http request, clone_url=%s, err=%+v", *repo.FullName, *repo.CloneURL, err)
 		return true
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		appLogger.Warnf("Skip scan for %s, because failed to http response error, status=%d", *repo.FullName, resp.StatusCode)
+		appLogger.Warnf("Skip scan for %s, because failed to http response error, status=%d, clone_url=%s", *repo.FullName, resp.StatusCode, *repo.CloneURL)
 		return true
 	}
 
