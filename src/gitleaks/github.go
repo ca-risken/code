@@ -106,6 +106,7 @@ type repositoryFinding struct {
 
 	LeakFindings []*leakFinding `json:"leak_findings,omitempty"`
 	LastScanedAt time.Time      `json:"last_scaned_at"`
+	SkipScan     bool           `json:"skip_scan"`
 }
 
 func (r *repositoryFinding) alreadyScaned() bool {
