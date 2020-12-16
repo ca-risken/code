@@ -69,7 +69,7 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		AccessToken: getToken(token, g.defaultToken),
 		Verbose:     true,
 		// Threads:     1,
-		Depth: 1,
+		// Depth: 1,
 		Debug: true,
 	}
 	cfg, err := config.NewConfig(opts)
