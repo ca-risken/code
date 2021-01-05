@@ -53,7 +53,7 @@ func convertDataSource(data *common.CodeDataSource) *code.CodeDataSource {
 		Description:      data.Description,
 		MaxScore:         data.MaxScore,
 		CreatedAt:        data.CreatedAt.Unix(),
-		UpdatedAt:        data.CreatedAt.Unix(),
+		UpdatedAt:        data.UpdatedAt.Unix(),
 	}
 }
 
@@ -99,7 +99,7 @@ func convertGitleaks(data *common.CodeGitleaks, maskKey bool) *code.Gitleaks {
 		Status:              getStatus(data.Status),
 		StatusDetail:        data.StatusDetail,
 		CreatedAt:           data.CreatedAt.Unix(),
-		UpdatedAt:           data.CreatedAt.Unix(),
+		UpdatedAt:           data.UpdatedAt.Unix(),
 	}
 	if gitlekas.PersonalAccessToken != "" && maskKey {
 		gitlekas.PersonalAccessToken = maskData // Masking sensitive data.
