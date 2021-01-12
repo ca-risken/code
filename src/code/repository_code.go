@@ -50,9 +50,14 @@ func (c *codeRepository) ListGitleaks(projectID, codeDataSourceID, gitleaksID ui
 	return &data, nil
 }
 
-const updateCodeGitleaksForScanSetting = `update code_gitleaks set scan_public=?, scan_internal=?, scan_public=? where gitleaks_id=? and project_id=?`
+func (c *codeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+	if data.PersonalAccessToken != "" {
+		return c.UpsertGitleaksWithToken(data)
+	}
+	return c.UpsertGitleaksWithoutToken(data)
+}
 
-const insertCodeGitleaks = `
+const insertUpsertGitleaksWithToken = `
 INSERT INTO code_gitleaks (
   gitleaks_id,
   code_data_source_id,
@@ -90,8 +95,8 @@ ON DUPLICATE KEY UPDATE
 	scan_at=VALUES(scan_at)
 `
 
-func (c *codeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
-	if err := c.MasterDB.Exec(insertCodeGitleaks,
+func (c *codeRepository) UpsertGitleaksWithToken(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+	if err := c.MasterDB.Exec(insertUpsertGitleaksWithToken,
 		data.GitleaksId,
 		data.CodeDataSourceId,
 		convertZeroValueToNull(data.Name),
@@ -101,6 +106,64 @@ func (c *codeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.C
 		convertZeroValueToNull(data.RepositoryPattern),
 		convertZeroValueToNull(data.GithubUser),
 		convertZeroValueToNull(data.PersonalAccessToken),
+		fmt.Sprintf("%t", data.ScanPublic),
+		fmt.Sprintf("%t", data.ScanInternal),
+		fmt.Sprintf("%t", data.ScanPrivate),
+		convertZeroValueToNull(data.GitleaksConfig),
+		data.Status.String(),
+		convertZeroValueToNull(data.StatusDetail),
+		time.Unix(data.ScanAt, 0)).Error; err != nil {
+		return nil, err
+	}
+	return c.GetGitleaksByUniqueIndex(data.ProjectId, data.CodeDataSourceId, data.Name)
+}
+
+const insertUpsertGitleaksWithoutToken = `
+INSERT INTO code_gitleaks (
+  gitleaks_id,
+  code_data_source_id,
+  name,
+  project_id,
+  type,
+  target_resource,
+  repository_pattern,
+  github_user,
+  scan_public,
+  scan_internal,
+  scan_private,
+  gitleaks_config,
+  status,
+  status_detail,
+  scan_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+	code_data_source_id=VALUES(code_data_source_id),
+	name=VALUES(name),
+	project_id=VALUES(project_id),
+	type=VALUES(type),
+	target_resource=VALUES(target_resource),
+	repository_pattern=VALUES(repository_pattern),
+	github_user=VALUES(github_user),
+	scan_public=VALUES(scan_public),
+	scan_internal=VALUES(scan_internal),
+	scan_private=VALUES(scan_private),
+	gitleaks_config=VALUES(gitleaks_config),
+	status=VALUES(status),
+	status_detail=VALUES(status_detail),
+	scan_at=VALUES(scan_at)
+`
+
+func (c *codeRepository) UpsertGitleaksWithoutToken(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+	if err := c.MasterDB.Exec(insertUpsertGitleaksWithoutToken,
+		data.GitleaksId,
+		data.CodeDataSourceId,
+		convertZeroValueToNull(data.Name),
+		data.ProjectId,
+		data.Type.String(),
+		data.TargetResource,
+		convertZeroValueToNull(data.RepositoryPattern),
+		convertZeroValueToNull(data.GithubUser),
 		fmt.Sprintf("%t", data.ScanPublic),
 		fmt.Sprintf("%t", data.ScanInternal),
 		fmt.Sprintf("%t", data.ScanPrivate),

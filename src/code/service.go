@@ -53,7 +53,7 @@ func convertDataSource(data *common.CodeDataSource) *code.CodeDataSource {
 		Description:      data.Description,
 		MaxScore:         data.MaxScore,
 		CreatedAt:        data.CreatedAt.Unix(),
-		UpdatedAt:        data.CreatedAt.Unix(),
+		UpdatedAt:        data.UpdatedAt.Unix(),
 	}
 }
 
@@ -99,7 +99,7 @@ func convertGitleaks(data *common.CodeGitleaks, maskKey bool) *code.Gitleaks {
 		Status:              getStatus(data.Status),
 		StatusDetail:        data.StatusDetail,
 		CreatedAt:           data.CreatedAt.Unix(),
-		UpdatedAt:           data.CreatedAt.Unix(),
+		UpdatedAt:           data.UpdatedAt.Unix(),
 	}
 	if gitlekas.PersonalAccessToken != "" && maskKey {
 		gitlekas.PersonalAccessToken = maskData // Masking sensitive data.
@@ -146,13 +146,15 @@ func (c *codeService) PutGitleaks(ctx context.Context, req *code.PutGitleaksRequ
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	if req.Gitleaks.PersonalAccessToken != "" {
+	if req.Gitleaks.PersonalAccessToken != "" && req.Gitleaks.PersonalAccessToken != maskData {
 		encrypted, err := common.EncryptWithBase64(&c.cipherBlock, req.Gitleaks.PersonalAccessToken)
 		if err != nil {
 			appLogger.Errorf("Failed to encrypt PAT: err=%+v", err)
 			return nil, err
 		}
 		req.Gitleaks.PersonalAccessToken = encrypted
+	} else {
+		req.Gitleaks.PersonalAccessToken = "" // for not update token.
 	}
 	registerd, err := c.repository.UpsertGitleaks(req.Gitleaks)
 	if err != nil {
