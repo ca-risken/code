@@ -299,16 +299,20 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 	return nil
 }
 
+const unix99991231T235959 int64 = 253402268399
+
 func (s *sqsHandler) setLastScanedAt(ctx context.Context, projectID uint32, f *repositoryFinding) error {
 	resp, err := s.findingClient.ListResource(ctx, &finding.ListResourceRequest{
 		ProjectId:    projectID,
 		ResourceName: []string{*f.FullName},
+		ToAt:         unix99991231T235959,
 	})
 	if err != nil {
 		appLogger.Errorf("Failed to ListResource, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 		return err
 	}
 	if len(resp.ResourceId) < 1 {
+		appLogger.Infof("No resource registerd: %s", *f.FullName)
 		return nil
 	}
 	resourceID := resp.ResourceId[0]
@@ -320,6 +324,7 @@ func (s *sqsHandler) setLastScanedAt(ctx context.Context, projectID uint32, f *r
 		appLogger.Errorf("Failed to GetResource, project_id=%d, resource_id=%d, err=%+v", projectID, resourceID, err)
 		return err
 	}
+	appLogger.Debugf("Got resource: %+v", resp2)
 	if resp2 == nil || resp2.Resource == nil {
 		return nil
 	}
