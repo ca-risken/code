@@ -33,13 +33,19 @@ func newSQSConsumer() *worker.Worker {
 		appLogger.SetLevel(logrus.DebugLevel)
 	}
 	var sqsClient *sqs.SQS
+	sess, err := session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	})
+	if err != nil {
+		appLogger.Fatalf("Failed to create a new session, %v", err)
+	}
 	if !zero.IsZeroVal(&conf.SQSEndpoint) {
-		sqsClient = sqs.New(session.New(), &aws.Config{
+		sqsClient = sqs.New(sess, &aws.Config{
 			Region:   &conf.AWSRegion,
 			Endpoint: &conf.SQSEndpoint,
 		})
 	} else {
-		sqsClient = sqs.New(session.New(), &aws.Config{
+		sqsClient = sqs.New(sess, &aws.Config{
 			Region: &conf.AWSRegion,
 		})
 	}
