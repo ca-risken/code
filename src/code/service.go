@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"fmt"
 	"strings"
 	"time"
 
@@ -201,8 +202,8 @@ func getStatus(s string) code.Status {
 		return code.Status_OK
 	case code.Status_CONFIGURED.String():
 		return code.Status_CONFIGURED
-	case code.Status_NOT_CONFIGURED.String():
-		return code.Status_NOT_CONFIGURED
+	case code.Status_IN_PROGRESS.String():
+		return code.Status_IN_PROGRESS
 	case code.Status_ERROR.String():
 		return code.Status_ERROR
 	default:
@@ -276,6 +277,26 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 		ProjectID:  data.ProjectID,
 	})
 	if err != nil {
+		return nil, err
+	}
+	if _, err = c.repository.UpsertGitleaks(&code.GitleaksForUpsert{
+		GitleaksId:        data.GitleaksID,
+		CodeDataSourceId:  data.CodeDataSourceID,
+		Name:              data.Name,
+		ProjectId:         data.ProjectID,
+		Type:              getType(data.Type),
+		TargetResource:    data.TargetResource,
+		RepositoryPattern: data.RepositoryPattern,
+		GithubUser:        data.GithubUser,
+		// PersonalAccessToken :,
+		ScanPublic:     data.ScanPublic,
+		ScanInternal:   data.ScanInternal,
+		ScanPrivate:    data.ScanPrivate,
+		GitleaksConfig: data.GitleaksConfig,
+		Status:         code.Status_IN_PROGRESS,
+		StatusDetail:   fmt.Sprintf("Start scan at %+v", time.Now().Format(time.RFC3339)),
+		ScanAt:         data.ScanAt.Unix(),
+	}); err != nil {
 		return nil, err
 	}
 	appLogger.Infof("Invoke scanned, messageId: %v", resp.MessageId)
