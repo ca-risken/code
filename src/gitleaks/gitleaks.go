@@ -109,8 +109,8 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 
 func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
 	// Check the repo status
-	if repo == nil || *repo.Archived || *repo.Disabled {
-		appLogger.Infof("Skip scan for %s, because repository is archived or disabled repo.", *repo.FullName)
+	if repo == nil || *repo.Archived || *repo.Fork || *repo.Disabled {
+		appLogger.Infof("Skip scan for %s, because repository is archived or disabled or fork repo.", *repo.FullName)
 		return true
 	}
 
