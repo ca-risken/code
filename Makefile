@@ -21,19 +21,19 @@ doc: fmt
 		--doc_out=markdown,README.md:doc \
 		proto/**/*.proto;
 
-build: fmt
+proto: fmt
 	protoc \
 		--proto_path=proto \
 		--error_format=gcc \
 		--go_out=plugins=grpc,paths=source_relative:proto \
 		proto/**/*.proto;
 
-go-test: build
+go-test: proto
 	cd proto/code && go test ./...
 	cd pkg/common && go test ./...
 	cd src/code   && go test ./...
 
-go-mod-tidy: build
+go-mod-tidy: proto
 	cd proto/code   && go mod tidy
 	cd pkg/common   && go mod tidy
 	cd src/code     && go mod tidy
@@ -50,6 +50,9 @@ go-mod-update:
 # @see https://github.com/CyberAgent/mimosa-common/tree/master/local
 network:
 	@if [ -z "`docker network ls | grep local-shared`" ]; then docker network create local-shared; fi
+
+build: go-test
+	. env.sh && docker-compose build
 
 run: go-test network
 	. env.sh && docker-compose up -d --build
