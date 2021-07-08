@@ -16,6 +16,10 @@ func TestValidate(t *testing.T) {
 			input: &GitleaksQueueMessage{GitleaksID: 1, ProjectID: 1},
 		},
 		{
+			name:  "OK(scan_only)",
+			input: &GitleaksQueueMessage{GitleaksID: 1, ProjectID: 1, ScanOnly: true},
+		},
+		{
 			name:    "NG Required(gitlekas_id)",
 			input:   &GitleaksQueueMessage{ProjectID: 1},
 			wantErr: true,
@@ -49,6 +53,11 @@ func TestParseMessage(t *testing.T) {
 			name:  "OK",
 			input: `{"gitleaks_id":1, "project_id":1}`,
 			want:  &GitleaksQueueMessage{GitleaksID: 1, ProjectID: 1},
+		},
+		{
+			name:  "OK(scan_only)",
+			input: `{"gitleaks_id":1, "project_id":1, "scan_only":"true"}`,
+			want:  &GitleaksQueueMessage{GitleaksID: 1, ProjectID: 1, ScanOnly: true},
 		},
 		{
 			name:    "NG Json parse erroro",

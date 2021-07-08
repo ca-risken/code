@@ -15,6 +15,7 @@ const (
 type GitleaksQueueMessage struct {
 	GitleaksID uint32 `json:"gitleaks_id"`
 	ProjectID  uint32 `json:"project_id"`
+	ScanOnly   bool   `json:"scan_only,string"`
 }
 
 // Validate is the validation to GuardDutyMessage
