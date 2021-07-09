@@ -38,6 +38,8 @@ github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20210708100252-f05582222245 
 github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20210708100252-f05582222245/go.mod h1:eMdF9d3nrq23vOuMxDA6PgohVwi8a9U4PYoCSITzTmU=
 github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20210708100252-f05582222245 h1:ayEUQva054Rtdh01dJirU0RxUppy8s+MBczRRg0DJyA=
 github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20210708100252-f05582222245/go.mod h1:QKVnJUBFMtw+IuCVvcGPllF/qpc8yImmgKn2yBHA4O0=
+github.com/CyberAgent/mimosa-common/pkg/logging v0.0.0-20210707094034-b513f64f04b9 h1:9SFRnB/piYH6hKC497yex263ALL12W/zI7D+qzJ27w0=
+github.com/CyberAgent/mimosa-common/pkg/logging v0.0.0-20210707094034-b513f64f04b9/go.mod h1:4h+dXymMJmVmPhgFyqakPDiLqQjwcyMBgDOt5/mBcsQ=
 github.com/CyberAgent/mimosa-core/proto/alert v0.0.0-20210707124600-11b1f052c30a h1:W1qOADHADFmjv3XLep8T8KVj9Q3T+EOQWBOShNFG+Rw=
 github.com/CyberAgent/mimosa-core/proto/alert v0.0.0-20210707124600-11b1f052c30a/go.mod h1:KFDZbX8E/vynUQpezUDu5WRDceqMWyXiaxIKYGuQXhw=
 github.com/CyberAgent/mimosa-core/proto/finding v0.0.0-20210707124600-11b1f052c30a h1:N9RmYKGSgV9SGZl02YuAQtv+MpXR7jvL1mKo6vF0J6w=
@@ -168,6 +170,8 @@ github.com/google/pprof v0.0.0-20200430221834-fc25d7d30c6d/go.mod h1:ZgVRPoUq/hf
 github.com/google/pprof v0.0.0-20200708004538-1a94d8640e99/go.mod h1:ZgVRPoUq/hfqzAqh7sHMqb3I9Rq5C59dIz2SbBwJ4eM=
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/google/uuid v1.1.2/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
+github.com/google/uuid v1.2.0 h1:qJYtXnJRWmpe7m/3XlyhrsLrEURqHRM2kxzoxXqyUDs=
+github.com/google/uuid v1.2.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=

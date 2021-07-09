@@ -11,6 +11,7 @@ import (
 
 	"github.com/CyberAgent/mimosa-code/pkg/common"
 	"github.com/CyberAgent/mimosa-code/proto/code"
+	"github.com/CyberAgent/mimosa-common/pkg/logging"
 	"github.com/CyberAgent/mimosa-core/proto/alert"
 	"github.com/CyberAgent/mimosa-core/proto/finding"
 	"github.com/aws/aws-sdk-go/aws"
@@ -60,6 +61,12 @@ func (s *sqsHandler) HandleMessage(sqsMsg *sqs.Message) error {
 		appLogger.Errorf("Invalid message: msg=%+v, err=%+v", msg, err)
 		return err
 	}
+	requestID, err := logging.GenerateRequestID(fmt.Sprint(msg.ProjectID))
+	if err != nil {
+		appLogger.Warnf("Failed to generate requestID: err=%+v", err)
+		requestID = fmt.Sprint(msg.ProjectID)
+	}
+	appLogger.Infof("start Scan, RequestID=%s", requestID)
 
 	ctx := context.Background()
 	gitleaksConfig, err := s.getGitleaks(ctx, msg.ProjectID, msg.GitleaksID)
@@ -104,6 +111,7 @@ func (s *sqsHandler) HandleMessage(sqsMsg *sqs.Message) error {
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
 		return err
 	}
+	appLogger.Infof("end Scan, RequestID=%s", requestID)
 	if msg.ScanOnly {
 		return nil
 	}
