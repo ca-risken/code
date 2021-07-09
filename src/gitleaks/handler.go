@@ -11,6 +11,7 @@ import (
 
 	"github.com/CyberAgent/mimosa-code/pkg/common"
 	"github.com/CyberAgent/mimosa-code/proto/code"
+	"github.com/CyberAgent/mimosa-common/pkg/logging"
 	"github.com/CyberAgent/mimosa-core/proto/alert"
 	"github.com/CyberAgent/mimosa-core/proto/finding"
 	"github.com/aws/aws-sdk-go/aws"
@@ -52,24 +53,30 @@ func newHandler() *sqsHandler {
 	}
 }
 
-func (s *sqsHandler) HandleMessage(msg *sqs.Message) error {
-	msgBody := aws.StringValue(msg.Body)
+func (s *sqsHandler) HandleMessage(sqsMsg *sqs.Message) error {
+	msgBody := aws.StringValue(sqsMsg.Body)
 	appLogger.Infof("got message: %s", msgBody)
-	message, err := common.ParseMessage(msgBody)
+	msg, err := common.ParseMessage(msgBody)
 	if err != nil {
 		appLogger.Errorf("Invalid message: msg=%+v, err=%+v", msg, err)
 		return err
 	}
+	requestID, err := logging.GenerateRequestID(fmt.Sprint(msg.ProjectID))
+	if err != nil {
+		appLogger.Warnf("Failed to generate requestID: err=%+v", err)
+		requestID = fmt.Sprint(msg.ProjectID)
+	}
+	appLogger.Infof("start Scan, RequestID=%s", requestID)
 
 	ctx := context.Background()
-	gitleaksConfig, err := s.getGitleaks(ctx, message.ProjectID, message.GitleaksID)
+	gitleaksConfig, err := s.getGitleaks(ctx, msg.ProjectID, msg.GitleaksID)
 	if err != nil {
-		appLogger.Errorf("Failed to get scan status: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+		appLogger.Errorf("Failed to get scan status: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return err
 	}
 	decryptedKey, err := common.DecryptWithBase64(&s.cipherBlock, gitleaksConfig.PersonalAccessToken)
 	if err != nil {
-		appLogger.Errorf("Failed to decrypted personal access token: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+		appLogger.Errorf("Failed to decrypted personal access token: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 	}
 	gitleaksConfig.PersonalAccessToken = decryptedKey // Set the plaintext so that the value is still decipherable after updated.
 	scanStatus := s.initScanStatus(gitleaksConfig, gitleaksConfig.PersonalAccessToken)
@@ -77,34 +84,38 @@ func (s *sqsHandler) HandleMessage(msg *sqs.Message) error {
 	// Get repositories
 	findings := []repositoryFinding{}
 	if err := s.listRepository(ctx, gitleaksConfig, &findings); err != nil {
-		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return s.updateScanStatusError(ctx, scanStatus, err.Error())
 	}
 	appLogger.Debugf("Got repositories, count=%d, target=%s", len(findings), gitleaksConfig.TargetResource)
 
 	for _, f := range findings {
 		// Set LastScanedAt
-		if err := s.setLastScanedAt(ctx, message.ProjectID, &f); err != nil {
-			appLogger.Errorf("Failed to set LastScanedAt: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+		if err := s.setLastScanedAt(ctx, msg.ProjectID, &f); err != nil {
+			appLogger.Errorf("Failed to set LastScanedAt: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 			return s.updateScanStatusError(ctx, scanStatus, err.Error())
 		}
 
 		// Scan repository
 		if err := s.gitleaksClient.scanRepository(ctx, decryptedKey, &f); err != nil {
-			appLogger.Errorf("Failed to scan repositories: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+			appLogger.Errorf("Failed to scan repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 			return s.updateScanStatusError(ctx, scanStatus, err.Error())
 		}
 
 		// Put finding
-		if err := s.putFindings(ctx, message.ProjectID, &f); err != nil {
-			appLogger.Errorf("Failed to put findngs: gitleaks_id=%d, err=%+v", message.GitleaksID, err)
+		if err := s.putFindings(ctx, msg.ProjectID, &f); err != nil {
+			appLogger.Errorf("Failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 			return s.updateScanStatusError(ctx, scanStatus, err.Error())
 		}
 	}
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
 		return err
 	}
-	return s.analyzeAlert(ctx, message.ProjectID)
+	appLogger.Infof("end Scan, RequestID=%s", requestID)
+	if msg.ScanOnly {
+		return nil
+	}
+	return s.analyzeAlert(ctx, msg.ProjectID)
 }
 
 func (s *sqsHandler) getGitleaks(ctx context.Context, projectID, gitleaksID uint32) (*code.Gitleaks, error) {
