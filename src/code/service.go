@@ -275,6 +275,7 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 	resp, err := c.sqs.sendMsgForGitleaks(&common.GitleaksQueueMessage{
 		GitleaksID: data.GitleaksID,
 		ProjectID:  data.ProjectID,
+		ScanOnly:   req.ScanOnly,
 	})
 	if err != nil {
 		return nil, err
@@ -318,6 +319,7 @@ func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty)
 		if _, err := c.InvokeScanGitleaks(ctx, &code.InvokeScanGitleaksRequest{
 			GitleaksId: g.GitleaksID,
 			ProjectId:  g.ProjectID,
+			// ScanOnly:        true, // TODO
 		}); err != nil {
 			// エラーログはいて握りつぶす（すべてのスキャナ登録しきる）
 			appLogger.Errorf("InvokeScanGitleaks error occured: gitleaks_id=%d, err=%+v", g.GitleaksID, err)
