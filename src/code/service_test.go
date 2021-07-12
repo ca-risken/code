@@ -9,8 +9,8 @@ import (
 
 	"github.com/CyberAgent/mimosa-code/pkg/common"
 	"github.com/CyberAgent/mimosa-code/proto/code"
-	"github.com/jinzhu/gorm"
 	"github.com/stretchr/testify/mock"
+	"gorm.io/gorm"
 )
 
 const (
@@ -54,9 +54,9 @@ func TestListDataSource(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:      "NG DB error",
+			name:      "Invalid DB error",
 			input:     &code.ListDataSourceRequest{CodeDataSourceId: 1},
-			mockError: gorm.ErrInvalidSQL,
+			mockError: gorm.ErrInvalidDB,
 			wantErr:   true,
 		},
 	}
@@ -116,9 +116,9 @@ func TestListGitleaks(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:      "NG DB error",
+			name:      "Invalid DB error",
 			input:     &code.ListGitleaksRequest{ProjectId: 1, CodeDataSourceId: 1},
-			mockError: gorm.ErrInvalidSQL,
+			mockError: gorm.ErrInvalidDB,
 			wantErr:   true,
 		},
 	}
@@ -172,9 +172,9 @@ func TestGetGitleaks(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:      "NG DB error",
+			name:      "Invalid DB error",
 			input:     &code.GetGitleaksRequest{ProjectId: 1, GitleaksId: 1},
-			mockError: gorm.ErrInvalidSQL,
+			mockError: gorm.ErrInvalidDB,
 			wantErr:   true,
 		},
 	}
@@ -236,11 +236,11 @@ func TestPutGitleaks(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "NG DB error",
+			name: "Invalid DB error",
 			input: &code.PutGitleaksRequest{ProjectId: 1, Gitleaks: &code.GitleaksForUpsert{
 				GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix()},
 			},
-			mockError: gorm.ErrInvalidSQL,
+			mockError: gorm.ErrInvalidDB,
 			wantErr:   true,
 		},
 	}
@@ -283,9 +283,9 @@ func TestDeleteGitleaks(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:      "NG DB error",
+			name:      "Invalid DB error",
 			input:     &code.DeleteGitleaksRequest{ProjectId: 1, GitleaksId: 1},
-			mockError: gorm.ErrInvalidSQL,
+			mockError: gorm.ErrInvalidDB,
 			wantErr:   true,
 		},
 	}
@@ -337,9 +337,9 @@ func TestListEnterpriseOrg(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:      "NG DB error",
+			name:      "Invalid DB error",
 			input:     &code.ListEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1},
-			mockError: gorm.ErrInvalidSQL,
+			mockError: gorm.ErrInvalidDB,
 			wantErr:   true,
 		},
 	}
@@ -393,11 +393,11 @@ func TestPutEnterpriseOrg(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "NG DB error",
+			name: "Invalid DB error",
 			input: &code.PutEnterpriseOrgRequest{ProjectId: 1, EnterpriseOrg: &code.EnterpriseOrgForUpsert{
 				GitleaksId: 1, Login: "one", ProjectId: 1},
 			},
-			mockError: gorm.ErrInvalidSQL,
+			mockError: gorm.ErrInvalidDB,
 			wantErr:   true,
 		},
 	}
@@ -440,9 +440,9 @@ func TestDeleteEnterpriseOrg(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:      "NG DB error",
+			name:      "Invalid DB error",
 			input:     &code.DeleteEnterpriseOrgRequest{ProjectId: 1, GitleaksId: 1, Login: "login"},
-			mockError: gorm.ErrInvalidSQL,
+			mockError: gorm.ErrInvalidDB,
 			wantErr:   true,
 		},
 	}

@@ -6,7 +6,6 @@ import (
 
 	"github.com/CyberAgent/mimosa-code/pkg/common"
 	"github.com/CyberAgent/mimosa-code/proto/code"
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/vikyd/zero"
 )
 
