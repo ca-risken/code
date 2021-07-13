@@ -87,7 +87,7 @@ func (s *sqsHandler) HandleMessage(sqsMsg *sqs.Message) error {
 		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return s.updateScanStatusError(ctx, scanStatus, err.Error())
 	}
-	appLogger.Debugf("Got repositories, count=%d, target=%s", len(findings), gitleaksConfig.TargetResource)
+	appLogger.Infof("Got repositories, count=%d, target=%s", len(findings), gitleaksConfig.TargetResource)
 
 	for _, f := range findings {
 		// Set LastScanedAt
@@ -248,10 +248,7 @@ func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.Gitleak
 }
 
 func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repositoryFinding) error {
-	if f.SkipScan {
-		return nil
-	}
-	if len(f.LeakFindings) < 1 {
+	if f.LeakFindings == nil || len(f.LeakFindings) < 1 {
 		// put Resource only (for cacheing scaned time.)
 		resp, err := s.findingClient.PutResource(ctx, &finding.PutResourceRequest{
 			ProjectId: projectID,
@@ -264,7 +261,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 			appLogger.Errorf("Failed to put resource project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 			return err
 		}
-		appLogger.Infof("Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
+		appLogger.Debugf("Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
 		return nil
 	}
 
@@ -305,7 +302,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 				s.tagFinding(ctx, strings.TrimSpace(tag), resp.Finding.FindingId, resp.Finding.ProjectId)
 			}
 		}
-		appLogger.Infof("Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
+		appLogger.Debugf("Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
 	}
 	return nil
 }
@@ -376,7 +373,7 @@ func (s *sqsHandler) updateScanStatus(ctx context.Context, putData *code.PutGitl
 	if err != nil {
 		return err
 	}
-	appLogger.Infof("Success to update AWS status, response=%+v", resp)
+	appLogger.Infof("Success to update scan status, response=%+v", resp)
 	return nil
 }
 
