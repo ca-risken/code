@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,9 +12,9 @@ import (
 	"github.com/CyberAgent/mimosa-code/pkg/common"
 	"github.com/CyberAgent/mimosa-code/proto/code"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/jinzhu/gorm"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/vikyd/zero"
+	"gorm.io/gorm"
 )
 
 type codeService struct {
@@ -64,7 +65,7 @@ func (c *codeService) ListDataSource(ctx context.Context, req *code.ListDataSour
 	}
 	list, err := c.repository.ListDataSource(req.CodeDataSourceId, req.Name)
 	if err != nil {
-		if gorm.IsRecordNotFoundError(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &code.ListDataSourceResponse{}, nil
 		}
 		return nil, err
@@ -117,7 +118,7 @@ func (c *codeService) ListGitleaks(ctx context.Context, req *code.ListGitleaksRe
 	}
 	list, err := c.repository.ListGitleaks(req.ProjectId, req.CodeDataSourceId, req.GitleaksId)
 	if err != nil {
-		if gorm.IsRecordNotFoundError(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &code.ListGitleaksResponse{}, nil
 		}
 		return nil, err
@@ -135,7 +136,7 @@ func (c *codeService) GetGitleaks(ctx context.Context, req *code.GetGitleaksRequ
 	}
 	data, err := c.repository.GetGitleaks(req.ProjectId, req.GitleaksId)
 	if err != nil {
-		if gorm.IsRecordNotFoundError(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &code.GetGitleaksResponse{}, nil
 		}
 		return nil, err
@@ -230,7 +231,7 @@ func (c *codeService) ListEnterpriseOrg(ctx context.Context, req *code.ListEnter
 	}
 	list, err := c.repository.ListEnterpriseOrg(req.ProjectId, req.GitleaksId)
 	if err != nil {
-		if gorm.IsRecordNotFoundError(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &code.ListEnterpriseOrgResponse{}, nil
 		}
 		return nil, err
@@ -307,7 +308,7 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
 	list, err := c.repository.ListGitleaks(0, 0, 0)
 	if err != nil {
-		if gorm.IsRecordNotFoundError(err) {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &empty.Empty{}, nil
 		}
 		return nil, err
