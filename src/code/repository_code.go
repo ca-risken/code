@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 	"github.com/vikyd/zero"
 )
 
-func (c *codeRepository) ListDataSource(codeDataSourceID uint32, name string) (*[]common.CodeDataSource, error) {
+func (c *codeRepository) ListDataSource(ctx context.Context, codeDataSourceID uint32, name string) (*[]common.CodeDataSource, error) {
 	query := `select * from code_data_source where 1=1`
 	var params []interface{}
 	if !zero.IsZeroVal(codeDataSourceID) {
@@ -21,13 +22,13 @@ func (c *codeRepository) ListDataSource(codeDataSourceID uint32, name string) (*
 		params = append(params, name)
 	}
 	data := []common.CodeDataSource{}
-	if err := c.SlaveDB.Raw(query, params...).Scan(&data).Error; err != nil {
+	if err := c.SlaveDB.WithContext(ctx).Raw(query, params...).Scan(&data).Error; err != nil {
 		return nil, err
 	}
 	return &data, nil
 }
 
-func (c *codeRepository) ListGitleaks(projectID, codeDataSourceID, gitleaksID uint32) (*[]common.CodeGitleaks, error) {
+func (c *codeRepository) ListGitleaks(ctx context.Context, projectID, codeDataSourceID, gitleaksID uint32) (*[]common.CodeGitleaks, error) {
 	query := `select * from code_gitleaks where 1=1`
 	var params []interface{}
 	if !zero.IsZeroVal(projectID) {
@@ -43,17 +44,17 @@ func (c *codeRepository) ListGitleaks(projectID, codeDataSourceID, gitleaksID ui
 		params = append(params, gitleaksID)
 	}
 	data := []common.CodeGitleaks{}
-	if err := c.SlaveDB.Raw(query, params...).Scan(&data).Error; err != nil {
+	if err := c.SlaveDB.WithContext(ctx).Raw(query, params...).Scan(&data).Error; err != nil {
 		return nil, err
 	}
 	return &data, nil
 }
 
-func (c *codeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+func (c *codeRepository) UpsertGitleaks(ctx context.Context, data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
 	if data.PersonalAccessToken != "" {
-		return c.UpsertGitleaksWithToken(data)
+		return c.UpsertGitleaksWithToken(ctx, data)
 	}
-	return c.UpsertGitleaksWithoutToken(data)
+	return c.UpsertGitleaksWithoutToken(ctx, data)
 }
 
 const insertUpsertGitleaksWithToken = `
@@ -94,8 +95,8 @@ ON DUPLICATE KEY UPDATE
 	scan_at=VALUES(scan_at)
 `
 
-func (c *codeRepository) UpsertGitleaksWithToken(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
-	if err := c.MasterDB.Exec(insertUpsertGitleaksWithToken,
+func (c *codeRepository) UpsertGitleaksWithToken(ctx context.Context, data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+	if err := c.MasterDB.WithContext(ctx).Exec(insertUpsertGitleaksWithToken,
 		data.GitleaksId,
 		data.CodeDataSourceId,
 		convertZeroValueToNull(data.Name),
@@ -114,7 +115,7 @@ func (c *codeRepository) UpsertGitleaksWithToken(data *code.GitleaksForUpsert) (
 		time.Unix(data.ScanAt, 0)).Error; err != nil {
 		return nil, err
 	}
-	return c.GetGitleaksByUniqueIndex(data.ProjectId, data.CodeDataSourceId, data.Name)
+	return c.GetGitleaksByUniqueIndex(ctx, data.ProjectId, data.CodeDataSourceId, data.Name)
 }
 
 const insertUpsertGitleaksWithoutToken = `
@@ -153,8 +154,8 @@ ON DUPLICATE KEY UPDATE
 	scan_at=VALUES(scan_at)
 `
 
-func (c *codeRepository) UpsertGitleaksWithoutToken(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
-	if err := c.MasterDB.Exec(insertUpsertGitleaksWithoutToken,
+func (c *codeRepository) UpsertGitleaksWithoutToken(ctx context.Context, data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+	if err := c.MasterDB.WithContext(ctx).Exec(insertUpsertGitleaksWithoutToken,
 		data.GitleaksId,
 		data.CodeDataSourceId,
 		convertZeroValueToNull(data.Name),
@@ -172,13 +173,13 @@ func (c *codeRepository) UpsertGitleaksWithoutToken(data *code.GitleaksForUpsert
 		time.Unix(data.ScanAt, 0)).Error; err != nil {
 		return nil, err
 	}
-	return c.GetGitleaksByUniqueIndex(data.ProjectId, data.CodeDataSourceId, data.Name)
+	return c.GetGitleaksByUniqueIndex(ctx, data.ProjectId, data.CodeDataSourceId, data.Name)
 }
 
 const deleteGitleaks = `delete from code_gitleaks where project_id=? and gitleaks_id=?`
 
-func (c *codeRepository) DeleteGitleaks(projectID, gitleaksID uint32) error {
-	if err := c.MasterDB.Exec(deleteGitleaks, projectID, gitleaksID).Error; err != nil {
+func (c *codeRepository) DeleteGitleaks(ctx context.Context, projectID, gitleaksID uint32) error {
+	if err := c.MasterDB.WithContext(ctx).Exec(deleteGitleaks, projectID, gitleaksID).Error; err != nil {
 		return err
 	}
 	return nil
@@ -186,9 +187,9 @@ func (c *codeRepository) DeleteGitleaks(projectID, gitleaksID uint32) error {
 
 const selectGetCodeGitleaks = `select * from code_gitleaks where project_id=? and gitleaks_id=?`
 
-func (c *codeRepository) GetGitleaks(projectID, gitleaksID uint32) (*common.CodeGitleaks, error) {
+func (c *codeRepository) GetGitleaks(ctx context.Context, projectID, gitleaksID uint32) (*common.CodeGitleaks, error) {
 	data := common.CodeGitleaks{}
-	if err := c.SlaveDB.Raw(selectGetCodeGitleaks, projectID, gitleaksID).First(&data).Error; err != nil {
+	if err := c.SlaveDB.WithContext(ctx).Raw(selectGetCodeGitleaks, projectID, gitleaksID).First(&data).Error; err != nil {
 		return nil, err
 	}
 	return &data, nil
@@ -196,15 +197,15 @@ func (c *codeRepository) GetGitleaks(projectID, gitleaksID uint32) (*common.Code
 
 const selectGetCodeGitleaksByUniqueIndex = `select * from code_gitleaks where project_id=? and code_data_source_id=? and name=?`
 
-func (c *codeRepository) GetGitleaksByUniqueIndex(projectID, codeDataSourceID uint32, name string) (*common.CodeGitleaks, error) {
+func (c *codeRepository) GetGitleaksByUniqueIndex(ctx context.Context, projectID, codeDataSourceID uint32, name string) (*common.CodeGitleaks, error) {
 	data := common.CodeGitleaks{}
-	if err := c.MasterDB.Raw(selectGetCodeGitleaksByUniqueIndex, projectID, codeDataSourceID, name).First(&data).Error; err != nil {
+	if err := c.MasterDB.WithContext(ctx).Raw(selectGetCodeGitleaksByUniqueIndex, projectID, codeDataSourceID, name).First(&data).Error; err != nil {
 		return nil, err
 	}
 	return &data, nil
 }
 
-func (c *codeRepository) ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error) {
+func (c *codeRepository) ListEnterpriseOrg(ctx context.Context, projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error) {
 	query := `select * from code_enterprise_org where 1=1`
 	var params []interface{}
 	if !zero.IsZeroVal(projectID) {
@@ -216,15 +217,15 @@ func (c *codeRepository) ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]com
 		params = append(params, gitleaksID)
 	}
 	data := []common.CodeEnterpriseOrg{}
-	if err := c.MasterDB.Raw(query, params...).Scan(&data).Error; err != nil {
+	if err := c.MasterDB.WithContext(ctx).Raw(query, params...).Scan(&data).Error; err != nil {
 		return nil, err
 	}
 	return &data, nil
 }
 
-func (c *codeRepository) UpsertEnterpriseOrg(data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error) {
+func (c *codeRepository) UpsertEnterpriseOrg(ctx context.Context, data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error) {
 	var updated common.CodeEnterpriseOrg
-	if err := c.MasterDB.
+	if err := c.MasterDB.WithContext(ctx).
 		Where("gitleaks_id=? and login=? and project_id=?", data.GitleaksId, data.Login, data.ProjectId).
 		Assign(map[string]interface{}{
 			"gitleaks_id": data.GitleaksId,
@@ -246,8 +247,8 @@ func (c *codeRepository) UpsertEnterpriseOrg(data *code.EnterpriseOrgForUpsert) 
 
 const deleteEnterpriseOrg = `delete from code_enterprise_org where project_id=? and gitleaks_id=? and login=?`
 
-func (c *codeRepository) DeleteEnterpriseOrg(projectID, gitleaksID uint32, login string) error {
-	if err := c.MasterDB.Exec(deleteEnterpriseOrg, projectID, gitleaksID, login).Error; err != nil {
+func (c *codeRepository) DeleteEnterpriseOrg(ctx context.Context, projectID, gitleaksID uint32, login string) error {
+	if err := c.MasterDB.WithContext(ctx).Exec(deleteEnterpriseOrg, projectID, gitleaksID, login).Error; err != nil {
 		return err
 	}
 	return nil

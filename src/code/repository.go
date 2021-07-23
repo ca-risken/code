@@ -1,32 +1,31 @@
 package main
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/CyberAgent/mimosa-code/pkg/common"
 	"github.com/CyberAgent/mimosa-code/proto/code"
+	mimosasql "github.com/CyberAgent/mimosa-common/pkg/database/sql"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/vikyd/zero"
-	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	glogger "gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
 type codeRepoInterface interface {
 	// code_data_source
-	ListDataSource(codeDataSourceID uint32, name string) (*[]common.CodeDataSource, error)
+	ListDataSource(ctx context.Context, codeDataSourceID uint32, name string) (*[]common.CodeDataSource, error)
 
 	// code_gitleaks
-	ListGitleaks(projectID, codeDataSourceID, gitleaksID uint32) (*[]common.CodeGitleaks, error)
-	UpsertGitleaks(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error)
-	DeleteGitleaks(projectID uint32, gitleaksID uint32) error
-	GetGitleaks(projectID, gitleaksID uint32) (*common.CodeGitleaks, error)
+	ListGitleaks(ctx context.Context, projectID, codeDataSourceID, gitleaksID uint32) (*[]common.CodeGitleaks, error)
+	UpsertGitleaks(ctx context.Context, data *code.GitleaksForUpsert) (*common.CodeGitleaks, error)
+	DeleteGitleaks(ctx context.Context, projectID uint32, gitleaksID uint32) error
+	GetGitleaks(ctx context.Context, projectID, gitleaksID uint32) (*common.CodeGitleaks, error)
 
 	// code_enterprise_org
-	ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error)
-	UpsertEnterpriseOrg(data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error)
-	DeleteEnterpriseOrg(projectID, gitleaksID uint32, login string) error
+	ListEnterpriseOrg(ctx context.Context, projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error)
+	UpsertEnterpriseOrg(ctx context.Context, data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error)
+	DeleteEnterpriseOrg(ctx context.Context, projectID, gitleaksID uint32, login string) error
 }
 
 type codeRepository struct {
@@ -73,13 +72,10 @@ func initDB(isMaster bool) *gorm.DB {
 
 	dsn := fmt.Sprintf("%s:%s@tcp([%s]:%d)/%s?charset=utf8mb4&interpolateParams=true&parseTime=true&loc=Local",
 		user, pass, host, conf.Port, conf.Schema)
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{SingularTable: true}})
+	db, err := mimosasql.Open(dsn, conf.LogMode)
 	if err != nil {
 		appLogger.Fatalf("Failed to open DB. isMaster: %t, err: %+v", isMaster, err)
 		return nil
-	}
-	if conf.LogMode {
-		db.Logger.LogMode(glogger.Info)
 	}
 	appLogger.Infof("Connected to Database. isMaster: %t", isMaster)
 	return db

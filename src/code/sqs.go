@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-xray-sdk-go/xray"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -19,7 +21,7 @@ type sqsConfig struct {
 }
 
 type sqsAPI interface {
-	sendMsgForGitleaks(msg *common.GitleaksQueueMessage) (*sqs.SendMessageOutput, error)
+	sendMsgForGitleaks(ctx context.Context, msg *common.GitleaksQueueMessage) (*sqs.SendMessageOutput, error)
 }
 
 type sqsClient struct {
@@ -43,18 +45,19 @@ func newSQSClient() *sqsClient {
 		Region:   &conf.AWSRegion,
 		Endpoint: &conf.SQSEndpoint,
 	})
+	xray.AWS(session.Client)
 	return &sqsClient{
 		svc:              session,
 		gitleaksQueueURL: conf.GitleaksQueueURL,
 	}
 }
 
-func (s *sqsClient) sendMsgForGitleaks(msg *common.GitleaksQueueMessage) (*sqs.SendMessageOutput, error) {
+func (s *sqsClient) sendMsgForGitleaks(ctx context.Context, msg *common.GitleaksQueueMessage) (*sqs.SendMessageOutput, error) {
 	buf, err := json.Marshal(msg)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse message, err=%+v", err)
 	}
-	resp, err := s.svc.SendMessage(&sqs.SendMessageInput{
+	resp, err := s.svc.SendMessageWithContext(ctx, &sqs.SendMessageInput{
 		MessageBody:  aws.String(string(buf)),
 		QueueUrl:     aws.String(s.gitleaksQueueURL),
 		DelaySeconds: aws.Int64(1),
