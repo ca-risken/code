@@ -6,12 +6,14 @@ require (
 	github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20210708100252-f05582222245
 	github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20210708100252-f05582222245
 	github.com/CyberAgent/mimosa-common/pkg/logging v0.0.0-20210707094034-b513f64f04b9
+	github.com/CyberAgent/mimosa-common/pkg/xray v0.0.0-20210803120909-2cc57e3c75d2
 	github.com/CyberAgent/mimosa-core/proto/alert v0.0.0-20210707124600-11b1f052c30a
 	github.com/CyberAgent/mimosa-core/proto/finding v0.0.0-20210707124600-11b1f052c30a
 	github.com/Microsoft/go-winio v0.5.0 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20210707164159-52430bf6b52c // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/aws/aws-sdk-go v1.39.3
+	github.com/aws/aws-xray-sdk-go v1.6.0
 	github.com/gassara-kys/go-sqs-poller/worker/v4 v4.0.0-20210215110542-0be358599a2f
 	github.com/go-git/go-git/v5 v5.4.2 // indirect
 	github.com/google/go-github/v32 v32.1.0

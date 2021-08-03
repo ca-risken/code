@@ -461,35 +461,35 @@ type mockCodeRepository struct {
 	mock.Mock
 }
 
-func (m *mockCodeRepository) ListDataSource(codeDataSourceID uint32, name string) (*[]common.CodeDataSource, error) {
+func (m *mockCodeRepository) ListDataSource(ctx context.Context, codeDataSourceID uint32, name string) (*[]common.CodeDataSource, error) {
 	args := m.Called()
 	return args.Get(0).(*[]common.CodeDataSource), args.Error(1)
 }
-func (m *mockCodeRepository) ListGitleaks(projectID, codeDataSourceID, gitleaksID uint32) (*[]common.CodeGitleaks, error) {
+func (m *mockCodeRepository) ListGitleaks(ctx context.Context, projectID, codeDataSourceID, gitleaksID uint32) (*[]common.CodeGitleaks, error) {
 	args := m.Called()
 	return args.Get(0).(*[]common.CodeGitleaks), args.Error(1)
 }
-func (m *mockCodeRepository) UpsertGitleaks(data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+func (m *mockCodeRepository) UpsertGitleaks(ctx context.Context, data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
 	args := m.Called()
 	return args.Get(0).(*common.CodeGitleaks), args.Error(1)
 }
-func (m *mockCodeRepository) DeleteGitleaks(projectID uint32, gitleaksID uint32) error {
+func (m *mockCodeRepository) DeleteGitleaks(ctx context.Context, projectID uint32, gitleaksID uint32) error {
 	args := m.Called()
 	return args.Error(0)
 }
-func (m *mockCodeRepository) GetGitleaks(projectID, gitleaksID uint32) (*common.CodeGitleaks, error) {
+func (m *mockCodeRepository) GetGitleaks(ctx context.Context, projectID, gitleaksID uint32) (*common.CodeGitleaks, error) {
 	args := m.Called()
 	return args.Get(0).(*common.CodeGitleaks), args.Error(1)
 }
-func (m *mockCodeRepository) ListEnterpriseOrg(projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error) {
+func (m *mockCodeRepository) ListEnterpriseOrg(ctx context.Context, projectID, gitleaksID uint32) (*[]common.CodeEnterpriseOrg, error) {
 	args := m.Called()
 	return args.Get(0).(*[]common.CodeEnterpriseOrg), args.Error(1)
 }
-func (m *mockCodeRepository) UpsertEnterpriseOrg(data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error) {
+func (m *mockCodeRepository) UpsertEnterpriseOrg(ctx context.Context, data *code.EnterpriseOrgForUpsert) (*common.CodeEnterpriseOrg, error) {
 	args := m.Called()
 	return args.Get(0).(*common.CodeEnterpriseOrg), args.Error(1)
 }
-func (m *mockCodeRepository) DeleteEnterpriseOrg(projectID, gitleaksID uint32, login string) error {
+func (m *mockCodeRepository) DeleteEnterpriseOrg(ctx context.Context, projectID, gitleaksID uint32, login string) error {
 	args := m.Called()
 	return args.Error(0)
 }

@@ -63,7 +63,7 @@ func (c *codeService) ListDataSource(ctx context.Context, req *code.ListDataSour
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	list, err := c.repository.ListDataSource(req.CodeDataSourceId, req.Name)
+	list, err := c.repository.ListDataSource(ctx, req.CodeDataSourceId, req.Name)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &code.ListDataSourceResponse{}, nil
@@ -116,7 +116,7 @@ func (c *codeService) ListGitleaks(ctx context.Context, req *code.ListGitleaksRe
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	list, err := c.repository.ListGitleaks(req.ProjectId, req.CodeDataSourceId, req.GitleaksId)
+	list, err := c.repository.ListGitleaks(ctx, req.ProjectId, req.CodeDataSourceId, req.GitleaksId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &code.ListGitleaksResponse{}, nil
@@ -134,7 +134,7 @@ func (c *codeService) GetGitleaks(ctx context.Context, req *code.GetGitleaksRequ
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	data, err := c.repository.GetGitleaks(req.ProjectId, req.GitleaksId)
+	data, err := c.repository.GetGitleaks(ctx, req.ProjectId, req.GitleaksId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &code.GetGitleaksResponse{}, nil
@@ -158,7 +158,7 @@ func (c *codeService) PutGitleaks(ctx context.Context, req *code.PutGitleaksRequ
 	} else {
 		req.Gitleaks.PersonalAccessToken = "" // for not update token.
 	}
-	registerd, err := c.repository.UpsertGitleaks(req.Gitleaks)
+	registerd, err := c.repository.UpsertGitleaks(ctx, req.Gitleaks)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (c *codeService) DeleteGitleaks(ctx context.Context, req *code.DeleteGitlea
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	err := c.repository.DeleteGitleaks(req.ProjectId, req.GitleaksId)
+	err := c.repository.DeleteGitleaks(ctx, req.ProjectId, req.GitleaksId)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func (c *codeService) ListEnterpriseOrg(ctx context.Context, req *code.ListEnter
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	list, err := c.repository.ListEnterpriseOrg(req.ProjectId, req.GitleaksId)
+	list, err := c.repository.ListEnterpriseOrg(ctx, req.ProjectId, req.GitleaksId)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &code.ListEnterpriseOrgResponse{}, nil
@@ -247,7 +247,7 @@ func (c *codeService) PutEnterpriseOrg(ctx context.Context, req *code.PutEnterpr
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	registerd, err := c.repository.UpsertEnterpriseOrg(req.EnterpriseOrg)
+	registerd, err := c.repository.UpsertEnterpriseOrg(ctx, req.EnterpriseOrg)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func (c *codeService) DeleteEnterpriseOrg(ctx context.Context, req *code.DeleteE
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	err := c.repository.DeleteEnterpriseOrg(req.ProjectId, req.GitleaksId, req.Login)
+	err := c.repository.DeleteEnterpriseOrg(ctx, req.ProjectId, req.GitleaksId, req.Login)
 	if err != nil {
 		return nil, err
 	}
@@ -269,11 +269,11 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	data, err := c.repository.GetGitleaks(req.ProjectId, req.GitleaksId)
+	data, err := c.repository.GetGitleaks(ctx, req.ProjectId, req.GitleaksId)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := c.sqs.sendMsgForGitleaks(&common.GitleaksQueueMessage{
+	resp, err := c.sqs.sendMsgForGitleaks(ctx, &common.GitleaksQueueMessage{
 		GitleaksID: data.GitleaksID,
 		ProjectID:  data.ProjectID,
 		ScanOnly:   req.ScanOnly,
@@ -281,7 +281,7 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 	if err != nil {
 		return nil, err
 	}
-	if _, err = c.repository.UpsertGitleaks(&code.GitleaksForUpsert{
+	if _, err = c.repository.UpsertGitleaks(ctx, &code.GitleaksForUpsert{
 		GitleaksId:        data.GitleaksID,
 		CodeDataSourceId:  data.CodeDataSourceID,
 		Name:              data.Name,
@@ -306,7 +306,7 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 }
 
 func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty) (*empty.Empty, error) {
-	list, err := c.repository.ListGitleaks(0, 0, 0)
+	list, err := c.repository.ListGitleaks(ctx, 0, 0, 0)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &empty.Empty{}, nil

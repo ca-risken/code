@@ -53,7 +53,7 @@ func newHandler() *sqsHandler {
 	}
 }
 
-func (s *sqsHandler) HandleMessage(sqsMsg *sqs.Message) error {
+func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) error {
 	msgBody := aws.StringValue(sqsMsg.Body)
 	appLogger.Infof("got message: %s", msgBody)
 	msg, err := common.ParseMessage(msgBody)
@@ -68,7 +68,6 @@ func (s *sqsHandler) HandleMessage(sqsMsg *sqs.Message) error {
 	}
 	appLogger.Infof("start Scan, RequestID=%s", requestID)
 
-	ctx := context.Background()
 	gitleaksConfig, err := s.getGitleaks(ctx, msg.ProjectID, msg.GitleaksID)
 	if err != nil {
 		appLogger.Errorf("Failed to get scan status: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
@@ -97,7 +96,8 @@ func (s *sqsHandler) HandleMessage(sqsMsg *sqs.Message) error {
 		}
 
 		// Scan repository
-		if err := s.gitleaksClient.scanRepository(ctx, decryptedKey, &f); err != nil {
+		err = s.gitleaksClient.scanRepository(ctx, decryptedKey, &f)
+		if err != nil {
 			appLogger.Errorf("Failed to scan repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 			return s.updateScanStatusError(ctx, scanStatus, err.Error())
 		}
