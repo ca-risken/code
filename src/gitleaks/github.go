@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/CyberAgent/mimosa-code/proto/code"
-	"github.com/aws/aws-xray-sdk-go/xray"
 	"github.com/google/go-github/v32/github"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/shurcooL/githubv4"
@@ -187,10 +186,7 @@ func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.G
 	// public
 	if config.ScanPublic {
 		ghVisibility := githubVisibilityPublic
-		_, segment := xray.BeginSubsegment(ctx, "listRepositoryForUserWithOption")
-		segment.AddMetadata("GithubVisibility", ghVisibility)
 		repos, err := g.listRepositoryForUserWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
-		segment.Close(err)
 		if err != nil {
 			return nil, err
 		}
@@ -200,10 +196,7 @@ func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.G
 	// private
 	if config.ScanPrivate {
 		ghVisibility := githubVisibilityPrivate
-		_, segment := xray.BeginSubsegment(ctx, "listRepositoryForUserWithOption")
-		segment.AddMetadata("GithubVisibility", ghVisibility)
 		repos, err := g.listRepositoryForUserWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
-		segment.Close(err)
 		if err != nil {
 			return nil, err
 		}
@@ -242,10 +235,7 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gi
 	// public
 	if config.ScanPublic {
 		ghVisibility := githubVisibilityPublic
-		_, segment := xray.BeginSubsegment(ctx, "listRepositoryForOrgWithOption")
-		segment.AddMetadata("GithubVisibility", ghVisibility)
 		repos, err := g.listRepositoryForOrgWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
-		segment.Close(err)
 		if err != nil {
 			return nil, err
 		}
@@ -255,10 +245,7 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gi
 	// internal
 	if config.ScanInternal {
 		ghVisibility := githubVisibilityInternal
-		_, segment := xray.BeginSubsegment(ctx, "listRepositoryForOrgWithOption")
-		segment.AddMetadata("GithubVisibility", ghVisibility)
 		repos, err := g.listRepositoryForOrgWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
-		segment.Close(err)
 		if err != nil {
 			return nil, err
 		}
@@ -268,10 +255,7 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gi
 	// private
 	if config.ScanPrivate {
 		ghVisibility := githubVisibilityPrivate
-		_, segment := xray.BeginSubsegment(ctx, "listRepositoryForOrgWithOption")
-		segment.AddMetadata("GithubVisibility", ghVisibility)
 		repos, err := g.listRepositoryForOrgWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
-		segment.Close(err)
 		if err != nil {
 			return nil, err
 		}

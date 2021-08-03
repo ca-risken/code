@@ -16,7 +16,6 @@ import (
 	"github.com/CyberAgent/mimosa-core/proto/finding"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/aws/aws-xray-sdk-go/xray"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -97,9 +96,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 		}
 
 		// Scan repository
-		_, segment := xray.BeginSubsegment(ctx, "scanRepository")
 		err = s.gitleaksClient.scanRepository(ctx, decryptedKey, &f)
-		segment.Close(err)
 		if err != nil {
 			appLogger.Errorf("Failed to scan repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 			return s.updateScanStatusError(ctx, scanStatus, err.Error())
@@ -194,9 +191,7 @@ func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.
 }
 
 func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, findings *[]repositoryFinding) (*code.ListEnterpriseOrgResponse, error) {
-	_, segment := xray.BeginSubsegment(ctx, "listEnterpriseOrg")
 	orgs, err := s.githubClient.listEnterpriseOrg(ctx, config, config.TargetResource)
-	segment.Close(err)
 	if err != nil {
 		return &code.ListEnterpriseOrgResponse{}, err
 	}
