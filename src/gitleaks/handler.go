@@ -86,7 +86,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return s.updateScanStatusError(ctx, scanStatus, err.Error())
 	}
-	appLogger.Infof("Got repositories, count=%d, target=%s", len(findings), gitleaksConfig.TargetResource)
+	appLogger.Infof("Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
+		len(findings), gitleaksConfig.BaseUrl, gitleaksConfig.TargetResource, gitleaksConfig.RepositoryPattern)
 
 	for _, f := range findings {
 		// Set LastScanedAt
