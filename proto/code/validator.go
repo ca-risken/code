@@ -6,6 +6,7 @@ import (
 	"regexp"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/go-ozzo/ozzo-validation/v4/is"
 )
 
 // Validate ListDataSourceRequest
@@ -99,7 +100,7 @@ func (g *GitleaksForUpsert) Validate() error {
 		validation.Field(&g.CodeDataSourceId, validation.Required),
 		validation.Field(&g.Name, validation.Length(0, 64)),
 		validation.Field(&g.ProjectId, validation.Required),
-		// validation.Field(&g.Type, validation.In(Type_ENTERPRISE, Type_ORGANIZATION, Type_USER)),
+		validation.Field(&g.BaseUrl, validation.Length(0, 128), is.URL),
 		validation.Field(&g.TargetResource, validation.Required, validation.Length(0, 128)),
 		validation.Field(&g.RepositoryPattern, validation.Length(0, 128), validation.By(compilableRegexp(g.RepositoryPattern))),
 		validation.Field(&g.GithubUser, validation.Length(0, 64)),

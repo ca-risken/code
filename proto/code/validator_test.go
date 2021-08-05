@@ -328,7 +328,7 @@ func TestValidate_GitleaksForUpsert(t *testing.T) {
 		{
 			name: "OK",
 			input: &GitleaksForUpsert{
-				CodeDataSourceId: 1, Name: "name", ProjectId: 1, Type: Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, StatusDetail: "detail", ScanAt: now.Unix(),
+				CodeDataSourceId: 1, Name: "name", ProjectId: 1, Type: Type_ENTERPRISE, BaseUrl: "https://api.github.com/", TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, StatusDetail: "detail", ScanAt: now.Unix(),
 			},
 		},
 		{
@@ -355,6 +355,20 @@ func TestValidate_GitleaksForUpsert(t *testing.T) {
 			name: "NG Required(project_id)",
 			input: &GitleaksForUpsert{
 				CodeDataSourceId: 1, Name: "name", Type: Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, ScanAt: now.Unix(),
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG Length(base_url)",
+			input: &GitleaksForUpsert{
+				CodeDataSourceId: 1, ProjectId: 1, Type: Type_ORGANIZATION, BaseUrl: stringLength129, TargetResource: "target", GithubUser: "user", PersonalAccessToken: "xxx",
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG Not URL(base_url)",
+			input: &GitleaksForUpsert{
+				CodeDataSourceId: 1, ProjectId: 1, Type: Type_ORGANIZATION, BaseUrl: "not URL pattern", TargetResource: "target", GithubUser: "user", PersonalAccessToken: "xxx",
 			},
 			wantErr: true,
 		},
