@@ -140,6 +140,7 @@ func (s *sqsHandler) initScanStatus(g *code.Gitleaks, token string) *code.PutGit
 			CodeDataSourceId:    g.CodeDataSourceId,
 			Name:                g.Name,
 			Type:                g.Type,
+			BaseUrl:             g.BaseUrl,
 			TargetResource:      g.TargetResource,
 			RepositoryPattern:   g.RepositoryPattern,
 			GithubUser:          g.GithubUser,
