@@ -228,7 +228,7 @@ func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, base
 		if err != nil {
 			return nil, err
 		}
-		appLogger.Infof("Success GitHub API for user repos, login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
+		appLogger.Infof("Success GitHub API for user repos, baseURL: %s,login:%s, option:%+v, repo_count: %d, response:%+v", client.BaseURL, login, opt, len(repos), resp)
 		for _, r := range repos {
 			r.Visibility = &visibility
 		}
@@ -289,7 +289,7 @@ func (g *githubClient) listRepositoryForOrgWithOption(ctx context.Context, baseU
 		if err != nil {
 			return nil, err
 		}
-		appLogger.Infof("Success GitHub API for organization repos, login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
+		appLogger.Infof("Success GitHub API for user repos, baseURL: %s,login:%s, option:%+v, repo_count: %d, response:%+v", client.BaseURL, login, opt, len(repos), resp)
 		for _, r := range repos {
 			r.Visibility = &visibility
 		}
