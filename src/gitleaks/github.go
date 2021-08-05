@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -38,11 +39,19 @@ func newGithubClient() githubServiceClient {
 	}
 }
 
-func (g *githubClient) newV3Client(ctx context.Context, token string) *github.Client {
+func (g *githubClient) newV3Client(ctx context.Context, token, baseURL string) (*github.Client, error) {
 	httpClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: getToken(token, g.defaultToken)},
 	))
-	return github.NewClient(httpClient)
+	client := github.NewClient(httpClient)
+	if baseURL != "" { // Default: "https://api.github.com/"
+		u, err := url.Parse(baseURL)
+		if err != nil {
+			return nil, err
+		}
+		client.BaseURL = u
+	}
+	return client, nil
 }
 
 func (g *githubClient) newV4Client(ctx context.Context, token string) *githubv4.Client {
@@ -185,8 +194,7 @@ func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.G
 	var allRepos []*github.Repository
 	// public
 	if config.ScanPublic {
-		ghVisibility := githubVisibilityPublic
-		repos, err := g.listRepositoryForUserWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
+		repos, err := g.listRepositoryForUserWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityPublic)
 		if err != nil {
 			return nil, err
 		}
@@ -195,8 +203,7 @@ func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.G
 
 	// private
 	if config.ScanPrivate {
-		ghVisibility := githubVisibilityPrivate
-		repos, err := g.listRepositoryForUserWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
+		repos, err := g.listRepositoryForUserWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityPrivate)
 		if err != nil {
 			return nil, err
 		}
@@ -205,8 +212,12 @@ func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.G
 	return allRepos, nil
 }
 
-func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, token, login, visibility string) ([]*github.Repository, error) {
-	client := g.newV3Client(ctx, token)
+func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, baseURL, token, login, visibility string) ([]*github.Repository, error) {
+	client, err := g.newV3Client(ctx, token, baseURL)
+	if err != nil {
+		appLogger.Errorf("Failed to create github-v3 client, err=%+v", err)
+		return nil, err
+	}
 	var allRepo []*github.Repository
 	opt := &github.RepositoryListOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
@@ -234,8 +245,7 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gi
 	var allRepos []*github.Repository
 	// public
 	if config.ScanPublic {
-		ghVisibility := githubVisibilityPublic
-		repos, err := g.listRepositoryForOrgWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
+		repos, err := g.listRepositoryForOrgWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityPublic)
 		if err != nil {
 			return nil, err
 		}
@@ -244,8 +254,7 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gi
 
 	// internal
 	if config.ScanInternal {
-		ghVisibility := githubVisibilityInternal
-		repos, err := g.listRepositoryForOrgWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
+		repos, err := g.listRepositoryForOrgWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityInternal)
 		if err != nil {
 			return nil, err
 		}
@@ -254,8 +263,7 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gi
 
 	// private
 	if config.ScanPrivate {
-		ghVisibility := githubVisibilityPrivate
-		repos, err := g.listRepositoryForOrgWithOption(ctx, config.PersonalAccessToken, login, ghVisibility)
+		repos, err := g.listRepositoryForOrgWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityPrivate)
 		if err != nil {
 			return nil, err
 		}
@@ -264,8 +272,13 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gi
 	return allRepos, nil
 }
 
-func (g *githubClient) listRepositoryForOrgWithOption(ctx context.Context, token, login, visibility string) ([]*github.Repository, error) {
-	client := g.newV3Client(ctx, token)
+func (g *githubClient) listRepositoryForOrgWithOption(ctx context.Context, baseURL, token, login, visibility string) ([]*github.Repository, error) {
+	client, err := g.newV3Client(ctx, token, baseURL)
+	if err != nil {
+		appLogger.Errorf("Failed to create github-v3 client, err=%+v", err)
+		return nil, err
+	}
+
 	var allRepo []*github.Repository
 	opt := &github.RepositoryListByOrgOptions{
 		ListOptions: github.ListOptions{PerPage: 100},

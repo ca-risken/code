@@ -64,6 +64,7 @@ INSERT INTO code_gitleaks (
   name,
   project_id,
   type,
+  base_url,
   target_resource,
   repository_pattern,
   github_user,
@@ -76,12 +77,13 @@ INSERT INTO code_gitleaks (
   status_detail,
   scan_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON DUPLICATE KEY UPDATE
 	code_data_source_id=VALUES(code_data_source_id),
 	name=VALUES(name),
 	project_id=VALUES(project_id),
 	type=VALUES(type),
+	base_url=VALUES(base_url),
 	target_resource=VALUES(target_resource),
 	repository_pattern=VALUES(repository_pattern),
 	github_user=VALUES(github_user),
@@ -102,6 +104,7 @@ func (c *codeRepository) UpsertGitleaksWithToken(ctx context.Context, data *code
 		convertZeroValueToNull(data.Name),
 		data.ProjectId,
 		data.Type.String(),
+		data.BaseUrl,
 		data.TargetResource,
 		convertZeroValueToNull(data.RepositoryPattern),
 		convertZeroValueToNull(data.GithubUser),
@@ -125,6 +128,7 @@ INSERT INTO code_gitleaks (
   name,
   project_id,
   type,
+  base_url,
   target_resource,
   repository_pattern,
   github_user,
@@ -136,12 +140,13 @@ INSERT INTO code_gitleaks (
   status_detail,
   scan_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON DUPLICATE KEY UPDATE
 	code_data_source_id=VALUES(code_data_source_id),
 	name=VALUES(name),
 	project_id=VALUES(project_id),
 	type=VALUES(type),
+	base_url=VALUES(base_url),
 	target_resource=VALUES(target_resource),
 	repository_pattern=VALUES(repository_pattern),
 	github_user=VALUES(github_user),
@@ -161,6 +166,7 @@ func (c *codeRepository) UpsertGitleaksWithoutToken(ctx context.Context, data *c
 		convertZeroValueToNull(data.Name),
 		data.ProjectId,
 		data.Type.String(),
+		data.BaseUrl,
 		data.TargetResource,
 		convertZeroValueToNull(data.RepositoryPattern),
 		convertZeroValueToNull(data.GithubUser),
