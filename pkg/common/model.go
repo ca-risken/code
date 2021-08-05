@@ -19,6 +19,7 @@ type CodeGitleaks struct {
 	Name                string
 	ProjectID           uint32
 	Type                string
+	BaseURL             string
 	TargetResource      string
 	RepositoryPattern   string
 	GithubUser          string
