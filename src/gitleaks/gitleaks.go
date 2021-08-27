@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"net/http"
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
@@ -117,18 +116,6 @@ func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
 	// Hard limit size
 	if *repo.Size > g.limitRepositorySizeKb {
 		appLogger.Warnf("Skip scan for %s, because repository is too big size, limit=%dkb, size(kb)=%dkb", *repo.FullName, g.limitRepositorySizeKb, *repo.Size)
-		return true
-	}
-
-	// HTTP OK?
-	resp, err := http.Get(*repo.CloneURL)
-	if err != nil {
-		appLogger.Warnf("Skip scan for %s, because failed to http request, clone_url=%s, err=%+v", *repo.FullName, *repo.CloneURL, err)
-		return true
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		appLogger.Warnf("Skip scan for %s, because failed to http response error, status=%d, clone_url=%s", *repo.FullName, resp.StatusCode, *repo.CloneURL)
 		return true
 	}
 
