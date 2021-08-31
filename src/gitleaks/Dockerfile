@@ -28,7 +28,7 @@ ENV DEBUG= \
     SQS_ENDPOINT= \
     GITLEAKS_QUEUE_NAME= \
     GITLEAKS_QUEUE_URL= \
-    MAX_NUMBER_OF_MESSAGE=10 \
+    MAX_NUMBER_OF_MESSAGE= \
     WAIT_TIME_SECOND=20 \
     FINDING_SVC_ADDR= \
     ALERT_SVC_ADDR= \
@@ -38,6 +38,7 @@ ENV DEBUG= \
     DATA_KEY= \
     LIMIT_REPOSITORY_SIZE_KB= \
     SEPERATE_SCAN_DAYS= \
+    GITLEAKS_SCAN_THREADS= \
     TZ=Asia/Tokyo
 WORKDIR /usr/local/gitleaks
 ENTRYPOINT ["/usr/local/bin/env-injector"]
