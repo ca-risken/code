@@ -4,9 +4,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/zricethezav/gitleaks/v7/config"
 	"github.com/zricethezav/gitleaks/v7/options"
@@ -21,12 +24,14 @@ type gitleaksConfig struct {
 	GithubDefaultToken    string `required:"true" split_words:"true"`
 	LimitRepositorySizeKb int    `required:"true" split_words:"true"`
 	SeperateScanDays      int    `required:"true" split_words:"true"`
+	GitleaksScanThreads   int    `required:"true" split_words:"true"`
 }
 
 type gitleaksClient struct {
 	defaultToken          string
 	limitRepositorySizeKb int
 	seperateScanDays      int
+	gitleaksScanThreads   int
 }
 
 func newGitleaksClient() gitleaksServiceClient {
@@ -39,6 +44,7 @@ func newGitleaksClient() gitleaksServiceClient {
 		defaultToken:          conf.GithubDefaultToken,
 		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
 		seperateScanDays:      conf.SeperateScanDays,
+		gitleaksScanThreads:   conf.GitleaksScanThreads,
 	}
 }
 
@@ -69,21 +75,30 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		f.SkipScan = true
 		return nil
 	}
+	clonePath, err := generateClonePath(*f.FullName)
+	if err != nil {
+		return err
+	}
+
 	opts := options.Options{
 		RepoURL:     *f.CloneURL,
+		ClonePath:   clonePath,
 		AccessToken: getToken(token, g.defaultToken),
 		Verbose:     true,
 		Debug:       true,
 		Redact:      true,
-		// Threads:      1,
+		Threads:     g.gitleaksScanThreads,
 		// Disk:         true,
 	}
-	appLogger.Infof("Start scan gitleaks: repository=%s, size=%d(kb)", *f.FullName, *f.Size)
+	appLogger.Infof("Start scan repository: fullname=%s, size=%d(kb), createdAt: %v, pushedAt:%v, lastScanedAt: %v",
+		*f.FullName, *f.Size, f.CreatedAt, f.PushedAt, f.LastScanedAt)
 	durations := g.getScanDuration(f.CreatedAt.Time, f.PushedAt.Time, f.LastScanedAt)
 	for idx, duration := range durations {
-		// if idx > 0 {
-		//   runtime.GC()
-		// }
+		if idx > 0 {
+			//   runtime.GC()
+			opts.Path = clonePath // already clone
+			opts.ClonePath = ""
+		}
 
 		// Set range
 		opts.CommitSince = duration.From.Format("2006-01-02")
@@ -124,7 +139,7 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		}
 		time.Sleep(1 * time.Second)
 	}
-	return nil
+	return removeDir(clonePath)
 }
 
 func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
@@ -171,7 +186,6 @@ type scanDuration struct {
 }
 
 func (g *gitleaksClient) getScanDuration(createdAt, pushedAt, lastScanedAt time.Time) []scanDuration {
-	appLogger.Debugf("createdAt: %v, pushedAt:%v, lastScanedAt: %v", createdAt, pushedAt, lastScanedAt)
 	start := createdAt
 	if createdAt.Unix() < lastScanedAt.Unix() {
 		start = lastScanedAt
@@ -193,4 +207,30 @@ func (g *gitleaksClient) getScanDuration(createdAt, pushedAt, lastScanedAt time.
 		current = toDate
 	}
 	return duration
+}
+
+func generateClonePath(fullName string) (string, error) {
+	if fullName == "" {
+		return "", errors.New("Failed to generateClonePath: required name.")
+	}
+	uu, err := uuid.NewRandom()
+	if err != nil {
+		return "", fmt.Errorf("Failed to generateClonePath: could not generate UUID, err=%+v", err)
+	}
+	clonePath := fmt.Sprintf("/tmp/%s-%s", fullName, uu.String())
+	if _, err := os.Stat(clonePath); !os.IsNotExist(err) {
+		// clonePath is exists
+		if err := removeDir(clonePath); err != nil {
+			return "", err
+		}
+	}
+	return clonePath, nil
+}
+
+func removeDir(dir string) error {
+	if err := os.RemoveAll(dir); err != nil {
+		appLogger.Warnf("Failed to remove directory, dir=%s, err=%+v", dir, err)
+	}
+	appLogger.Infof("Success remove directory, dir=%s", dir)
+	return nil
 }
