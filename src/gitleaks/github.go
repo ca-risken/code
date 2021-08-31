@@ -23,13 +23,8 @@ type githubClient struct {
 	defaultToken string
 }
 
-type gihubConfig struct {
-	GithubDefaultToken    string `required:"true" split_words:"true"`
-	LimitRepositorySizeKb int    `required:"true" split_words:"true"`
-}
-
 func newGithubClient() githubServiceClient {
-	var conf gihubConfig
+	var conf gitleaksConfig
 	err := envconfig.Process("", &conf)
 	if err != nil {
 		appLogger.Fatalf("Could not read githubConfig. err: %+v", err)
