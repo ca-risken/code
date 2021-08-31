@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/kelseyhightower/envconfig"
-	"github.com/zricethezav/gitleaks/v6/config"
-	"github.com/zricethezav/gitleaks/v6/manager"
-	"github.com/zricethezav/gitleaks/v6/options"
-	"github.com/zricethezav/gitleaks/v6/scan"
+	"github.com/zricethezav/gitleaks/v7/config"
+	"github.com/zricethezav/gitleaks/v7/options"
+	"github.com/zricethezav/gitleaks/v7/scan"
 )
 
 type gitleaksServiceClient interface {
@@ -71,14 +70,13 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		return nil
 	}
 	opts := options.Options{
-		Repo:         *f.CloneURL,
-		AccessToken:  getToken(token, g.defaultToken),
-		Verbose:      true,
-		Debug:        true,
-		Redact:       true,
-		ExcludeForks: true,
+		RepoURL:     *f.CloneURL,
+		AccessToken: getToken(token, g.defaultToken),
+		Verbose:     true,
+		Debug:       true,
+		Redact:      true,
 		// Threads:      1,
-		//Disk:         true,
+		// Disk:         true,
 	}
 	appLogger.Infof("Start scan gitleaks: repository=%s, size=%d(kb)", *f.FullName, *f.Size)
 	durations := g.getScanDuration(f.CreatedAt.Time, f.PushedAt.Time, f.LastScanedAt)
@@ -94,20 +92,21 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		if err != nil {
 			return err
 		}
-		mng, err := manager.NewManager(opts, cfg)
+		scanner, err := scan.NewScanner(opts, cfg)
 		if err != nil {
 			return err
 		}
 		appLogger.Infof("Scan %s %d/%d started... (%s ~ %s)", *f.FullName, idx+1, len(durations), opts.CommitSince, opts.CommitUntil)
 		writeMemStats()
-		if err := scan.Run(mng); err != nil {
+		report, err := scanner.Scan()
+		if err != nil {
 			// A scanning error occurred, but continue scanning the other repositories...
 			appLogger.Errorf("Failed to scan `Gitleaks`: repository=%s, err=%+v", *f.FullName, err)
 			return nil
 		}
 		appLogger.Infof("Scan %s %d/%d ended... (%s ~ %s)", *f.FullName, idx+1, len(durations), opts.CommitSince, opts.CommitUntil)
 		writeMemStats()
-		for _, leak := range mng.GetLeaks() {
+		for _, leak := range report.Leaks {
 			f.LeakFindings = append(f.LeakFindings, &leakFinding{
 				Line:       cutString(leak.Line, 200),
 				LineNumber: leak.LineNumber,
