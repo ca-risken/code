@@ -77,7 +77,7 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		Debug:        true,
 		Redact:       true,
 		ExcludeForks: true,
-		Threads:      1,
+		// Threads:      1,
 		//Disk:         true,
 	}
 	appLogger.Infof("Start scan gitleaks: repository=%s, size=%d(kb)", *f.FullName, *f.Size)
