@@ -6,20 +6,20 @@ require (
 	github.com/BurntSushi/toml v0.4.0 // indirect
 	github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20210805060451-54ca480ed086
 	github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20210805060451-54ca480ed086
-	github.com/CyberAgent/mimosa-common/pkg/logging v0.0.0-20210805060445-a5295c8f2842
-	github.com/CyberAgent/mimosa-common/pkg/xray v0.0.0-20210805060445-a5295c8f2842
-	github.com/CyberAgent/mimosa-core/proto/alert v0.0.0-20210803014122-a53405362979
-	github.com/CyberAgent/mimosa-core/proto/finding v0.0.0-20210803014122-a53405362979
 	github.com/ProtonMail/go-crypto v0.0.0-20210707164159-52430bf6b52c // indirect
 	github.com/andybalholm/brotli v1.0.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/aws/aws-sdk-go v1.40.15
 	github.com/aws/aws-xray-sdk-go v1.6.0
+	github.com/ca-risken/common/pkg/logging v0.0.0-20210906122657-d2be54cc7181
+	github.com/ca-risken/common/pkg/xray v0.0.0-20210906122657-d2be54cc7181
+	github.com/ca-risken/core/proto/alert v0.0.0-20210906115102-3cabd5f9511a
+	github.com/ca-risken/core/proto/finding v0.0.0-20210906115102-3cabd5f9511a
 	github.com/gassara-kys/go-sqs-poller/worker/v4 v4.0.0-20210215110542-0be358599a2f
 	github.com/go-git/go-git/v5 v5.4.2 // indirect
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/go-querystring v1.1.0 // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.3.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kevinburke/ssh_config v1.1.0 // indirect
 	github.com/klauspost/compress v1.13.3 // indirect

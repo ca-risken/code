@@ -5,12 +5,12 @@ go 1.16
 require (
 	github.com/CyberAgent/mimosa-code/pkg/common v0.0.0-20210805060451-54ca480ed086
 	github.com/CyberAgent/mimosa-code/proto/code v0.0.0-20210805060451-54ca480ed086
-	github.com/CyberAgent/mimosa-common/pkg/database v0.0.0-20210805060445-a5295c8f2842
-	github.com/CyberAgent/mimosa-common/pkg/xray v0.0.0-20210805060445-a5295c8f2842
 	github.com/andybalholm/brotli v1.0.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/aws/aws-sdk-go v1.40.15
 	github.com/aws/aws-xray-sdk-go v1.6.0
+	github.com/ca-risken/common/pkg/database v0.0.0-20210906122657-d2be54cc7181
+	github.com/ca-risken/common/pkg/xray v0.0.0-20210906122657-d2be54cc7181
 	github.com/golang/protobuf v1.5.2
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/kelseyhightower/envconfig v1.4.0
