@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 package code.code;
-option go_package = "github.com/CyberAgent/mimosa-code/proto/code";
+option go_package = "github.com/ca-risken/code/proto/code";
 
 /**
  * Entity
