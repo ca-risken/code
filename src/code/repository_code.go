@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/CyberAgent/mimosa-code/pkg/common"
-	"github.com/CyberAgent/mimosa-code/proto/code"
+	"github.com/ca-risken/code/pkg/common"
+	"github.com/ca-risken/code/proto/code"
 	"github.com/vikyd/zero"
 )
 

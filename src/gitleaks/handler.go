@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CyberAgent/mimosa-code/pkg/common"
-	"github.com/CyberAgent/mimosa-code/proto/code"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/ca-risken/code/pkg/common"
+	"github.com/ca-risken/code/proto/code"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
