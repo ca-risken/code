@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/CyberAgent/mimosa-code/pkg/common"
-	"github.com/CyberAgent/mimosa-code/proto/code"
+	"github.com/ca-risken/code/pkg/common"
+	"github.com/ca-risken/code/proto/code"
 	"github.com/stretchr/testify/mock"
 	"gorm.io/gorm"
 )

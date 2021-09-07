@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/CyberAgent/mimosa-code/pkg/common"
-	"github.com/CyberAgent/mimosa-code/proto/code"
+	"github.com/ca-risken/code/pkg/common"
+	"github.com/ca-risken/code/proto/code"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/kelseyhightower/envconfig"
 	"github.com/vikyd/zero"
