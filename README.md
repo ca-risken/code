@@ -1,3 +1,3 @@
-# mimosa-code
+# code
 
 ![Build Status](https://codebuild.ap-northeast-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiN1B0R1F0YXJMQlhlY0N5TnRIOXpVZjNQZlFhRjZqUzVETVNPcDc2UVhSYmFpdVZ5OXZXekI5bTMwK2Q3UVhmY3lTZk4wWEVpakQzbFVYR1QycmloSVdVPSIsIml2UGFyYW1ldGVyU3BlYyI6IlJhMmZ3UHEvWFhvdmd0TnEiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)
