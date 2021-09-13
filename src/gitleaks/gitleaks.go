@@ -25,6 +25,7 @@ type gitleaksConfig struct {
 	LimitRepositorySizeKb int    `required:"true" split_words:"true"`
 	SeperateScanDays      int    `required:"true" split_words:"true"`
 	GitleaksScanThreads   int    `required:"true" split_words:"true"`
+	ScanOnMemory          bool   `split_words:"true"`
 }
 
 type gitleaksClient struct {
@@ -32,6 +33,7 @@ type gitleaksClient struct {
 	limitRepositorySizeKb int
 	seperateScanDays      int
 	gitleaksScanThreads   int
+	scanOnMemory          bool
 }
 
 func newGitleaksClient() gitleaksServiceClient {
@@ -40,11 +42,15 @@ func newGitleaksClient() gitleaksServiceClient {
 	if err != nil {
 		appLogger.Fatalf("Could not read githubConfig. err: %+v", err)
 	}
+	appLogger.Infof(
+		"new gitleaks configuration: LIMIT_REPOSITORY_SIZE_KB=%d, SEPERATE_SCAN_DAYS=%d, GITLEAKS_SCAN_THREADS=%d, SCAN_ON_MEMORY=%t",
+		conf.LimitRepositorySizeKb, conf.SeperateScanDays, conf.GitleaksScanThreads, conf.ScanOnMemory)
 	return &gitleaksClient{
 		defaultToken:          conf.GithubDefaultToken,
 		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
 		seperateScanDays:      conf.SeperateScanDays,
 		gitleaksScanThreads:   conf.GitleaksScanThreads,
+		scanOnMemory:          conf.ScanOnMemory,
 	}
 }
 
@@ -90,11 +96,14 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		Threads:     g.gitleaksScanThreads,
 		// Disk:         true,
 	}
+	if g.scanOnMemory {
+		opts.ClonePath = ""
+	}
 	appLogger.Infof("Start scan repository: fullname=%s, size=%d(kb), createdAt: %v, pushedAt:%v, lastScanedAt: %v",
 		*f.FullName, *f.Size, f.CreatedAt, f.PushedAt, f.LastScanedAt)
 	durations := g.getScanDuration(f.CreatedAt.Time, f.PushedAt.Time, f.LastScanedAt)
 	for idx, duration := range durations {
-		if idx > 0 {
+		if !g.scanOnMemory && idx > 0 {
 			//   runtime.GC()
 			opts.Path = clonePath // already clone
 			opts.ClonePath = ""
