@@ -39,6 +39,7 @@ ENV DEBUG= \
     LIMIT_REPOSITORY_SIZE_KB= \
     SEPERATE_SCAN_DAYS=30 \
     GITLEAKS_SCAN_THREADS=1 \
+    SCAN_ON_MEMORY=false \
     TZ=Asia/Tokyo
 WORKDIR /usr/local/gitleaks
 ENTRYPOINT ["/usr/local/bin/env-injector"]
