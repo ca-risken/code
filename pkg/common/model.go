@@ -31,6 +31,7 @@ type CodeGitleaks struct {
 	Status              string
 	StatusDetail        string
 	ScanAt              time.Time
+	ScanSucceededAt     time.Time
 	CreatedAt           time.Time
 	UpdatedAt           time.Time
 }

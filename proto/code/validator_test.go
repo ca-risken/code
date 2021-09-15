@@ -328,7 +328,7 @@ func TestValidate_GitleaksForUpsert(t *testing.T) {
 		{
 			name: "OK",
 			input: &GitleaksForUpsert{
-				CodeDataSourceId: 1, Name: "name", ProjectId: 1, Type: Type_ENTERPRISE, BaseUrl: "https://api.github.com/", TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, StatusDetail: "detail", ScanAt: now.Unix(),
+				CodeDataSourceId: 1, Name: "name", ProjectId: 1, Type: Type_ENTERPRISE, BaseUrl: "https://api.github.com/", TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), ScanSucceededAt: now.Unix(),
 			},
 		},
 		{
@@ -432,6 +432,20 @@ func TestValidate_GitleaksForUpsert(t *testing.T) {
 			name: "NG Max(scan_at)",
 			input: &GitleaksForUpsert{
 				CodeDataSourceId: 1, Name: "name", ProjectId: 1, Type: Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, ScanAt: unixtime100000101T000000,
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG Min(scan_succeeded_at)",
+			input: &GitleaksForUpsert{
+				CodeDataSourceId: 1, Name: "name", ProjectId: 1, Type: Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, ScanSucceededAt: unixtime19691231T235959,
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG Max(scan_succeeded_at)",
+			input: &GitleaksForUpsert{
+				CodeDataSourceId: 1, Name: "name", ProjectId: 1, Type: Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "some-repo", GithubUser: "user", PersonalAccessToken: "xxx", GitleaksConfig: "xxxx", Status: Status_OK, ScanSucceededAt: unixtime100000101T000000,
 			},
 			wantErr: true,
 		},
