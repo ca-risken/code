@@ -31,7 +31,7 @@ require (
 	github.com/valyala/fasthttp v1.30.0 // indirect
 	github.com/vikyd/zero v0.0.0-20190921142904-0f738d0bc858
 	github.com/xanzy/ssh-agent v0.3.1 // indirect
-	github.com/zricethezav/gitleaks/v7 v7.6.1
+	github.com/zricethezav/gitleaks/v7 v7.5.0
 	golang.org/x/crypto v0.0.0-20210915214749-c084706c2272 // indirect
 	golang.org/x/net v0.0.0-20210916014120-12bc252f5db8 // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
