@@ -110,6 +110,9 @@ func convertGitleaks(data *common.CodeGitleaks, maskKey bool) *code.Gitleaks {
 	if !zero.IsZeroVal(data.ScanAt) {
 		gitlekas.ScanAt = data.ScanAt.Unix()
 	}
+	if !zero.IsZeroVal(data.ScanSucceededAt) {
+		gitlekas.ScanSucceededAt = data.ScanSucceededAt.Unix()
+	}
 	return &gitlekas
 }
 
@@ -293,13 +296,14 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 		RepositoryPattern: data.RepositoryPattern,
 		GithubUser:        data.GithubUser,
 		// PersonalAccessToken :,
-		ScanPublic:     data.ScanPublic,
-		ScanInternal:   data.ScanInternal,
-		ScanPrivate:    data.ScanPrivate,
-		GitleaksConfig: data.GitleaksConfig,
-		Status:         code.Status_IN_PROGRESS,
-		StatusDetail:   fmt.Sprintf("Start scan at %+v", time.Now().Format(time.RFC3339)),
-		ScanAt:         data.ScanAt.Unix(),
+		ScanPublic:      data.ScanPublic,
+		ScanInternal:    data.ScanInternal,
+		ScanPrivate:     data.ScanPrivate,
+		GitleaksConfig:  data.GitleaksConfig,
+		Status:          code.Status_IN_PROGRESS,
+		StatusDetail:    fmt.Sprintf("Start scan at %+v", time.Now().Format(time.RFC3339)),
+		ScanAt:          data.ScanAt.Unix(),
+		ScanSucceededAt: data.ScanSucceededAt.Unix(),
 	}); err != nil {
 		return nil, err
 	}
