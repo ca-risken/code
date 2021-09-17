@@ -96,12 +96,12 @@ func TestListGitleaks(t *testing.T) {
 			name:  "OK",
 			input: &code.ListGitleaksRequest{ProjectId: 1, CodeDataSourceId: 1},
 			want: &code.ListGitleaksResponse{Gitleaks: []*code.Gitleaks{
-				{GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
-				{GitleaksId: 2, CodeDataSourceId: 1, Name: "two", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+				{GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), ScanSucceededAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+				{GitleaksId: 2, CodeDataSourceId: 1, Name: "two", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), ScanSucceededAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
 			}},
 			mockResponce: &[]common.CodeGitleaks{
-				{GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now},
-				{GitleaksID: 2, CodeDataSourceID: 1, Name: "two", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now},
+				{GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, ScanSucceededAt: &now, CreatedAt: now, UpdatedAt: now},
+				{GitleaksID: 2, CodeDataSourceID: 1, Name: "two", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, ScanSucceededAt: &now, CreatedAt: now, UpdatedAt: now},
 			},
 		},
 		{
@@ -157,8 +157,8 @@ func TestGetGitleaks(t *testing.T) {
 		{
 			name:         "OK",
 			input:        &code.GetGitleaksRequest{ProjectId: 1, GitleaksId: 1},
-			want:         &code.GetGitleaksResponse{Gitleaks: &code.Gitleaks{GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()}},
-			mockResponce: &common.CodeGitleaks{GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now},
+			want:         &code.GetGitleaksResponse{Gitleaks: &code.Gitleaks{GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), ScanSucceededAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()}},
+			mockResponce: &common.CodeGitleaks{GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", ScanPublic: true, ScanInternal: false, ScanPrivate: false, GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, ScanSucceededAt: &now, CreatedAt: now, UpdatedAt: now},
 		},
 		{
 			name:      "OK empty",
@@ -221,13 +221,25 @@ func TestPutGitleaks(t *testing.T) {
 		{
 			name: "OK",
 			input: &code.PutGitleaksRequest{ProjectId: 1, Gitleaks: &code.GitleaksForUpsert{
+				GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), ScanSucceededAt: now.Unix()},
+			},
+			want: &code.PutGitleaksResponse{Gitleaks: &code.Gitleaks{
+				GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), ScanSucceededAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+			},
+			mockResponce: &common.CodeGitleaks{
+				GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, ScanSucceededAt: &now, CreatedAt: now, UpdatedAt: now,
+			},
+		},
+		{
+			name: "OK(empty)",
+			input: &code.PutGitleaksRequest{ProjectId: 1, Gitleaks: &code.GitleaksForUpsert{
 				GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix()},
 			},
 			want: &code.PutGitleaksResponse{Gitleaks: &code.Gitleaks{
-				GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
+				GitleaksId: 1, CodeDataSourceId: 1, Name: "one", ProjectId: 1, Type: code.Type_ENTERPRISE, TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: maskData, GitleaksConfig: "conf", Status: code.Status_OK, StatusDetail: "detail", ScanAt: now.Unix(), ScanSucceededAt: 0, CreatedAt: now.Unix(), UpdatedAt: now.Unix()},
 			},
 			mockResponce: &common.CodeGitleaks{
-				GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, CreatedAt: now, UpdatedAt: now,
+				GitleaksID: 1, CodeDataSourceID: 1, Name: "one", ProjectID: 1, Type: "ENTERPRISE", TargetResource: "target", RepositoryPattern: "repo", GithubUser: "user", PersonalAccessToken: "token", GitleaksConfig: "conf", Status: "OK", StatusDetail: "detail", ScanAt: now, ScanSucceededAt: nil, CreatedAt: now, UpdatedAt: now,
 			},
 		},
 		{
