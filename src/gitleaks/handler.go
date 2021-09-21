@@ -152,6 +152,7 @@ func (s *sqsHandler) initScanStatus(g *code.Gitleaks, token string) *code.PutGit
 			GitleaksConfig:      g.GitleaksConfig,
 			ProjectId:           g.ProjectId,
 			ScanAt:              time.Now().Unix(),
+			ScanSucceededAt:     g.ScanSucceededAt,
 			Status:              code.Status_UNKNOWN, // After scan, will be updated
 			StatusDetail:        "",
 		},
@@ -370,6 +371,7 @@ func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.Pu
 func (s *sqsHandler) updateScanStatusSuccess(ctx context.Context, putData *code.PutGitleaksRequest) error {
 	putData.Gitleaks.Status = code.Status_OK
 	putData.Gitleaks.StatusDetail = ""
+	putData.Gitleaks.ScanSucceededAt = time.Now().Unix()
 	return s.updateScanStatus(ctx, putData)
 }
 

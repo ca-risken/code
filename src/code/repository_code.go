@@ -75,9 +75,10 @@ INSERT INTO code_gitleaks (
   gitleaks_config,
   status,
   status_detail,
-  scan_at
+  scan_at,
+  scan_succeeded_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON DUPLICATE KEY UPDATE
 	code_data_source_id=VALUES(code_data_source_id),
 	name=VALUES(name),
@@ -94,10 +95,15 @@ ON DUPLICATE KEY UPDATE
 	gitleaks_config=VALUES(gitleaks_config),
 	status=VALUES(status),
 	status_detail=VALUES(status_detail),
-	scan_at=VALUES(scan_at)
+	scan_at=VALUES(scan_at),
+	scan_succeeded_at=VALUES(scan_succeeded_at)
 `
 
 func (c *codeRepository) UpsertGitleaksWithToken(ctx context.Context, data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+	var scanSucceededAtTime time.Time
+	if !zero.IsZeroVal(data.ScanSucceededAt) {
+		scanSucceededAtTime = time.Unix(data.ScanSucceededAt, 0)
+	}
 	if err := c.MasterDB.WithContext(ctx).Exec(insertUpsertGitleaksWithToken,
 		data.GitleaksId,
 		data.CodeDataSourceId,
@@ -115,7 +121,8 @@ func (c *codeRepository) UpsertGitleaksWithToken(ctx context.Context, data *code
 		convertZeroValueToNull(data.GitleaksConfig),
 		data.Status.String(),
 		convertZeroValueToNull(data.StatusDetail),
-		time.Unix(data.ScanAt, 0)).Error; err != nil {
+		time.Unix(data.ScanAt, 0),
+		convertZeroValueToNull(scanSucceededAtTime)).Error; err != nil {
 		return nil, err
 	}
 	return c.GetGitleaksByUniqueIndex(ctx, data.ProjectId, data.CodeDataSourceId, data.Name)
@@ -138,9 +145,10 @@ INSERT INTO code_gitleaks (
   gitleaks_config,
   status,
   status_detail,
-  scan_at
+  scan_at,
+  scan_succeeded_at
 )
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON DUPLICATE KEY UPDATE
 	code_data_source_id=VALUES(code_data_source_id),
 	name=VALUES(name),
@@ -156,10 +164,15 @@ ON DUPLICATE KEY UPDATE
 	gitleaks_config=VALUES(gitleaks_config),
 	status=VALUES(status),
 	status_detail=VALUES(status_detail),
-	scan_at=VALUES(scan_at)
+	scan_at=VALUES(scan_at),
+	scan_succeeded_at=VALUES(scan_succeeded_at)
 `
 
 func (c *codeRepository) UpsertGitleaksWithoutToken(ctx context.Context, data *code.GitleaksForUpsert) (*common.CodeGitleaks, error) {
+	var scanSucceededAtTime time.Time
+	if !zero.IsZeroVal(data.ScanSucceededAt) {
+		scanSucceededAtTime = time.Unix(data.ScanSucceededAt, 0)
+	}
 	if err := c.MasterDB.WithContext(ctx).Exec(insertUpsertGitleaksWithoutToken,
 		data.GitleaksId,
 		data.CodeDataSourceId,
@@ -176,7 +189,8 @@ func (c *codeRepository) UpsertGitleaksWithoutToken(ctx context.Context, data *c
 		convertZeroValueToNull(data.GitleaksConfig),
 		data.Status.String(),
 		convertZeroValueToNull(data.StatusDetail),
-		time.Unix(data.ScanAt, 0)).Error; err != nil {
+		time.Unix(data.ScanAt, 0),
+		convertZeroValueToNull(scanSucceededAtTime)).Error; err != nil {
 		return nil, err
 	}
 	return c.GetGitleaksByUniqueIndex(ctx, data.ProjectId, data.CodeDataSourceId, data.Name)
