@@ -26,7 +26,7 @@ func TestSkipScan(t *testing.T) {
 			input: &repositoryFinding{
 				Archived: github.Bool(false), Fork: github.Bool(false), Disabled: github.Bool(false),
 				Size:         github.Int(3500000),
-				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{now},
+				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{Time: now},
 			},
 			want: false,
 		},
@@ -40,7 +40,7 @@ func TestSkipScan(t *testing.T) {
 			input: &repositoryFinding{
 				Archived: github.Bool(true), Fork: github.Bool(false), Disabled: github.Bool(false),
 				Size:         github.Int(3500000),
-				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{now},
+				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{Time: now},
 			},
 			want: true,
 		},
@@ -49,7 +49,7 @@ func TestSkipScan(t *testing.T) {
 			input: &repositoryFinding{
 				Archived: github.Bool(false), Fork: github.Bool(true), Disabled: github.Bool(false),
 				Size:         github.Int(3500000),
-				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{now},
+				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{Time: now},
 			},
 			want: true,
 		},
@@ -58,7 +58,16 @@ func TestSkipScan(t *testing.T) {
 			input: &repositoryFinding{
 				Archived: github.Bool(false), Fork: github.Bool(false), Disabled: github.Bool(true),
 				Size:         github.Int(3500000),
-				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{now},
+				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{Time: now},
+			},
+			want: true,
+		},
+		{
+			name: "Skip(Empty)",
+			input: &repositoryFinding{
+				Archived: github.Bool(false), Fork: github.Bool(false), Disabled: github.Bool(true),
+				Size:         github.Int(0),
+				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{Time: now},
 			},
 			want: true,
 		},
@@ -67,7 +76,7 @@ func TestSkipScan(t *testing.T) {
 			input: &repositoryFinding{
 				Archived: github.Bool(false), Fork: github.Bool(false), Disabled: github.Bool(false),
 				Size:         github.Int(3500001),
-				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{now},
+				LastScanedAt: now.Add(-1 * time.Hour), PushedAt: &github.Timestamp{Time: now},
 			},
 			want: true,
 		},
@@ -75,7 +84,7 @@ func TestSkipScan(t *testing.T) {
 			name: "Skip(already scaned)",
 			input: &repositoryFinding{
 				Size: github.Int(300000), Archived: github.Bool(false), Fork: github.Bool(false), Disabled: github.Bool(false),
-				LastScanedAt: now, PushedAt: &github.Timestamp{now},
+				LastScanedAt: now, PushedAt: &github.Timestamp{Time: now},
 			},
 			want: true,
 		},

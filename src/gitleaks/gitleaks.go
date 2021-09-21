@@ -174,6 +174,10 @@ func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
 		appLogger.Infof("Skip scan for %s repository(disabled)", repoName)
 		return true
 	}
+	if repo.Size != nil && *repo.Size < 1 {
+		appLogger.Infof("Skip scan for %s repository(empty)", repoName)
+		return true
+	}
 
 	// Hard limit size
 	if repo.Size != nil && *repo.Size > g.limitRepositorySizeKb {
