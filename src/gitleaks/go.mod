@@ -2,9 +2,12 @@ module github.com/ca-risken/code/src/gitleaks
 
 go 1.16
 
+// This is for github.com/zricethezav/gitleaks. Check when update the module.
+// https://github.com/zricethezav/gitleaks/blob/v7.5.0/go.mod#L5
+replace github.com/go-git/go-git/v5 => github.com/zricethezav/go-git/v5 v5.2.2
+
 require (
 	github.com/BurntSushi/toml v0.4.1 // indirect
-	github.com/ProtonMail/go-crypto v0.0.0-20210707164159-52430bf6b52c // indirect
 	github.com/andybalholm/brotli v1.0.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/aws/aws-sdk-go v1.40.44
@@ -23,7 +26,8 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kevinburke/ssh_config v1.1.0 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
-	github.com/sergi/go-diff v1.2.0 // indirect
+	// Gitleaks scanning may fleeze when v1.2.0, so don't udpdate this module
+	// github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shurcooL/githubv4 v0.0.0-20210725200734-83ba7b4c9228
 	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
 	github.com/sirupsen/logrus v1.8.1
