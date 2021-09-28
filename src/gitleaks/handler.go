@@ -14,6 +14,7 @@ import (
 	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/code/proto/code"
 	"github.com/ca-risken/common/pkg/logging"
+	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/kelseyhightower/envconfig"
@@ -84,7 +85,10 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 	findings := []repositoryFinding{}
 	if err := s.listRepository(ctx, gitleaksConfig, &findings); err != nil {
 		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
-		return s.updateScanStatusError(ctx, scanStatus, err.Error())
+		if updateErr := s.updateScanStatusError(ctx, scanStatus, err.Error()); updateErr != nil {
+			appLogger.Warnf("failed to update scan status error: err=%+v", updateErr)
+		}
+		return mimosasqs.WrapNonRetryable(err)
 	}
 	appLogger.Infof("Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
 		len(findings), gitleaksConfig.BaseUrl, gitleaksConfig.TargetResource, gitleaksConfig.RepositoryPattern)

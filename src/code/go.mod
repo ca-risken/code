@@ -5,7 +5,7 @@ go 1.16
 require (
 	github.com/andybalholm/brotli v1.0.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
-	github.com/aws/aws-sdk-go v1.40.44
+	github.com/aws/aws-sdk-go v1.40.48
 	github.com/aws/aws-xray-sdk-go v1.6.0
 	github.com/ca-risken/code/pkg/common v0.0.0-20210917082353-3ada53fdb98c
 	github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c
