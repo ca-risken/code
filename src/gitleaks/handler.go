@@ -60,7 +60,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 	msg, err := common.ParseMessage(msgBody)
 	if err != nil {
 		appLogger.Errorf("Invalid message: msg=%+v, err=%+v", msg, err)
-		return err
+		return mimosasqs.WrapNonRetryable(err)
 	}
 	requestID, err := logging.GenerateRequestID(fmt.Sprint(msg.ProjectID))
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 	gitleaksConfig, err := s.getGitleaks(ctx, msg.ProjectID, msg.GitleaksID)
 	if err != nil {
 		appLogger.Errorf("Failed to get scan status: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
-		return err
+		return mimosasqs.WrapNonRetryable(err)
 	}
 	decryptedKey, err := common.DecryptWithBase64(&s.cipherBlock, gitleaksConfig.PersonalAccessToken)
 	if err != nil {
@@ -85,10 +85,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 	findings := []repositoryFinding{}
 	if err := s.listRepository(ctx, gitleaksConfig, &findings); err != nil {
 		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
-		if updateErr := s.updateScanStatusError(ctx, scanStatus, err.Error()); updateErr != nil {
-			appLogger.Warnf("failed to update scan status error: err=%+v", updateErr)
-		}
-		return mimosasqs.WrapNonRetryable(err)
+		return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 	}
 	appLogger.Infof("Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
 		len(findings), gitleaksConfig.BaseUrl, gitleaksConfig.TargetResource, gitleaksConfig.RepositoryPattern)
@@ -97,30 +94,40 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 		// Set LastScanedAt
 		if err := s.setLastScanedAt(ctx, msg.ProjectID, &f); err != nil {
 			appLogger.Errorf("Failed to set LastScanedAt: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
-			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 
 		// Scan repository
 		err = s.gitleaksClient.scanRepository(ctx, decryptedKey, &f)
 		if err != nil {
 			appLogger.Errorf("Failed to scan repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
-			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 
 		// Put finding
 		if err := s.putFindings(ctx, msg.ProjectID, &f); err != nil {
 			appLogger.Errorf("Failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
-			return s.updateScanStatusError(ctx, scanStatus, err.Error())
+			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 	}
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
-		return err
+		return mimosasqs.WrapNonRetryable(err)
 	}
 	appLogger.Infof("end Scan, RequestID=%s", requestID)
 	if msg.ScanOnly {
 		return nil
 	}
-	return s.analyzeAlert(ctx, msg.ProjectID)
+	if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
+		return mimosasqs.WrapNonRetryable(err)
+	}
+	return nil
+}
+
+func (s *sqsHandler) handleErrorWithUpdateStatus(ctx context.Context, scanStatus *code.PutGitleaksRequest, err error) error {
+	if updateErr := s.updateScanStatusError(ctx, scanStatus, err.Error()); updateErr != nil {
+		appLogger.Warnf("Failed to update scan status error: err=%+v", updateErr)
+	}
+	return mimosasqs.WrapNonRetryable(err)
 }
 
 func (s *sqsHandler) getGitleaks(ctx context.Context, projectID, gitleaksID uint32) (*code.Gitleaks, error) {
