@@ -277,11 +277,15 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 	if err != nil {
 		return nil, err
 	}
+	fullScan := false
+	if data.ScanSucceededAt == nil {
+		fullScan = true
+	}
 	resp, err := c.sqs.sendMsgForGitleaks(ctx, &common.GitleaksQueueMessage{
 		GitleaksID: data.GitleaksID,
 		ProjectID:  data.ProjectID,
 		ScanOnly:   req.ScanOnly,
-	})
+	}, fullScan)
 	if err != nil {
 		return nil, err
 	}

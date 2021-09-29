@@ -17,16 +17,18 @@ type sqsConfig struct {
 	AWSRegion   string `envconfig:"aws_region" default:"ap-northeast-1"`
 	SQSEndpoint string `envconfig:"sqs_endpoint" default:"http://localhost:9324"`
 
-	GitleaksQueueURL string `split_words:"true" required:"true"`
+	GitleaksQueueURL         string `split_words:"true" required:"true"`
+	GitleaksFullScanQueueURL string `split_words:"true"`
 }
 
 type sqsAPI interface {
-	sendMsgForGitleaks(ctx context.Context, msg *common.GitleaksQueueMessage) (*sqs.SendMessageOutput, error)
+	sendMsgForGitleaks(ctx context.Context, msg *common.GitleaksQueueMessage, fullScan bool) (*sqs.SendMessageOutput, error)
 }
 
 type sqsClient struct {
-	svc              *sqs.SQS
-	gitleaksQueueURL string
+	svc                      *sqs.SQS
+	gitleaksQueueURL         string
+	gitleaksFullScanQueueURL string
 }
 
 func newSQSClient() *sqsClient {
@@ -47,19 +49,24 @@ func newSQSClient() *sqsClient {
 	})
 	xray.AWS(session.Client)
 	return &sqsClient{
-		svc:              session,
-		gitleaksQueueURL: conf.GitleaksQueueURL,
+		svc:                      session,
+		gitleaksQueueURL:         conf.GitleaksQueueURL,
+		gitleaksFullScanQueueURL: conf.GitleaksFullScanQueueURL,
 	}
 }
 
-func (s *sqsClient) sendMsgForGitleaks(ctx context.Context, msg *common.GitleaksQueueMessage) (*sqs.SendMessageOutput, error) {
+func (s *sqsClient) sendMsgForGitleaks(ctx context.Context, msg *common.GitleaksQueueMessage, fullScan bool) (*sqs.SendMessageOutput, error) {
 	buf, err := json.Marshal(msg)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse message, err=%+v", err)
 	}
+	queueUrl := s.gitleaksQueueURL
+	if fullScan && s.gitleaksFullScanQueueURL != "" {
+		queueUrl = s.gitleaksFullScanQueueURL
+	}
 	resp, err := s.svc.SendMessageWithContext(ctx, &sqs.SendMessageInput{
 		MessageBody:  aws.String(string(buf)),
-		QueueUrl:     aws.String(s.gitleaksQueueURL),
+		QueueUrl:     aws.String(queueUrl),
 		DelaySeconds: aws.Int64(1),
 	})
 	if err != nil {
