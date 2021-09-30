@@ -36,6 +36,7 @@ ENV PORT= \
     AWS_SESSION_TOKEN= \
     SQS_ENDPOINT= \
     GITLEAKS_QUEUE_URL= \
+    GITLEAKS_FULL_SCAN_QUEUE_URL= \
     DATA_KEY= \
     TZ=Asia/Tokyo
 WORKDIR /usr/local/code
