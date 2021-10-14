@@ -11,8 +11,8 @@ import (
 
 	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/code/proto/code"
+	"github.com/gassara-kys/envconfig"
 	"github.com/golang/protobuf/ptypes/empty"
-	"github.com/kelseyhightower/envconfig"
 	"github.com/vikyd/zero"
 	"gorm.io/gorm"
 )

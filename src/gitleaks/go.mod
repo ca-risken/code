@@ -19,12 +19,12 @@ require (
 	github.com/ca-risken/common/pkg/xray v0.0.0-20210924081514-eed910dd25f7
 	github.com/ca-risken/core/proto/alert v0.0.0-20210915071711-36318d0d6418
 	github.com/ca-risken/core/proto/finding v0.0.0-20210915071711-36318d0d6418
+	github.com/gassara-kys/envconfig v1.4.4
 	github.com/gassara-kys/go-sqs-poller/worker/v4 v4.0.0-20210215110542-0be358599a2f
 	github.com/go-git/go-git/v5 v5.4.2 // indirect
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.3.0
-	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/kevinburke/ssh_config v1.1.0 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
 	// Gitleaks scanning may fleeze when v1.2.0, so don't udpdate this module
