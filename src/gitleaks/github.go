@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/ca-risken/code/proto/code"
+	"github.com/gassara-kys/envconfig"
 	"github.com/google/go-github/v32/github"
-	"github.com/kelseyhightower/envconfig"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )

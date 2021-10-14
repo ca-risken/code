@@ -9,8 +9,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/gassara-kys/envconfig"
 	"github.com/google/uuid"
-	"github.com/kelseyhightower/envconfig"
 	"github.com/zricethezav/gitleaks/v7/config"
 	"github.com/zricethezav/gitleaks/v7/options"
 	"github.com/zricethezav/gitleaks/v7/scan"
@@ -21,11 +21,11 @@ type gitleaksServiceClient interface {
 }
 
 type gitleaksConfig struct {
-	GithubDefaultToken    string `required:"true" split_words:"true"`
-	LimitRepositorySizeKb int    `required:"true" split_words:"true"`
-	SeperateScanDays      int    `required:"true" split_words:"true"`
-	GitleaksScanThreads   int    `required:"true" split_words:"true"`
-	ScanOnMemory          bool   `split_words:"true"`
+	GithubDefaultToken    string `required:"true" split_words:"true" default:"your-token-here"`
+	LimitRepositorySizeKb int    `required:"true" split_words:"true" default:"500"`
+	SeperateScanDays      int    `required:"true" split_words:"true" default:"360"`
+	GitleaksScanThreads   int    `required:"true" split_words:"true" default:"1"`
+	ScanOnMemory          bool   `split_words:"true" default:"false"`
 }
 
 type gitleaksClient struct {

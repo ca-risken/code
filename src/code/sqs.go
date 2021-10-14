@@ -10,15 +10,15 @@ import (
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/aws/aws-xray-sdk-go/xray"
 	"github.com/ca-risken/code/pkg/common"
-	"github.com/kelseyhightower/envconfig"
+	"github.com/gassara-kys/envconfig"
 )
 
 type sqsConfig struct {
-	AWSRegion   string `envconfig:"aws_region" default:"ap-northeast-1"`
-	SQSEndpoint string `envconfig:"sqs_endpoint" default:"http://localhost:9324"`
+	AWSRegion   string `envconfig:"aws_region"   default:"ap-northeast-1"`
+	SQSEndpoint string `envconfig:"sqs_endpoint" default:"http://queue.middleware.svc.cluster.local:9324"`
 
-	GitleaksQueueURL         string `split_words:"true" required:"true"`
-	GitleaksFullScanQueueURL string `split_words:"true"`
+	GitleaksQueueURL         string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
+	GitleaksFullScanQueueURL string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks-full-scan"`
 }
 
 type sqsAPI interface {
