@@ -298,7 +298,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 		}
 		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{
 			Finding: &finding.FindingForUpsert{
-				Description:      fmt.Sprintf("Code secrets scanning by the gitleas for %s", *f.FullName),
+				Description:      fmt.Sprintf("Secrets scanning by Gitleaks for %s", *f.FullName),
 				DataSource:       common.GitleaksDataSource,
 				DataSourceId:     leak.DataSourceID,
 				ResourceName:     *f.FullName,
