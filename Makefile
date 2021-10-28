@@ -101,11 +101,13 @@ go-mod-update:
 		&& go get -u \
 			github.com/ca-risken/code/...
 
-PHONY: lint $(LINT_TARGETS) proto-lint pkg-lint
+.PHONY: lint proto-lint pkg-lint
 lint: $(LINT_TARGETS) proto-lint pkg-lint
-%.lint:
+%.lint: FAKE
 	sh hack/golinter.sh src/$(*)
 proto-lint:
 	sh hack/golinter.sh proto/code
 pkg-lint:
 	sh hack/golinter.sh pkg/common
+
+FAKE:
