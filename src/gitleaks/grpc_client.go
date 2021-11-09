@@ -12,7 +12,7 @@ import (
 )
 
 type findingConfig struct {
-	FindingSvcAddr string `required:"true" split_words:"true"`
+	FindingSvcAddr string `split_words:"true" default:"finding.core.svc.cluster.local:8001"`
 }
 
 func newFindingClient() finding.FindingServiceClient {
@@ -31,7 +31,7 @@ func newFindingClient() finding.FindingServiceClient {
 }
 
 type alertConfig struct {
-	AlertSvcAddr string `required:"true" split_words:"true"`
+	AlertSvcAddr string `split_words:"true"  default:"alert.core.svc.cluster.local:8004"`
 }
 
 func newAlertClient() alert.AlertServiceClient {
@@ -50,7 +50,7 @@ func newAlertClient() alert.AlertServiceClient {
 }
 
 type codeConfig struct {
-	CodeSvcAddr string `required:"true" split_words:"true"`
+	CodeSvcAddr string `split_words:"true"  default:"code.code.svc.cluster.local:10001"`
 }
 
 func newCodeClient() code.CodeServiceClient {
