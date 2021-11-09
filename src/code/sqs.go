@@ -18,7 +18,7 @@ type sqsConfig struct {
 	SQSEndpoint string `envconfig:"sqs_endpoint" default:"http://queue.middleware.svc.cluster.local:9324"`
 
 	GitleaksQueueURL         string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
-	GitleaksFullScanQueueURL string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks-full-scan"`
+	GitleaksFullScanQueueURL string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
 }
 
 type sqsAPI interface {
