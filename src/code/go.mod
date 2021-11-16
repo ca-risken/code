@@ -10,6 +10,7 @@ require (
 	github.com/ca-risken/code/pkg/common v0.0.0-20210917082353-3ada53fdb98c
 	github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c
 	github.com/ca-risken/common/pkg/database v0.0.0-20210915090050-60505a10628f
+	github.com/ca-risken/common/pkg/rpc v0.0.0-20211112102518-e808bff9e30e
 	github.com/ca-risken/common/pkg/xray v0.0.0-20210915090050-60505a10628f
 	github.com/gassara-kys/envconfig v1.4.4
 	github.com/golang/protobuf v1.5.2
@@ -23,7 +24,7 @@ require (
 	golang.org/x/sys v0.0.0-20210915083310-ed5796bab164 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20210916144049-3192f974c780 // indirect
-	google.golang.org/grpc v1.40.0
+	google.golang.org/grpc v1.42.0
 	gorm.io/driver/mysql v1.1.2 // indirect
 	gorm.io/gorm v1.21.15
 )
