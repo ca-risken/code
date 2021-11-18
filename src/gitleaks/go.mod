@@ -14,9 +14,9 @@ require (
 	github.com/aws/aws-xray-sdk-go v1.6.0
 	github.com/ca-risken/code/pkg/common v0.0.0-20210917082353-3ada53fdb98c
 	github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c
-	github.com/ca-risken/common/pkg/logging v0.0.0-20210915090050-60505a10628f
-	github.com/ca-risken/common/pkg/sqs v0.0.0-20210927112235-42730386bf2a
-	github.com/ca-risken/common/pkg/xray v0.0.0-20210924081514-eed910dd25f7
+	github.com/ca-risken/common/pkg/logging v0.0.0-20211118071101-9855266b50a1
+	github.com/ca-risken/common/pkg/sqs v0.0.0-20211118071101-9855266b50a1
+	github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1
 	github.com/ca-risken/core/proto/alert v0.0.0-20210915071711-36318d0d6418
 	github.com/ca-risken/core/proto/finding v0.0.0-20210915071711-36318d0d6418
 	github.com/gassara-kys/envconfig v1.4.4
