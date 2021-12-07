@@ -76,10 +76,10 @@ github.com/ca-risken/common/pkg/sqs v0.0.0-20211118071101-9855266b50a1 h1:mHASUU
 github.com/ca-risken/common/pkg/sqs v0.0.0-20211118071101-9855266b50a1/go.mod h1:PnGxivikVgnsel3YoM1W8a6ZlrlXL7pXb7UdKDFW96Q=
 github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1 h1:SjbAAb2H9yZu4Ecs9aL2tNdgifTzYTSxY4qjXFubnYI=
 github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1/go.mod h1:1QELprYp9UidwqzB1253qA00l3umMen4njJMFRNq5Po=
-github.com/ca-risken/core/proto/alert v0.0.0-20210915071711-36318d0d6418 h1:LbibT73IgMZYOVAa9sadVtbgCkhVQJJd0Gkkxh5/rmU=
-github.com/ca-risken/core/proto/alert v0.0.0-20210915071711-36318d0d6418/go.mod h1:BYVAXJlXATb39k2UHRWbnTzl+hunqKY8GxxtBynK1K0=
-github.com/ca-risken/core/proto/finding v0.0.0-20210915071711-36318d0d6418 h1:57DPVon20bQyBOpZOMTpJH1mS5EgdVvSWBTnAZxrd48=
-github.com/ca-risken/core/proto/finding v0.0.0-20210915071711-36318d0d6418/go.mod h1:TZ3SqTbxvOpl6GF4FEY4XEiIGkss4FCNyYp2M4j1j60=
+github.com/ca-risken/core/proto/alert v0.0.0-20211207091647-a7dcd065406e h1:qwpdj/yTxVUG3wD4/stvdR0A8M3e/XN+y9pkLQqPVHs=
+github.com/ca-risken/core/proto/alert v0.0.0-20211207091647-a7dcd065406e/go.mod h1:RqFbJiP1YNukFs1AX9KTf/aYZhIgNCCgIW4oTJuHbBw=
+github.com/ca-risken/core/proto/finding v0.0.0-20211207091647-a7dcd065406e h1:vTm6pyfLkndafpjMtpe+KFwWbFf4hH9Cjics2XsfRJ4=
+github.com/ca-risken/core/proto/finding v0.0.0-20211207091647-a7dcd065406e/go.mod h1:Zl2+Z3g878Tp33vh6nhiU1pqaz7ymtmiZ71+Wn+Rzts=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/cespare/xxhash v1.1.0/go.mod h1:XrSqR1VqqWfGrhpAt58auRo0WTKS1nRRg3ghfAqPWnc=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=

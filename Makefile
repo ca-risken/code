@@ -95,11 +95,9 @@ go-mod-tidy: proto
 PHONY: go-mod-update
 go-mod-update:
 	cd src/code \
-		&& go get -u \
-			github.com/ca-risken/code/...
+		&& go get github.com/ca-risken/code/...
 	cd src/gitleaks \
-		&& go get -u \
-			github.com/ca-risken/code/...
+		&& go get github.com/ca-risken/code/...
 
 .PHONY: lint proto-lint pkg-lint
 lint: $(LINT_TARGETS) proto-lint pkg-lint
