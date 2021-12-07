@@ -17,8 +17,8 @@ require (
 	github.com/ca-risken/common/pkg/logging v0.0.0-20211118071101-9855266b50a1
 	github.com/ca-risken/common/pkg/sqs v0.0.0-20211118071101-9855266b50a1
 	github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1
-	github.com/ca-risken/core/proto/alert v0.0.0-20210915071711-36318d0d6418
-	github.com/ca-risken/core/proto/finding v0.0.0-20210915071711-36318d0d6418
+	github.com/ca-risken/core/proto/alert v0.0.0-20211207091647-a7dcd065406e
+	github.com/ca-risken/core/proto/finding v0.0.0-20211207091647-a7dcd065406e
 	github.com/gassara-kys/envconfig v1.4.4
 	github.com/gassara-kys/go-sqs-poller/worker/v4 v4.0.0-20210215110542-0be358599a2f
 	github.com/go-git/go-git/v5 v5.4.2 // indirect

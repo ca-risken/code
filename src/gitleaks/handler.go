@@ -322,6 +322,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 				s.tagFinding(ctx, strings.TrimSpace(tag), resp.Finding.FindingId, resp.Finding.ProjectId)
 			}
 		}
+		s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, leak.Rule)
 		appLogger.Debugf("Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
 	}
 	return nil
@@ -403,6 +404,27 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
+func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string) {
+	var r recommend
+	if rmap, ok := ruleMap[strings.TrimSpace(rule)]; ok {
+		r = rmap.Recommend
+	}
+	if r.Risk == "" && r.Recommendation == "" {
+		r = *getDefaultRecommend(rule)
+	}
+	if _, err := s.findingClient.PutRecommend(ctx, &finding.PutRecommendRequest{
+		ProjectId:      projectID,
+		FindingId:      findingID,
+		DataSource:     common.GitleaksDataSource,
+		Type:           rule,
+		Risk:           r.Risk,
+		Recommendation: r.Recommendation,
+	}); err != nil {
+		appLogger.Errorf("Failed to TagFinding, finding_id=%d, rule=%s, error=%+v", findingID, rule, err)
+	}
+	appLogger.Debugf("Success PutRecommend, finding_id=%d, reccomend=%+v", findingID, r)
+}
+
 func cutString(input string, cut int) string {
 	if len(input) > cut {
 		return input[:cut] + " ..." // cut long text
@@ -418,41 +440,9 @@ func scoreGitleaks(f *repositoryFinding) float32 {
 		if leak.Rule == "" {
 			continue
 		}
-		if existsCriticalRule(strings.TrimSpace(leak.Rule)) {
-			return 0.8
+		if r, ok := ruleMap[strings.TrimSpace(leak.Rule)]; ok {
+			return r.Score
 		}
 	}
-	return 0.6
-}
-
-// check default ruleset(description) https://github.com/zricethezav/gitleaks/blob/master/config/default.go
-var criticalRule = []string{
-	"AWS Access Key",
-	"AWS Secret Key",
-	"AWS MWS key",
-	"Google (GCP) Service Account",
-	"Heroku API key",
-	"MailChimp API key",
-	"Mailgun API key",
-	"PayPal Braintree access token",
-	"Picatic API key",
-	"SendGrid API Key",
-	"Stripe API key",
-	"Square access token",
-	"Square OAuth secret",
-	"Twilio API key",
-	"Dynatrace ttoken",
-	"Shopify shared secret",
-	"Shopify access token",
-	"Shopify custom app access token",
-	"Shopify private app access token",
-}
-
-func existsCriticalRule(rule string) bool {
-	for _, r := range criticalRule {
-		if r == rule {
-			return true
-		}
-	}
-	return false
+	return 0.6 // default leak score
 }
