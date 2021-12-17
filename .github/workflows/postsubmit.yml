@@ -63,9 +63,9 @@ jobs:
           platforms: linux/amd64,linux/arm64
           builder: ${{ steps.buildx.outputs.name }}
           push: true
-          tags:
-            - ${{ env.IMAGE_REGISTRY_PATH }}/code:${{ github.sha }}
-            - ${{ env.IMAGE_REGISTRY_PATH }}/code:latest
+          tags: |
+            ${{ env.IMAGE_REGISTRY_PATH }}/code:${{ github.sha }}
+            ${{ env.IMAGE_REGISTRY_PATH }}/code:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
           secrets: |
@@ -79,9 +79,9 @@ jobs:
           platforms: linux/amd64,linux/arm64
           builder: ${{ steps.buildx.outputs.name }}
           push: true
-          tags:
-            - ${{ env.IMAGE_REGISTRY_PATH }}/gitleaks:${{ github.sha }}
-            - ${{ env.IMAGE_REGISTRY_PATH }}/gitleaks:latest
+          tags: |
+            ${{ env.IMAGE_REGISTRY_PATH }}/gitleaks:${{ github.sha }}
+            ${{ env.IMAGE_REGISTRY_PATH }}/gitleaks:latest
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
           secrets: |
