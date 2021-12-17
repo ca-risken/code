@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       IMAGE_REGISTRY_PATH: ${{ secrets.IMAGE_REGISTRY_PREFIX }}/risken-code
+      GO_VERSION: 1.17
     if: github.event.pull_request.merged == true
     steps:
       - name: Check out repository code
@@ -37,7 +38,7 @@ jobs:
       - name: Setup golang
         uses: actions/setup-go@v2
         with:
-          go-version: "1.14"
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Tests
         run: make go-test -j
