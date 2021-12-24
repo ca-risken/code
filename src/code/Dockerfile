@@ -2,21 +2,12 @@ FROM golang:1.17 as builder
 WORKDIR /go/src/github.com/ca-risken/code/src/code/
 ADD *.go go.* ./
 ENV CGO_ENABLED=0 GOPRIVATE="github.com/ca-risken/*"
-ARG ENV_INJECTOR_VERSION=v0.0.6
 RUN echo "machine github.com" > ~/.netrc
 RUN --mount=type=secret,id=GITHUB_USER echo "login $(cat /run/secrets/GITHUB_USER)" >> ~/.netrc
 RUN --mount=type=secret,id=GITHUB_TOKEN echo "password $(cat /run/secrets/GITHUB_TOKEN)" >> ~/.netrc
 RUN go build && cp code /go/bin/
 
-WORKDIR /go/src/github.com/gassara-kys
-RUN git clone https://github.com/gassara-kys/env-injector.git -b ${ENV_INJECTOR_VERSION} \
-    && cd env-injector \
-    && go build \
-    && cp env-injector /go/bin/
-
-FROM alpine
-RUN apk add --no-cache ca-certificates tzdata
-COPY --from=builder /go/bin/env-injector /usr/local/bin/
+FROM public.ecr.aws/risken/base/risken-base:v0.0.1
 COPY --from=builder /go/bin/code /usr/local/code/bin/
 ENV PORT= \
     DB_MASTER_HOST= \
