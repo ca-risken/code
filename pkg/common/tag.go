@@ -3,6 +3,8 @@ package common
 const (
 	// TagCode code tag
 	TagCode = "code"
+	// TagCode repository tag
+	TagRipository = "repository"
 	// TagGitleaks gitleaks tag
 	TagGitleaks = "gitleaks"
 
