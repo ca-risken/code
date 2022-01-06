@@ -68,6 +68,8 @@ github.com/aws/aws-xray-sdk-go v1.6.0/go.mod h1:k+NuTgdU+z07L3l8lnGHK+/luqe8TKmZ
 github.com/aws/smithy-go v1.4.0/go.mod h1:SObp3lf9smib00L/v3U2eAKG8FyQ7iLrJnQiAmR5n+E=
 github.com/ca-risken/code/pkg/common v0.0.0-20210917082353-3ada53fdb98c h1:0S/NSaED2kq+L5taLpGAqZsS/OyAo3xkbGp6bfs5Ln4=
 github.com/ca-risken/code/pkg/common v0.0.0-20210917082353-3ada53fdb98c/go.mod h1:ATilW/9bT0ZabefFlOYzqJiDASrX2Y61XIW92A5wA7o=
+github.com/ca-risken/code/pkg/common v0.0.0-20220106102406-524b02ed4f0b h1:e4yyj3VwipUK69FefWP2OhT/YZ/4XtOOAOqcs46lIqc=
+github.com/ca-risken/code/pkg/common v0.0.0-20220106102406-524b02ed4f0b/go.mod h1:ATilW/9bT0ZabefFlOYzqJiDASrX2Y61XIW92A5wA7o=
 github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c h1:2ibqVuVNzQEZeWdIX2BghC3UsO0/PrKdSqoKEJ4NNo0=
 github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c/go.mod h1:ftX5dqEDPy1AyS5gAP0KbXU6EBTNkQVNjMYp4vdtnyk=
 github.com/ca-risken/common/pkg/logging v0.0.0-20211118071101-9855266b50a1 h1:uGzkmaHaYDQ3U96iak6aORA01lPcC6yKgK8dssPx0sM=
