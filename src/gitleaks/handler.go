@@ -280,6 +280,8 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 			appLogger.Errorf("Failed to put resource project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 			return err
 		}
+		s.tagResource(ctx, common.TagCode, resp.Resource.ResourceId, projectID)
+		s.tagResource(ctx, common.TagRipository, resp.Resource.ResourceId, projectID)
 		appLogger.Debugf("Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
 		return nil
 	}
@@ -314,6 +316,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 		}
 		// finding-tag
 		s.tagFinding(ctx, common.TagCode, resp.Finding.FindingId, resp.Finding.ProjectId)
+		s.tagFinding(ctx, common.TagRipository, resp.Finding.FindingId, resp.Finding.ProjectId)
 		s.tagFinding(ctx, common.TagGitleaks, resp.Finding.FindingId, resp.Finding.ProjectId)
 		s.tagFinding(ctx, *f.Visibility, resp.Finding.FindingId, resp.Finding.ProjectId)
 		s.tagFinding(ctx, *f.FullName, resp.Finding.FindingId, resp.Finding.ProjectId)
@@ -371,6 +374,18 @@ func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint6
 		}})
 	if err != nil {
 		appLogger.Errorf("Failed to TagFinding, finding_id=%d, tag=%s, error=%+v", findingID, tag, err)
+	}
+}
+
+func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uint64, projectID uint32) {
+	if _, err := s.findingClient.TagResource(ctx, &finding.TagResourceRequest{
+		ProjectId: projectID,
+		Tag: &finding.ResourceTagForUpsert{
+			ResourceId: resourceID,
+			ProjectId:  projectID,
+			Tag:        tag,
+		}}); err != nil {
+		appLogger.Errorf("Failed to TagResource, resource_id=%d, tag=%s, error=%+v", resourceID, tag, err)
 	}
 }
 
