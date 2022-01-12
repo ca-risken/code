@@ -77,6 +77,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 	decryptedKey, err := common.DecryptWithBase64(&s.cipherBlock, gitleaksConfig.PersonalAccessToken)
 	if err != nil {
 		appLogger.Errorf("Failed to decrypted personal access token: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+		return mimosasqs.WrapNonRetryable(err)
 	}
 	gitleaksConfig.PersonalAccessToken = decryptedKey // Set the plaintext so that the value is still decipherable after updated.
 	scanStatus := s.initScanStatus(gitleaksConfig, gitleaksConfig.PersonalAccessToken)
