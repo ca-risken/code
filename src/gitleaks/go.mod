@@ -14,8 +14,9 @@ require (
 	github.com/aws/aws-xray-sdk-go v1.6.0
 	github.com/ca-risken/code/pkg/common v0.0.0-20220106102406-524b02ed4f0b
 	github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c
-	github.com/ca-risken/common/pkg/logging v0.0.0-20211118071101-9855266b50a1
-	github.com/ca-risken/common/pkg/sqs v0.0.0-20211210074045-79fdb4c61950
+	github.com/ca-risken/common/pkg/logging v0.0.0-20220113015330-0e8462d52b5b
+	github.com/ca-risken/common/pkg/rpc v0.0.0-20220113015330-0e8462d52b5b // indirect
+	github.com/ca-risken/common/pkg/sqs v0.0.0-20220113015330-0e8462d52b5b
 	github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1
 	github.com/ca-risken/core/proto/alert v0.0.0-20211207091647-a7dcd065406e
 	github.com/ca-risken/core/proto/finding v0.0.0-20211207091647-a7dcd065406e
@@ -40,9 +41,8 @@ require (
 	golang.org/x/crypto v0.0.0-20210915214749-c084706c2272 // indirect
 	golang.org/x/net v0.0.0-20210916014120-12bc252f5db8 // indirect
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
-	golang.org/x/sys v0.0.0-20211210111614-af8b64212486 // indirect
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20210916144049-3192f974c780 // indirect
-	google.golang.org/grpc v1.40.0
+	google.golang.org/grpc v1.42.0
 )

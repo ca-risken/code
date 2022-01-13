@@ -1,24 +1,15 @@
 package main
 
 import (
-	"os"
 	"runtime"
 
-	"github.com/sirupsen/logrus"
+	"github.com/ca-risken/common/pkg/logging"
 )
 
 var (
-	appLogger = newAppLogger()
+	appLogger = logging.NewLogger()
+	mem       runtime.MemStats
 )
-
-func newAppLogger() *logrus.Logger {
-	logger := logrus.New()
-	logger.SetFormatter(&logrus.JSONFormatter{})
-	logger.SetOutput(os.Stdout)
-	return logger
-}
-
-var mem runtime.MemStats
 
 func writeMemStats() {
 	runtime.ReadMemStats(&mem)
