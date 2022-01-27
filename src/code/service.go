@@ -11,6 +11,7 @@ import (
 
 	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/code/proto/code"
+	"github.com/ca-risken/core/proto/project"
 	"github.com/gassara-kys/envconfig"
 	"github.com/golang/protobuf/ptypes/empty"
 	"github.com/vikyd/zero"
@@ -18,9 +19,10 @@ import (
 )
 
 type codeService struct {
-	repository  codeRepoInterface
-	sqs         sqsAPI
-	cipherBlock cipher.Block
+	repository    codeRepoInterface
+	sqs           sqsAPI
+	cipherBlock   cipher.Block
+	projectClient project.ProjectServiceClient
 }
 
 type codeServiceConf struct {
@@ -39,9 +41,10 @@ func newCodeService() code.CodeServiceServer {
 		appLogger.Fatal(err.Error())
 	}
 	return &codeService{
-		repository:  newCodeRepository(),
-		sqs:         newSQSClient(),
-		cipherBlock: block,
+		repository:    newCodeRepository(),
+		sqs:           newSQSClient(),
+		cipherBlock:   block,
+		projectClient: newProjectClient(),
 	}
 }
 
@@ -329,6 +332,13 @@ func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty)
 	}
 	for _, g := range *list {
 		if zero.IsZeroVal(g.ProjectID) || zero.IsZeroVal(g.CodeDataSourceID) {
+			continue
+		}
+		if resp, err := c.projectClient.IsActive(ctx, &project.IsActiveRequest{ProjectId: g.ProjectID}); err != nil {
+			appLogger.Errorf("Failed to project.IsActive API, err=%+v", err)
+			continue
+		} else if !resp.Active {
+			appLogger.Infof("Skip deactive project, project_id=%d", g.ProjectID)
 			continue
 		}
 		if _, err := c.InvokeScanGitleaks(ctx, &code.InvokeScanGitleaksRequest{
