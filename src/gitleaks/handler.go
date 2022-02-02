@@ -17,7 +17,6 @@ import (
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
-	"github.com/gassara-kys/envconfig"
 )
 
 type sqsHandler struct {
@@ -29,28 +28,26 @@ type sqsHandler struct {
 	codeClient     code.CodeServiceClient
 }
 
-type gitleaksConf struct {
-	DataKey string `split_words:"true" required:"true"`
-}
-
-func newHandler() *sqsHandler {
-	var conf gitleaksConf
-	err := envconfig.Process("", &conf)
-	if err != nil {
-		appLogger.Fatal(err.Error())
-	}
+func newHandler(conf *AppConfig) *sqsHandler {
 	key := []byte(conf.DataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		appLogger.Fatal(err.Error())
 	}
+	gitleaksConf := &GitleaksConfig{
+		GithubDefaultToken:    conf.GithubDefaultToken,
+		LimitRepositorySizeKb: conf.LimitRepositorySizeKb,
+		SeperateScanDays:      conf.SeperateScanDays,
+		GitleaksScanThreads:   conf.GitleaksScanThreads,
+		ScanOnMemory:          conf.ScanOnMemory,
+	}
 	return &sqsHandler{
 		cipherBlock:    block,
-		githubClient:   newGithubClient(),
-		gitleaksClient: newGitleaksClient(),
-		findingClient:  newFindingClient(),
-		alertClient:    newAlertClient(),
-		codeClient:     newCodeClient(),
+		githubClient:   newGithubClient(gitleaksConf.GithubDefaultToken),
+		gitleaksClient: newGitleaksClient(gitleaksConf),
+		findingClient:  newFindingClient(conf.FindingSvcAddr),
+		alertClient:    newAlertClient(conf.AlertSvcAddr),
+		codeClient:     newCodeClient(conf.CodeSvcAddr),
 	}
 }
 

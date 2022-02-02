@@ -5,12 +5,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/ca-risken/common/pkg/logging"
-	"github.com/gassara-kys/envconfig"
 	"github.com/gassara-kys/go-sqs-poller/worker/v4"
 	"github.com/vikyd/zero"
 )
 
-type sqsConfig struct {
+type SqsConfig struct {
 	Debug string `default:"false"`
 
 	AWSRegion   string `envconfig:"aws_region"    default:"ap-northeast-1"`
@@ -22,13 +21,7 @@ type sqsConfig struct {
 	WaitTimeSecond     int64  `split_words:"true" default:"20"`
 }
 
-func newSQSConsumer() *worker.Worker {
-	var conf sqsConfig
-	err := envconfig.Process("", &conf)
-	if err != nil {
-		appLogger.Fatal(err.Error())
-	}
-
+func newSQSConsumer(conf *SqsConfig) *worker.Worker {
 	if conf.Debug == "true" {
 		appLogger.Level(logging.DebugLevel)
 	}
