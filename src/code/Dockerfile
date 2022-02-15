@@ -12,6 +12,7 @@ RUN go build && cp code /go/bin/
 FROM public.ecr.aws/risken/base/risken-base:v0.0.1
 COPY --from=builder /go/bin/code /usr/local/code/bin/
 ENV PORT= \
+    TRACE_EXPORTER= \
     DB_MASTER_HOST= \
     DB_MASTER_USER= \
     DB_MASTER_PASSWORD= \

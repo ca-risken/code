@@ -12,6 +12,7 @@ RUN go build && cp gitleaks /go/bin/
 FROM public.ecr.aws/risken/base/risken-base:v0.0.1
 COPY --from=builder /go/bin/gitleaks /usr/local/gitleaks/bin/
 ENV DEBUG= \
+    TRACE_EXPORTER= \
     AWS_REGION= \
     AWS_ACCESS_KEY_ID= \
     AWS_SECRET_ACCESS_KEY= \
