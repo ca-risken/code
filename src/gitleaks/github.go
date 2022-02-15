@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ca-risken/code/proto/code"
-	"github.com/gassara-kys/envconfig"
 	"github.com/google/go-github/v32/github"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
@@ -23,14 +22,9 @@ type githubClient struct {
 	defaultToken string
 }
 
-func newGithubClient() githubServiceClient {
-	var conf gitleaksConfig
-	err := envconfig.Process("", &conf)
-	if err != nil {
-		appLogger.Fatalf("Could not read githubConfig. err: %+v", err)
-	}
+func newGithubClient(defaultToken string) githubServiceClient {
 	return &githubClient{
-		defaultToken: conf.GithubDefaultToken,
+		defaultToken: defaultToken,
 	}
 }
 

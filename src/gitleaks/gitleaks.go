@@ -9,7 +9,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gassara-kys/envconfig"
 	"github.com/google/uuid"
 	"github.com/zricethezav/gitleaks/v7/config"
 	"github.com/zricethezav/gitleaks/v7/options"
@@ -20,12 +19,12 @@ type gitleaksServiceClient interface {
 	scanRepository(ctx context.Context, token string, findings *repositoryFinding) error
 }
 
-type gitleaksConfig struct {
-	GithubDefaultToken    string `required:"true" split_words:"true" default:"your-token-here"`
-	LimitRepositorySizeKb int    `required:"true" split_words:"true" default:"500000"` // 500MB
-	SeperateScanDays      int    `required:"true" split_words:"true" default:"365"`
-	GitleaksScanThreads   int    `required:"true" split_words:"true" default:"1"`
-	ScanOnMemory          bool   `split_words:"true" default:"false"`
+type GitleaksConfig struct {
+	GithubDefaultToken    string
+	LimitRepositorySizeKb int
+	SeperateScanDays      int
+	GitleaksScanThreads   int
+	ScanOnMemory          bool
 }
 
 type gitleaksClient struct {
@@ -36,12 +35,7 @@ type gitleaksClient struct {
 	scanOnMemory          bool
 }
 
-func newGitleaksClient() gitleaksServiceClient {
-	var conf gitleaksConfig
-	err := envconfig.Process("", &conf)
-	if err != nil {
-		appLogger.Fatalf("Could not read githubConfig. err: %+v", err)
-	}
+func newGitleaksClient(conf *GitleaksConfig) gitleaksServiceClient {
 	appLogger.Infof(
 		"new gitleaks configuration: LIMIT_REPOSITORY_SIZE_KB=%d, SEPERATE_SCAN_DAYS=%d, GITLEAKS_SCAN_THREADS=%d, SCAN_ON_MEMORY=%t",
 		conf.LimitRepositorySizeKb, conf.SeperateScanDays, conf.GitleaksScanThreads, conf.ScanOnMemory)

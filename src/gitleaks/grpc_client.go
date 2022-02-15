@@ -7,61 +7,31 @@ import (
 	"github.com/ca-risken/code/proto/code"
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
-	"github.com/gassara-kys/envconfig"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-type findingConfig struct {
-	FindingSvcAddr string `split_words:"true" default:"finding.core.svc.cluster.local:8001"`
-}
-
-func newFindingClient() finding.FindingServiceClient {
-	var conf findingConfig
-	err := envconfig.Process("", &conf)
-	if err != nil {
-		appLogger.Fatalf("Faild to load finding config error: err=%+v", err)
-	}
-
+func newFindingClient(svcAddr string) finding.FindingServiceClient {
 	ctx := context.Background()
-	conn, err := getGRPCConn(ctx, conf.FindingSvcAddr)
+	conn, err := getGRPCConn(ctx, svcAddr)
 	if err != nil {
 		appLogger.Fatalf("Faild to get GRPC connection: err=%+v", err)
 	}
 	return finding.NewFindingServiceClient(conn)
 }
 
-type alertConfig struct {
-	AlertSvcAddr string `split_words:"true"  default:"alert.core.svc.cluster.local:8004"`
-}
-
-func newAlertClient() alert.AlertServiceClient {
-	var conf alertConfig
-	err := envconfig.Process("", &conf)
-	if err != nil {
-		appLogger.Fatalf("Faild to load alert config error: err=%+v", err)
-	}
-
+func newAlertClient(svcAddr string) alert.AlertServiceClient {
 	ctx := context.Background()
-	conn, err := getGRPCConn(ctx, conf.AlertSvcAddr)
+	conn, err := getGRPCConn(ctx, svcAddr)
 	if err != nil {
 		appLogger.Fatalf("Faild to get GRPC connection: err=%+v", err)
 	}
 	return alert.NewAlertServiceClient(conn)
 }
 
-type codeConfig struct {
-	CodeSvcAddr string `split_words:"true"  default:"code.code.svc.cluster.local:10001"`
-}
-
-func newCodeClient() code.CodeServiceClient {
-	var conf codeConfig
-	err := envconfig.Process("", &conf)
-	if err != nil {
-		appLogger.Fatalf("Faild to load code config error: err=%+v", err)
-	}
-
+func newCodeClient(svcAddr string) code.CodeServiceClient {
 	ctx := context.Background()
-	conn, err := getGRPCConn(ctx, conf.CodeSvcAddr)
+	conn, err := getGRPCConn(ctx, svcAddr)
 	if err != nil {
 		appLogger.Fatalf("Faild to get GRPC connection: err=%+v", err)
 	}
@@ -72,7 +42,7 @@ func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	// gRPCクライアントの呼び出し回数が非常に多くトレーシング情報の送信がエラーになるため、トレースは無効にしておく
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithInsecure())
+	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
