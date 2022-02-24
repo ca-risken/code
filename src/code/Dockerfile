@@ -13,6 +13,8 @@ FROM public.ecr.aws/risken/base/risken-base:v0.0.1
 COPY --from=builder /go/bin/code /usr/local/code/bin/
 ENV PORT= \
     TRACE_EXPORTER= \
+    USE_PROFILER= \
+    PROFILE_TYPES= \
     DB_MASTER_HOST= \
     DB_MASTER_USER= \
     DB_MASTER_PASSWORD= \
