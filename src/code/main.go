@@ -24,11 +24,11 @@ const (
 )
 
 type AppConfig struct {
-	Port          string   `default:"10001"`
-	EnvName       string   `default:"local" split_words:"true"`
-	TraceExporter string   `split_words:"true" default:"nop"`
-	UseProfiler   bool     `split_words:"true" default:"false"`
-	ProfileTypes  []string `split_words:"true"`
+	Port            string   `default:"10001"`
+	EnvName         string   `default:"local" split_words:"true"`
+	TraceExporter   string   `split_words:"true" default:"nop"`
+	ProfileExporter string   `split_words:"true" default:"nop"`
+	ProfileTypes    []string `split_words:"true"`
 }
 
 func main() {
@@ -42,7 +42,11 @@ func main() {
 		appLogger.Fatal(err.Error())
 	}
 
-	pTypes, err := profiler.ConvertFrom(conf.ProfileTypes)
+	pTypes, err := profiler.ConvertProfileTypeFrom(conf.ProfileTypes)
+	if err != nil {
+		appLogger.Fatal(err.Error())
+	}
+	pExporter, err := profiler.ConvertExporterTypeFrom(conf.ProfileExporter)
 	if err != nil {
 		appLogger.Fatal(err.Error())
 	}
@@ -50,7 +54,7 @@ func main() {
 		ServiceName:  fmt.Sprintf("%s.%s", nameSpace, serviceName),
 		EnvName:      conf.EnvName,
 		ProfileTypes: pTypes,
-		UseDatadog:   conf.UseProfiler,
+		ExporterType: pExporter,
 	}
 	err = pc.Start()
 	if err != nil {
