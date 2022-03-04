@@ -2,8 +2,6 @@ module github.com/ca-risken/code/src/code
 
 go 1.17
 
-replace github.com/ca-risken/common/pkg/profiler => github.com/ca-risken/common/pkg/profiler v0.0.0-20220301111205-bb576130ce9b
-
 require (
 	github.com/aws/aws-sdk-go v1.40.48
 	github.com/aws/aws-xray-sdk-go v1.6.0
@@ -11,7 +9,7 @@ require (
 	github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c
 	github.com/ca-risken/common/pkg/database v0.0.0-20211223025030-6bfdc45e906c
 	github.com/ca-risken/common/pkg/logging v0.0.0-20220113015330-0e8462d52b5b
-	github.com/ca-risken/common/pkg/profiler v0.0.0-20220228093654-19ef8eb7d876
+	github.com/ca-risken/common/pkg/profiler v0.0.0-20220304031727-c94e2c463b27
 	github.com/ca-risken/common/pkg/rpc v0.0.0-20220113015330-0e8462d52b5b
 	github.com/ca-risken/common/pkg/trace v0.0.0-20220208092527-a794114e4840
 	github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1
