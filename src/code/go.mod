@@ -9,6 +9,7 @@ require (
 	github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c
 	github.com/ca-risken/common/pkg/database v0.0.0-20211223025030-6bfdc45e906c
 	github.com/ca-risken/common/pkg/logging v0.0.0-20220113015330-0e8462d52b5b
+	github.com/ca-risken/common/pkg/profiler v0.0.0-20220304031727-c94e2c463b27
 	github.com/ca-risken/common/pkg/rpc v0.0.0-20220113015330-0e8462d52b5b
 	github.com/ca-risken/common/pkg/trace v0.0.0-20220208092527-a794114e4840
 	github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1
@@ -24,6 +25,9 @@ require (
 )
 
 require (
+	github.com/DataDog/datadog-go/v5 v5.0.2 // indirect
+	github.com/DataDog/gostackparse v0.5.0 // indirect
+	github.com/Microsoft/go-winio v0.5.1 // indirect
 	github.com/andybalholm/brotli v1.0.3 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/ca-risken/common/pkg/sqs v0.0.0-20220113015330-0e8462d52b5b // indirect
@@ -38,6 +42,7 @@ require (
 	github.com/go-ozzo/ozzo-validation v3.6.0+incompatible // indirect
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/go-sql-driver/mysql v1.6.0 // indirect
+	github.com/google/pprof v0.0.0-20210423192551-a2663126120b // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
@@ -64,6 +69,7 @@ require (
 	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/genproto v0.0.0-20210916144049-3192f974c780 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
+	gopkg.in/DataDog/dd-trace-go.v1 v1.36.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
 	gorm.io/driver/mysql v1.1.2 // indirect
 )
