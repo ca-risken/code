@@ -89,6 +89,8 @@ github.com/ca-risken/common/pkg/profiler v0.0.0-20220304031727-c94e2c463b27/go.m
 github.com/ca-risken/common/pkg/sqs v0.0.0-20210924080827-df6e4ac73f01/go.mod h1:IxYbziqfohwo7y7Zn15W2emT4ubB5duUzdvj5fYhHJ4=
 github.com/ca-risken/common/pkg/sqs v0.0.0-20220208092527-a794114e4840 h1:mDu/KWxsDv6UnNw9ABvNwNO82CDNNSZvc0Xcd8ibLu0=
 github.com/ca-risken/common/pkg/sqs v0.0.0-20220208092527-a794114e4840/go.mod h1:JR2ah4TDqvO9s53PkGtn7RBbAKtdWmy6ZJOsa59RYJ0=
+github.com/ca-risken/common/pkg/sqs v0.0.0-20220401085449-41d2b86b5769 h1:mCT/6Fw7kZLAmsbXBHODtuT8B8K2dkoeJ5/R1+oeSZQ=
+github.com/ca-risken/common/pkg/sqs v0.0.0-20220401085449-41d2b86b5769/go.mod h1:bQKQC0i/Aa4NZqvyQNNrX/slAdSLxSJmvzBzn68gOvk=
 github.com/ca-risken/common/pkg/trace v0.0.0-20220214024352-106a54930c47 h1:JU9ELkRN4J7khYqg9hiWgduDY6jknCigGCbgAzAtlrg=
 github.com/ca-risken/common/pkg/trace v0.0.0-20220214024352-106a54930c47/go.mod h1:xujxKhHZ/YwlkvELgC1CT2bW2k6wHg/N/xuJ2KpOZvU=
 github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1 h1:SjbAAb2H9yZu4Ecs9aL2tNdgifTzYTSxY4qjXFubnYI=
@@ -97,6 +99,8 @@ github.com/ca-risken/core/proto/alert v0.0.0-20211207091647-a7dcd065406e h1:qwpd
 github.com/ca-risken/core/proto/alert v0.0.0-20211207091647-a7dcd065406e/go.mod h1:RqFbJiP1YNukFs1AX9KTf/aYZhIgNCCgIW4oTJuHbBw=
 github.com/ca-risken/core/proto/finding v0.0.0-20211207091647-a7dcd065406e h1:vTm6pyfLkndafpjMtpe+KFwWbFf4hH9Cjics2XsfRJ4=
 github.com/ca-risken/core/proto/finding v0.0.0-20211207091647-a7dcd065406e/go.mod h1:Zl2+Z3g878Tp33vh6nhiU1pqaz7ymtmiZ71+Wn+Rzts=
+github.com/ca-risken/core/proto/finding v0.0.0-20220309052852-c058b4e5cb84 h1:QcCZ9Zek8gwBYHlONiuW9DN6XvXyql1yUPGKiKtoeCw=
+github.com/ca-risken/core/proto/finding v0.0.0-20220309052852-c058b4e5cb84/go.mod h1:3KZ1YanhizuVyAqMnCG7sI8Rt2mTvsWfB1GieIvoGRI=
 github.com/cenkalti/backoff/v4 v4.1.2 h1:6Yo7N8UP2K6LWZnW94DLVSSrbobcWdVzAYOisuDPIFo=
 github.com/cenkalti/backoff/v4 v4.1.2/go.mod h1:scbssz8iZGpm3xbr14ovlUdkxfGXNInqkPWOWmG2CLw=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
@@ -649,6 +653,8 @@ google.golang.org/grpc v1.36.0/go.mod h1:qjiiYl8FncCW8feJPdyg3v6XW24KsRHe+dy9BAG
 google.golang.org/grpc v1.40.0/go.mod h1:ogyxbiOoUXAkP+4+xa6PZSE9DZgIHtSpzjDTB9KAK34=
 google.golang.org/grpc v1.42.0 h1:XT2/MFpuPFsEX2fWh3YQtHkZ+WYZFQRfaUgLZYj/p6A=
 google.golang.org/grpc v1.42.0/go.mod h1:k+4IHHFw41K8+bbowsex27ge2rCb65oeWqe4jJ590SU=
+google.golang.org/grpc v1.45.0 h1:NEpgUqV3Z+ZjkqMsxMg11IaDrXY4RY6CQukSGK0uI1M=
+google.golang.org/grpc v1.45.0/go.mod h1:lN7owxKUQEqMfSyQikvvk5tf/6zMPsrK+ONuO11+0rQ=
 google.golang.org/protobuf v0.0.0-20200109180630-ec00e32a8dfd/go.mod h1:DFci5gLYBciE7Vtevhsrf46CRTquxDuWsQurQQe4oz8=
 google.golang.org/protobuf v0.0.0-20200221191635-4d8936d0db64/go.mod h1:kwYJMbMJ01Woi6D6+Kah6886xMZcty6N08ah7+eCXa0=
 google.golang.org/protobuf v0.0.0-20200228230310-ab0ca4ff8a60/go.mod h1:cfTl7dwQJ+fmap5saPgwCLgHXTUD7jkjRqWcaiX5VyM=

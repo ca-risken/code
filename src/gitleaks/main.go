@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-xray-sdk-go/xray"
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/common/pkg/profiler"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/common/pkg/trace"
@@ -15,6 +16,7 @@ import (
 const (
 	nameSpace   = "code"
 	serviceName = "gitleaks"
+	settingURL  = "https://docs.security-hub.jp/code/gitleaks_datasource/"
 )
 
 type AppConfig struct {
@@ -107,6 +109,10 @@ func main() {
 		MaxNumberOfMessage: conf.MaxNumberOfMessage,
 		WaitTimeSecond:     conf.WaitTimeSecond,
 	}
+	f, err := mimosasqs.NewFinalizer(common.GitleaksDataSource, settingURL, conf.FindingSvcAddr, nil)
+	if err != nil {
+		appLogger.Fatalf("Failed to create Finalizer, err=%+v", err)
+	}
 	consumer := newSQSConsumer(sqsConf)
 	appLogger.Info("Start the gitleaks SQS consumer server...")
 	consumer.Start(ctx,
@@ -114,5 +120,6 @@ func main() {
 			mimosasqs.RetryableErrorHandler(
 				mimosasqs.StatusLoggingHandler(appLogger,
 					mimosaxray.MessageTracingHandler(conf.EnvName, tc.GetFullServiceName(),
-						trace.ProcessTracingHandler(tc.GetFullServiceName(), newHandler(&conf)))))))
+						trace.ProcessTracingHandler(tc.GetFullServiceName(),
+							f.FinalizeHandler(newHandler(&conf))))))))
 }

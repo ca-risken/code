@@ -13,11 +13,11 @@ require (
 	github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c
 	github.com/ca-risken/common/pkg/logging v0.0.0-20220113015330-0e8462d52b5b
 	github.com/ca-risken/common/pkg/profiler v0.0.0-20220304031727-c94e2c463b27
-	github.com/ca-risken/common/pkg/sqs v0.0.0-20220208092527-a794114e4840
+	github.com/ca-risken/common/pkg/sqs v0.0.0-20220401085449-41d2b86b5769
 	github.com/ca-risken/common/pkg/trace v0.0.0-20220214024352-106a54930c47
 	github.com/ca-risken/common/pkg/xray v0.0.0-20211118071101-9855266b50a1
 	github.com/ca-risken/core/proto/alert v0.0.0-20211207091647-a7dcd065406e
-	github.com/ca-risken/core/proto/finding v0.0.0-20211207091647-a7dcd065406e
+	github.com/ca-risken/core/proto/finding v0.0.0-20220309052852-c058b4e5cb84
 	github.com/gassara-kys/envconfig v1.4.4
 	github.com/gassara-kys/go-sqs-poller/worker/v4 v4.0.0-20210215110542-0be358599a2f
 	github.com/google/go-github/v32 v32.1.0
@@ -28,7 +28,7 @@ require (
 	github.com/vikyd/zero v0.0.0-20190921142904-0f738d0bc858
 	github.com/zricethezav/gitleaks/v7 v7.5.0
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
-	google.golang.org/grpc v1.42.0
+	google.golang.org/grpc v1.45.0
 )
 
 require (
