@@ -6,9 +6,9 @@ import (
 
 	"github.com/ca-risken/core/proto/project"
 	"github.com/gassara-kys/envconfig"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	grpctrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/grpc"
 )
 
 type projectConfig struct {
@@ -35,7 +35,7 @@ func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	defer cancel()
 	conn, err := grpc.DialContext(ctx, addr,
 		grpc.WithUnaryInterceptor(
-			otelgrpc.UnaryClientInterceptor()),
+			grpctrace.UnaryClientInterceptor()),
 		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
