@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aws/aws-xray-sdk-go/xray"
 	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/common/pkg/profiler"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
-	"github.com/ca-risken/common/pkg/trace"
-	mimosaxray "github.com/ca-risken/common/pkg/xray"
+	"github.com/ca-risken/common/pkg/tracer"
 	"github.com/gassara-kys/envconfig"
 )
 
@@ -19,11 +17,16 @@ const (
 	settingURL  = "https://docs.security-hub.jp/code/gitleaks_datasource/"
 )
 
+func getFullServiceName() string {
+	return fmt.Sprintf("%s.%s", nameSpace, serviceName)
+}
+
 type AppConfig struct {
 	EnvName         string   `default:"local" split_words:"true"`
 	TraceExporter   string   `split_words:"true" default:"nop"`
 	ProfileExporter string   `split_words:"true" default:"nop"`
 	ProfileTypes    []string `split_words:"true"`
+	TraceDebug      bool     `split_words:"true" default:"false"`
 
 	// sqs
 	Debug string `default:"false"`
@@ -58,10 +61,6 @@ func main() {
 	if err != nil {
 		appLogger.Fatal(err.Error())
 	}
-	err = mimosaxray.InitXRay(xray.Config{})
-	if err != nil {
-		appLogger.Fatal(err.Error())
-	}
 
 	pTypes, err := profiler.ConvertProfileTypeFrom(conf.ProfileTypes)
 	if err != nil {
@@ -83,22 +82,13 @@ func main() {
 	}
 	defer pc.Stop()
 
-	tc := &trace.Config{
-		Namespace:    nameSpace,
-		ServiceName:  serviceName,
-		Environment:  conf.EnvName,
-		ExporterType: trace.GetExporterType(conf.TraceExporter),
+	tc := &tracer.Config{
+		ServiceName: getFullServiceName(),
+		Environment: conf.EnvName,
+		Debug:       conf.TraceDebug,
 	}
-	ctx := context.Background()
-	tp, err := trace.Init(ctx, tc)
-	if err != nil {
-		appLogger.Fatal(err.Error())
-	}
-	defer func() {
-		if err := tp.Shutdown(ctx); err != nil {
-			appLogger.Fatal(err.Error())
-		}
-	}()
+	tracer.Start(tc)
+	defer tracer.Stop()
 
 	sqsConf := &SqsConfig{
 		Debug:              conf.Debug,
@@ -115,11 +105,11 @@ func main() {
 	}
 	consumer := newSQSConsumer(sqsConf)
 	appLogger.Info("Start the gitleaks SQS consumer server...")
+	ctx := context.Background()
 	consumer.Start(ctx,
 		mimosasqs.InitializeHandler(
 			mimosasqs.RetryableErrorHandler(
 				mimosasqs.StatusLoggingHandler(appLogger,
-					mimosaxray.MessageTracingHandler(conf.EnvName, tc.GetFullServiceName(),
-						trace.ProcessTracingHandler(tc.GetFullServiceName(),
-							f.FinalizeHandler(newHandler(&conf))))))))
+					mimosasqs.TracingHandler(getFullServiceName(),
+						f.FinalizeHandler(newHandler(&conf)))))))
 }
