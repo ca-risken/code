@@ -1,21 +1,18 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net"
 
-	"github.com/aws/aws-xray-sdk-go/xray"
 	"github.com/ca-risken/code/proto/code"
 	"github.com/ca-risken/common/pkg/profiler"
 	mimosarpc "github.com/ca-risken/common/pkg/rpc"
-	"github.com/ca-risken/common/pkg/trace"
-	mimosaxray "github.com/ca-risken/common/pkg/xray"
+	"github.com/ca-risken/common/pkg/tracer"
 	"github.com/gassara-kys/envconfig"
 	grpcmiddleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+	grpctrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/google.golang.org/grpc"
 )
 
 const (
@@ -26,18 +23,18 @@ const (
 type AppConfig struct {
 	Port            string   `default:"10001"`
 	EnvName         string   `default:"local" split_words:"true"`
-	TraceExporter   string   `split_words:"true" default:"nop"`
 	ProfileExporter string   `split_words:"true" default:"nop"`
 	ProfileTypes    []string `split_words:"true"`
+	TraceDebug      bool     `split_words:"true" default:"false"`
+}
+
+func getFullServiceName() string {
+	return fmt.Sprintf("%s.%s", nameSpace, serviceName)
 }
 
 func main() {
 	var conf AppConfig
 	err := envconfig.Process("", &conf)
-	if err != nil {
-		appLogger.Fatal(err.Error())
-	}
-	err = mimosaxray.InitXRay(xray.Config{})
 	if err != nil {
 		appLogger.Fatal(err.Error())
 	}
@@ -62,22 +59,13 @@ func main() {
 	}
 	defer pc.Stop()
 
-	tc := &trace.Config{
-		Namespace:    nameSpace,
-		ServiceName:  serviceName,
-		Environment:  conf.EnvName,
-		ExporterType: trace.GetExporterType(conf.TraceExporter),
+	tc := &tracer.Config{
+		ServiceName: getFullServiceName(),
+		Environment: conf.EnvName,
+		Debug:       conf.TraceDebug,
 	}
-	ctx := context.Background()
-	tp, err := trace.Init(ctx, tc)
-	if err != nil {
-		appLogger.Fatal(err.Error())
-	}
-	defer func() {
-		if err := tp.Shutdown(ctx); err != nil {
-			appLogger.Fatal(err.Error())
-		}
-	}()
+	tracer.Start(tc)
+	defer tracer.Stop()
 
 	l, err := net.Listen("tcp", fmt.Sprintf(":%s", conf.Port))
 	if err != nil {
@@ -88,9 +76,7 @@ func main() {
 		grpc.UnaryInterceptor(
 			grpcmiddleware.ChainUnaryServer(
 				mimosarpc.LoggingUnaryServerInterceptor(appLogger),
-				xray.UnaryServerInterceptor(),
-				mimosaxray.AnnotateEnvTracingUnaryServerInterceptor(conf.EnvName),
-				otelgrpc.UnaryServerInterceptor())))
+				grpctrace.UnaryServerInterceptor())))
 	codeServer := newCodeService()
 	code.RegisterCodeServiceServer(server, codeServer)
 
