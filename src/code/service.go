@@ -336,7 +336,7 @@ func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty)
 		}
 		if resp, err := c.projectClient.IsActive(ctx, &project.IsActiveRequest{ProjectId: g.ProjectID}); err != nil {
 			appLogger.Errorf("Failed to project.IsActive API, err=%+v", err)
-			continue
+			return nil, err
 		} else if !resp.Active {
 			appLogger.Infof("Skip deactive project, project_id=%d", g.ProjectID)
 			continue
@@ -346,9 +346,10 @@ func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty)
 			ProjectId:  g.ProjectID,
 			ScanOnly:   true,
 		}); err != nil {
-			// エラーログはいて握りつぶす（すべてのスキャナ登録しきる）
 			appLogger.Errorf("InvokeScanGitleaks error occured: gitleaks_id=%d, err=%+v", g.GitleaksID, err)
+			return nil, err
 		}
+		// TODO delete jitter
 		time.Sleep(time.Millisecond * 100) // jitter
 	}
 	return &empty.Empty{}, nil
