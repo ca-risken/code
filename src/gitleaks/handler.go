@@ -45,8 +45,8 @@ func newHandler(conf *AppConfig) *sqsHandler {
 		cipherBlock:    block,
 		githubClient:   newGithubClient(gitleaksConf.GithubDefaultToken),
 		gitleaksClient: newGitleaksClient(gitleaksConf),
-		findingClient:  newFindingClient(conf.FindingSvcAddr),
-		alertClient:    newAlertClient(conf.AlertSvcAddr),
+		findingClient:  newFindingClient(conf.CoreSvcAddr),
+		alertClient:    newAlertClient(conf.CoreSvcAddr),
 		codeClient:     newCodeClient(conf.CodeSvcAddr),
 	}
 }

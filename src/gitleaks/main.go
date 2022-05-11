@@ -47,9 +47,8 @@ type AppConfig struct {
 	ScanOnMemory          bool   `split_words:"true" default:"false"`
 
 	// grpc
-	FindingSvcAddr string `split_words:"true" default:"finding.core.svc.cluster.local:8001"`
-	AlertSvcAddr   string `split_words:"true"  default:"alert.core.svc.cluster.local:8004"`
-	CodeSvcAddr    string `split_words:"true"  default:"code.code.svc.cluster.local:10001"`
+	CoreSvcAddr string `split_words:"true" default:"core.core.svc.cluster.local:8080"`
+	CodeSvcAddr string `split_words:"true"  default:"code.code.svc.cluster.local:10001"`
 
 	// handler
 	DataKey string `split_words:"true" required:"true"`
@@ -99,7 +98,7 @@ func main() {
 		MaxNumberOfMessage: conf.MaxNumberOfMessage,
 		WaitTimeSecond:     conf.WaitTimeSecond,
 	}
-	f, err := mimosasqs.NewFinalizer(common.GitleaksDataSource, settingURL, conf.FindingSvcAddr, nil)
+	f, err := mimosasqs.NewFinalizer(common.GitleaksDataSource, settingURL, conf.CoreSvcAddr, nil)
 	if err != nil {
 		appLogger.Fatalf("Failed to create Finalizer, err=%+v", err)
 	}
