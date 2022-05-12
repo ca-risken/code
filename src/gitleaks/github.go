@@ -181,25 +181,19 @@ const (
 )
 
 func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.Gitleaks, login string) ([]*github.Repository, error) {
-	var allRepos []*github.Repository
-	// public
-	if config.ScanPublic {
-		repos, err := g.listRepositoryForUserWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityPublic)
-		if err != nil {
-			return nil, err
-		}
-		allRepos = append(allRepos, repos...)
+	var repos []*github.Repository
+	allRepos, err := g.listRepositoryForUserWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityAll)
+	if err != nil {
+		return nil, err
 	}
-
-	// private
-	if config.ScanPrivate {
-		repos, err := g.listRepositoryForUserWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityPrivate)
-		if err != nil {
-			return nil, err
+	for _, r := range allRepos {
+		if config.ScanPublic && *r.Visibility == githubVisibilityPublic {
+			repos = append(repos, r) // public
+		} else if config.ScanPrivate && *r.Visibility == githubVisibilityPrivate {
+			repos = append(repos, r) // private
 		}
-		allRepos = append(allRepos, repos...)
 	}
-	return allRepos, nil
+	return repos, nil
 }
 
 func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, baseURL, token, login, visibility string) ([]*github.Repository, error) {
@@ -214,15 +208,17 @@ func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, base
 		Type:        visibility,
 	}
 	for {
-		repos, resp, err := client.Repositories.List(ctx, login, opt)
+		repos, resp, err := client.Repositories.List(ctx, "", opt) // user: Passing the empty string will list repositories for the authenticated user.
 		if err != nil {
 			return nil, err
 		}
 		appLogger.Infof("Success GitHub API for user repos, baseURL: %s,login:%s, option:%+v, repo_count: %d, response:%+v", client.BaseURL, login, opt, len(repos), resp)
 		for _, r := range repos {
-			r.Visibility = &visibility
+			appLogger.Debugf("owner.login=%s, login=%s, visi=%s", *r.Owner.Login, login, *r.Visibility)
+			if *r.Owner.Login == login {
+				allRepo = append(allRepo, r)
+			}
 		}
-		allRepo = append(allRepo, repos...)
 		if resp.NextPage == 0 {
 			break
 		}
