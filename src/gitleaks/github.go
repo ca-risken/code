@@ -214,7 +214,6 @@ func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, base
 		}
 		appLogger.Infof("Success GitHub API for user repos, baseURL: %s,login:%s, option:%+v, repo_count: %d, response:%+v", client.BaseURL, login, opt, len(repos), resp)
 		for _, r := range repos {
-			appLogger.Debugf("owner.login=%s, login=%s, visi=%s", *r.Owner.Login, login, *r.Visibility)
 			if *r.Owner.Login == login {
 				allRepo = append(allRepo, r)
 			}
