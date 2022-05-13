@@ -26,6 +26,7 @@ type AppConfig struct {
 	ProfileExporter string   `split_words:"true" default:"nop"`
 	ProfileTypes    []string `split_words:"true"`
 	TraceDebug      bool     `split_words:"true" default:"false"`
+	CoreSvcAddr     string   `required:"true" split_words:"true" default:"core.core.svc.cluster.local:8080"`
 }
 
 func getFullServiceName() string {
@@ -77,7 +78,7 @@ func main() {
 			grpcmiddleware.ChainUnaryServer(
 				mimosarpc.LoggingUnaryServerInterceptor(appLogger),
 				grpctrace.UnaryServerInterceptor())))
-	codeServer := newCodeService()
+	codeServer := newCodeService(conf.CoreSvcAddr)
 	code.RegisterCodeServiceServer(server, codeServer)
 
 	reflection.Register(server) // enable reflection API
