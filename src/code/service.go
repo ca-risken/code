@@ -29,7 +29,7 @@ type codeServiceConf struct {
 	DataKey string `split_words:"true" required:"true"`
 }
 
-func newCodeService() code.CodeServiceServer {
+func newCodeService(coreSvcAddr string) code.CodeServiceServer {
 	var conf codeServiceConf
 	err := envconfig.Process("", &conf)
 	if err != nil {
@@ -44,7 +44,7 @@ func newCodeService() code.CodeServiceServer {
 		repository:    newCodeRepository(),
 		sqs:           newSQSClient(),
 		cipherBlock:   block,
-		projectClient: newProjectClient(),
+		projectClient: newProjectClient(coreSvcAddr),
 	}
 }
 
