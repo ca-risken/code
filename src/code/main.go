@@ -78,8 +78,8 @@ func main() {
 	server := grpc.NewServer(
 		grpc.UnaryInterceptor(
 			grpcmiddleware.ChainUnaryServer(
-				mimosarpc.LoggingUnaryServerInterceptor(appLogger),
-				grpctrace.UnaryServerInterceptor())))
+				grpctrace.UnaryServerInterceptor(),
+				mimosarpc.LoggingUnaryServerInterceptor(appLogger))))
 	codeServer := newCodeService(ctx, conf.CoreSvcAddr)
 	code.RegisterCodeServiceServer(server, codeServer)
 
