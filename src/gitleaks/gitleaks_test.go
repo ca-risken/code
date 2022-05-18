@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/go-github/v32/github"
+	"github.com/google/go-github/v44/github"
 )
 
 var client = gitleaksClient{
