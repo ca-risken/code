@@ -29,20 +29,20 @@ type codeServiceConf struct {
 	DataKey string `split_words:"true" required:"true"`
 }
 
-func newCodeService(coreSvcAddr string) code.CodeServiceServer {
+func newCodeService(ctx context.Context, coreSvcAddr string) code.CodeServiceServer {
 	var conf codeServiceConf
 	err := envconfig.Process("", &conf)
 	if err != nil {
-		appLogger.Fatal(err.Error())
+		appLogger.Fatal(ctx, err.Error())
 	}
 	key := []byte(conf.DataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		appLogger.Fatal(err.Error())
+		appLogger.Fatal(ctx, err.Error())
 	}
 	return &codeService{
-		repository:    newCodeRepository(),
-		sqs:           newSQSClient(),
+		repository:    newCodeRepository(ctx),
+		sqs:           newSQSClient(ctx),
 		cipherBlock:   block,
 		projectClient: newProjectClient(coreSvcAddr),
 	}
@@ -158,7 +158,7 @@ func (c *codeService) PutGitleaks(ctx context.Context, req *code.PutGitleaksRequ
 	if req.Gitleaks.PersonalAccessToken != "" && req.Gitleaks.PersonalAccessToken != maskData {
 		encrypted, err := common.EncryptWithBase64(&c.cipherBlock, req.Gitleaks.PersonalAccessToken)
 		if err != nil {
-			appLogger.Errorf("Failed to encrypt PAT: err=%+v", err)
+			appLogger.Errorf(ctx, "Failed to encrypt PAT: err=%+v", err)
 			return nil, err
 		}
 		req.Gitleaks.PersonalAccessToken = encrypted
@@ -318,7 +318,7 @@ func (c *codeService) InvokeScanGitleaks(ctx context.Context, req *code.InvokeSc
 	}); err != nil {
 		return nil, err
 	}
-	appLogger.Infof("Invoke scanned, messageId: %v", resp.MessageId)
+	appLogger.Infof(ctx, "Invoke scanned, messageId: %v", resp.MessageId)
 	return &empty.Empty{}, nil
 }
 
@@ -335,10 +335,10 @@ func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty)
 			continue
 		}
 		if resp, err := c.projectClient.IsActive(ctx, &project.IsActiveRequest{ProjectId: g.ProjectID}); err != nil {
-			appLogger.Errorf("Failed to project.IsActive API, err=%+v", err)
+			appLogger.Errorf(ctx, "Failed to project.IsActive API, err=%+v", err)
 			return nil, err
 		} else if !resp.Active {
-			appLogger.Infof("Skip deactive project, project_id=%d", g.ProjectID)
+			appLogger.Infof(ctx, "Skip deactive project, project_id=%d", g.ProjectID)
 			continue
 		}
 		if _, err := c.InvokeScanGitleaks(ctx, &code.InvokeScanGitleaksRequest{
@@ -346,7 +346,7 @@ func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty)
 			ProjectId:  g.ProjectID,
 			ScanOnly:   true,
 		}); err != nil {
-			appLogger.Errorf("InvokeScanGitleaks error occured: gitleaks_id=%d, err=%+v", g.GitleaksID, err)
+			appLogger.Errorf(ctx, "InvokeScanGitleaks error occured: gitleaks_id=%d, err=%+v", g.GitleaksID, err)
 			return nil, err
 		}
 		// TODO delete jitter
