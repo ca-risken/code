@@ -18,7 +18,7 @@ require (
 	github.com/ca-risken/core/proto/finding v0.0.0-20220309052852-c058b4e5cb84
 	github.com/gassara-kys/envconfig v1.4.4
 	github.com/gassara-kys/go-sqs-poller/worker/v4 v4.0.0-20210215110542-0be358599a2f
-	github.com/google/go-github/v32 v32.1.0
+	github.com/google/go-github/v44 v44.1.0
 	github.com/google/uuid v1.3.0
 	// Gitleaks scanning may fleeze when v1.2.0, so don't udpdate this module
 	// github.com/sergi/go-diff v1.1.0 // indirect

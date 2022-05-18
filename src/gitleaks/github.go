@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ca-risken/code/proto/code"
-	"github.com/google/go-github/v32/github"
+	"github.com/google/go-github/v44/github"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
@@ -302,7 +302,6 @@ func setRepositoryFinding(repos []*github.Repository, pattern string, findings *
 				Topics:              repo.Topics,
 				Archived:            repo.Archived,
 				Disabled:            repo.Disabled,
-				Permissions:         repo.Permissions,
 				Private:             repo.Private,
 				HasIssues:           repo.HasIssues,
 				HasWiki:             repo.HasWiki,
