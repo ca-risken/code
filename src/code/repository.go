@@ -33,10 +33,10 @@ type codeRepository struct {
 	SlaveDB  *gorm.DB
 }
 
-func newCodeRepository() codeRepoInterface {
+func newCodeRepository(ctx context.Context) codeRepoInterface {
 	repo := codeRepository{}
-	repo.MasterDB = initDB(true)
-	repo.SlaveDB = initDB(false)
+	repo.MasterDB = initDB(ctx, true)
+	repo.SlaveDB = initDB(ctx, false)
 	return &repo
 }
 
@@ -54,10 +54,10 @@ type dbConfig struct {
 	MaxConnection int    `split_words:"true" default:"10"`
 }
 
-func initDB(isMaster bool) *gorm.DB {
+func initDB(ctx context.Context, isMaster bool) *gorm.DB {
 	conf := &dbConfig{}
 	if err := envconfig.Process("DB", conf); err != nil {
-		appLogger.Fatalf("Failed to load DB config. err: %+v", err)
+		appLogger.Fatalf(ctx, "Failed to load DB config. err: %+v", err)
 	}
 
 	var user, pass, host string
@@ -75,10 +75,10 @@ func initDB(isMaster bool) *gorm.DB {
 		user, pass, host, conf.Port, conf.Schema)
 	db, err := mimosasql.Open(dsn, conf.LogMode, conf.MaxConnection)
 	if err != nil {
-		appLogger.Fatalf("Failed to open DB. isMaster: %t, err: %+v", isMaster, err)
+		appLogger.Fatalf(ctx, "Failed to open DB. isMaster: %t, err: %+v", isMaster, err)
 		return nil
 	}
-	appLogger.Infof("Connected to Database. isMaster: %t", isMaster)
+	appLogger.Infof(ctx, "Connected to Database. isMaster: %t", isMaster)
 	return db
 }
 
