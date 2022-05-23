@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/code/proto/code"
 	"github.com/ca-risken/common/pkg/logging"
@@ -28,11 +28,11 @@ type sqsHandler struct {
 	codeClient     code.CodeServiceClient
 }
 
-func newHandler(conf *AppConfig) *sqsHandler {
+func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
 	key := []byte(conf.DataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		appLogger.Fatal(err.Error())
+		appLogger.Fatal(ctx, err.Error())
 	}
 	gitleaksConf := &GitleaksConfig{
 		GithubDefaultToken:    conf.GithubDefaultToken,
@@ -44,36 +44,36 @@ func newHandler(conf *AppConfig) *sqsHandler {
 	return &sqsHandler{
 		cipherBlock:    block,
 		githubClient:   newGithubClient(gitleaksConf.GithubDefaultToken),
-		gitleaksClient: newGitleaksClient(gitleaksConf),
+		gitleaksClient: newGitleaksClient(ctx, gitleaksConf),
 		findingClient:  newFindingClient(conf.CoreSvcAddr),
 		alertClient:    newAlertClient(conf.CoreSvcAddr),
 		codeClient:     newCodeClient(conf.CodeSvcAddr),
 	}
 }
 
-func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) error {
-	msgBody := aws.StringValue(sqsMsg.Body)
-	appLogger.Infof("got message: %s", msgBody)
+func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) error {
+	msgBody := aws.ToString(sqsMsg.Body)
+	appLogger.Infof(ctx, "got message: %s", msgBody)
 	msg, err := common.ParseMessage(msgBody)
 	if err != nil {
-		appLogger.Errorf("Invalid message: msg=%+v, err=%+v", msg, err)
+		appLogger.Errorf(ctx, "Invalid message: msg=%+v, err=%+v", msg, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	requestID, err := appLogger.GenerateRequestID(fmt.Sprint(msg.ProjectID))
 	if err != nil {
-		appLogger.Warnf("Failed to generate requestID: err=%+v", err)
+		appLogger.Warnf(ctx, "Failed to generate requestID: err=%+v", err)
 		requestID = fmt.Sprint(msg.ProjectID)
 	}
-	appLogger.Infof("start Scan, RequestID=%s", requestID)
+	appLogger.Infof(ctx, "start Scan, RequestID=%s", requestID)
 
 	gitleaksConfig, err := s.getGitleaks(ctx, msg.ProjectID, msg.GitleaksID)
 	if err != nil {
-		appLogger.Errorf("Failed to get scan status: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+		appLogger.Errorf(ctx, "Failed to get scan status: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	decryptedKey, err := common.DecryptWithBase64(&s.cipherBlock, gitleaksConfig.PersonalAccessToken)
 	if err != nil {
-		appLogger.Errorf("Failed to decrypted personal access token: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+		appLogger.Errorf(ctx, "Failed to decrypted personal access token: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	gitleaksConfig.PersonalAccessToken = decryptedKey // Set the plaintext so that the value is still decipherable after updated.
@@ -82,41 +82,41 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 	// Get repositories
 	findings := []repositoryFinding{}
 	if err := s.listRepository(ctx, gitleaksConfig, &findings); err != nil {
-		appLogger.Errorf("Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+		appLogger.Errorf(ctx, "Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 	}
-	appLogger.Infof("Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
+	appLogger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
 		len(findings), gitleaksConfig.BaseUrl, gitleaksConfig.TargetResource, gitleaksConfig.RepositoryPattern)
 
 	for _, f := range findings {
 		// Set LastScanedAt
 		if err := s.setLastScanedAt(ctx, msg.ProjectID, &f); err != nil {
-			appLogger.Errorf("Failed to set LastScanedAt: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			appLogger.Errorf(ctx, "Failed to set LastScanedAt: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 
 		// Scan repository
 		err = s.gitleaksClient.scanRepository(ctx, decryptedKey, &f)
 		if err != nil {
-			appLogger.Errorf("Failed to scan repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			appLogger.Errorf(ctx, "Failed to scan repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 
 		// Put finding
 		if err := s.putFindings(ctx, msg.ProjectID, &f); err != nil {
-			appLogger.Errorf("Failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			appLogger.Errorf(ctx, "Failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 	}
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	appLogger.Infof("end Scan, RequestID=%s", requestID)
+	appLogger.Infof(ctx, "end Scan, RequestID=%s", requestID)
 	if msg.ScanOnly {
 		return nil
 	}
 	if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
-		appLogger.Notifyf(logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
+		appLogger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	return nil
@@ -124,7 +124,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *sqs.Message) err
 
 func (s *sqsHandler) handleErrorWithUpdateStatus(ctx context.Context, scanStatus *code.PutGitleaksRequest, err error) error {
 	if updateErr := s.updateScanStatusError(ctx, scanStatus, err.Error()); updateErr != nil {
-		appLogger.Warnf("Failed to update scan status error: err=%+v", updateErr)
+		appLogger.Warnf(ctx, "Failed to update scan status error: err=%+v", updateErr)
 	}
 	return mimosasqs.WrapNonRetryable(err)
 }
@@ -138,7 +138,7 @@ func (s *sqsHandler) getGitleaks(ctx context.Context, projectID, gitleaksID uint
 		return nil, err
 	}
 	if data == nil || data.Gitleaks == nil {
-		return nil, fmt.Errorf("No data for scan gitleaks, project_id=%d, gitleaks_id=%d", projectID, gitleaksID)
+		return nil, fmt.Errorf("no data for scan gitleaks, project_id=%d, gitleaks_id=%d", projectID, gitleaksID)
 	}
 	return data.Gitleaks, nil
 }
@@ -198,7 +198,7 @@ func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.
 		config.TargetResource = org.Login
 		if err := s.githubClient.listRepository(ctx, config, findings); err != nil {
 			// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす
-			appLogger.Warnf("Failed to ListRepository by enterprise, org=%s, err=%+v", org.Login, err)
+			appLogger.Warnf(ctx, "Failed to ListRepository by enterprise, org=%s, err=%+v", org.Login, err)
 			continue
 		}
 	}
@@ -222,7 +222,7 @@ func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.Gitleak
 				ProjectId:  config.ProjectId,
 			},
 		}); err != nil {
-			appLogger.Errorf("Failed to PutEnterpriseOrg API, err=%+v", err)
+			appLogger.Errorf(ctx, "Failed to PutEnterpriseOrg API, err=%+v", err)
 			return &code.ListEnterpriseOrgResponse{}, err
 		}
 	}
@@ -234,7 +234,7 @@ func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.Gitleak
 			GitleaksId: config.GitleaksId,
 		})
 		if err != nil {
-			appLogger.Errorf("Failed to ListEnterpriseOrg API, err=%+v", err)
+			appLogger.Errorf(ctx, "Failed to ListEnterpriseOrg API, err=%+v", err)
 			return &code.ListEnterpriseOrgResponse{}, err
 		}
 		for _, org := range list.EnterpriseOrg {
@@ -246,7 +246,7 @@ func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.Gitleak
 				GitleaksId: config.GitleaksId,
 				Login:      org.Login,
 			}); err != nil {
-				appLogger.Errorf("Failed to DeleteEnterpriseOrg API, err=%+v", err)
+				appLogger.Errorf(ctx, "Failed to DeleteEnterpriseOrg API, err=%+v", err)
 				return &code.ListEnterpriseOrgResponse{}, err
 			}
 		}
@@ -256,7 +256,7 @@ func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.Gitleak
 		GitleaksId: config.GitleaksId,
 	})
 	if err != nil {
-		appLogger.Errorf("Failed to ListEnterpriseOrg API, err=%+v", err)
+		appLogger.Errorf(ctx, "Failed to ListEnterpriseOrg API, err=%+v", err)
 		return &code.ListEnterpriseOrgResponse{}, err
 	}
 	return updatedList, nil
@@ -276,12 +276,12 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 			},
 		})
 		if err != nil {
-			appLogger.Errorf("Failed to put resource project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
+			appLogger.Errorf(ctx, "Failed to put resource project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 			return err
 		}
 		s.tagResource(ctx, common.TagCode, resp.Resource.ResourceId, projectID)
 		s.tagResource(ctx, common.TagRipository, resp.Resource.ResourceId, projectID)
-		appLogger.Debugf("Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
+		appLogger.Debugf(ctx, "Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
 		return nil
 	}
 
@@ -294,7 +294,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 		repository.LeakFindings = []*leakFinding{leak} // set only one lesk for putting the finding json data.
 		buf, err := json.Marshal(repository)
 		if err != nil {
-			appLogger.Errorf("Failed to marshal user data, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
+			appLogger.Errorf(ctx, "Failed to marshal user data, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 			return err
 		}
 		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{
@@ -310,7 +310,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 			},
 		})
 		if err != nil {
-			appLogger.Errorf("Failed to put finding project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
+			appLogger.Errorf(ctx, "Failed to put finding project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 			return err
 		}
 		// finding-tag
@@ -325,7 +325,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, f *repos
 			}
 		}
 		s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, leak.Rule)
-		appLogger.Debugf("Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
+		appLogger.Debugf(ctx, "Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
 	}
 	return nil
 }
@@ -339,11 +339,11 @@ func (s *sqsHandler) setLastScanedAt(ctx context.Context, projectID uint32, f *r
 		ToAt:         unix99991231T235959,
 	})
 	if err != nil {
-		appLogger.Errorf("Failed to ListResource, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
+		appLogger.Errorf(ctx, "Failed to ListResource, project_id=%d, repository=%s, err=%+v", projectID, *f.FullName, err)
 		return err
 	}
 	if len(resp.ResourceId) < 1 {
-		appLogger.Infof("No resource registerd: %s", *f.FullName)
+		appLogger.Infof(ctx, "No resource registerd: %s", *f.FullName)
 		return nil
 	}
 	resourceID := resp.ResourceId[0]
@@ -352,10 +352,10 @@ func (s *sqsHandler) setLastScanedAt(ctx context.Context, projectID uint32, f *r
 		ResourceId: resourceID,
 	})
 	if err != nil {
-		appLogger.Errorf("Failed to GetResource, project_id=%d, resource_id=%d, err=%+v", projectID, resourceID, err)
+		appLogger.Errorf(ctx, "Failed to GetResource, project_id=%d, resource_id=%d, err=%+v", projectID, resourceID, err)
 		return err
 	}
-	appLogger.Debugf("Got resource: %+v", resp2)
+	appLogger.Debugf(ctx, "Got resource: %+v", resp2)
 	if resp2 == nil || resp2.Resource == nil {
 		return nil
 	}
@@ -372,7 +372,7 @@ func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint6
 			Tag:       tag,
 		}})
 	if err != nil {
-		appLogger.Errorf("Failed to TagFinding, finding_id=%d, tag=%s, error=%+v", findingID, tag, err)
+		appLogger.Errorf(ctx, "Failed to TagFinding, finding_id=%d, tag=%s, error=%+v", findingID, tag, err)
 	}
 }
 
@@ -384,7 +384,7 @@ func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uin
 			ProjectId:  projectID,
 			Tag:        tag,
 		}}); err != nil {
-		appLogger.Errorf("Failed to TagResource, resource_id=%d, tag=%s, error=%+v", resourceID, tag, err)
+		appLogger.Errorf(ctx, "Failed to TagResource, resource_id=%d, tag=%s, error=%+v", resourceID, tag, err)
 	}
 }
 
@@ -407,7 +407,7 @@ func (s *sqsHandler) updateScanStatus(ctx context.Context, putData *code.PutGitl
 	if err != nil {
 		return err
 	}
-	appLogger.Infof("Success to update scan status, response=%+v", resp)
+	appLogger.Infof(ctx, "Success to update scan status, response=%+v", resp)
 	return nil
 }
 
@@ -434,9 +434,9 @@ func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, finding
 		Risk:           r.Risk,
 		Recommendation: r.Recommendation,
 	}); err != nil {
-		appLogger.Errorf("Failed to TagFinding, finding_id=%d, rule=%s, error=%+v", findingID, rule, err)
+		appLogger.Errorf(ctx, "Failed to TagFinding, finding_id=%d, rule=%s, error=%+v", findingID, rule, err)
 	}
-	appLogger.Debugf("Success PutRecommend, finding_id=%d, reccomend=%+v", findingID, r)
+	appLogger.Debugf(ctx, "Success PutRecommend, finding_id=%d, reccomend=%+v", findingID, r)
 }
 
 func cutString(input string, cut int) string {
