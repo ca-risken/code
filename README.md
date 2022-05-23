@@ -2,8 +2,9 @@
 
 ![Build Status](https://codebuild.ap-northeast-1.amazonaws.com/badges?uuid=eyJlbmNyeXB0ZWREYXRhIjoiN1B0R1F0YXJMQlhlY0N5TnRIOXpVZjNQZlFhRjZqUzVETVNPcDc2UVhSYmFpdVZ5OXZXekI5bTMwK2Q3UVhmY3lTZk4wWEVpakQzbFVYR1QycmloSVdVPSIsIml2UGFyYW1ldGVyU3BlYyI6IlJhMmZ3UHEvWFhvdmd0TnEiLCJtYXRlcmlhbFNldFNlcmlhbCI6MX0%3D&branch=master)
 
-`RISKEN` is a monitoring tool for your cloud platforms, web-site, source-code... 
-`RISKEN Code` is a security monitoring system for *source code* that searches, analyzes, evaluate, and alerts on discovered threat information.
+`RISKEN` is a monitoring tool for your cloud platforms, web-site, source-code...
+`RISKEN Code` is a security monitoring system for *source code* that searches, analyzes, evaluate, and alerts on
+discovered threat information.
 
 Please check [RISKEN Documentation](https://docs.security-hub.jp/).
 
@@ -37,7 +38,8 @@ $ make build
 
 Deploy the pre-built containers to the Kubernetes environment on your local machine.
 
-- Follow the [documentation](https://docs.security-hub.jp/admin/infra_local/#risken) to download the Kubernetes manifest sample.
+- Follow the [documentation](https://docs.security-hub.jp/admin/infra_local/#risken) to download the Kubernetes manifest
+  sample.
 - Fix the Kubernetes object specs of the manifest file as follows and deploy it.
 
 `k8s-sample/overlays/local/code.yaml`
@@ -49,8 +51,8 @@ Deploy the pre-built containers to the Kubernetes environment on your local mach
 
 ## Community
 
-Info on reporting bugs, getting help, finding roadmaps,
-and more can be found in the [RISKEN Community](https://github.com/ca-risken/community).
+Info on reporting bugs, getting help, finding roadmaps, and more can be found in
+the [RISKEN Community](https://github.com/ca-risken/community).
 
 ## License
 
