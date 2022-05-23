@@ -30,17 +30,17 @@ type sqsClient struct {
 	gitleaksFullScanQueueURL string
 }
 
-func newSQSClient() *sqsClient {
+func newSQSClient(ctx context.Context) *sqsClient {
 	var conf sqsConfig
 	err := envconfig.Process("", &conf)
 	if err != nil {
-		appLogger.Fatal(err.Error())
+		appLogger.Fatal(ctx, err.Error())
 	}
 	sess, err := session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	})
 	if err != nil {
-		appLogger.Fatalf("Failed to create a new session, %v", err)
+		appLogger.Fatalf(ctx, "Failed to create a new session, %v", err)
 	}
 	session := sqs.New(sess, &aws.Config{
 		Region:   &conf.AWSRegion,

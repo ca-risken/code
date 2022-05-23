@@ -9,6 +9,7 @@ import (
 
 	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/code/proto/code"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"gorm.io/gorm"
 )
@@ -202,9 +203,7 @@ func TestPutGitleaks(t *testing.T) {
 	now := time.Now()
 	key := []byte("1234567890123456")
 	block, err := aes.NewCipher(key)
-	if err != nil {
-		appLogger.Fatal(err.Error())
-	}
+	assert.NoError(t, err)
 	mockDB := mockCodeRepository{}
 	svc := codeService{
 		repository:  &mockDB,
