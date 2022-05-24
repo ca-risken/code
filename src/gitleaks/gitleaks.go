@@ -35,8 +35,8 @@ type gitleaksClient struct {
 	scanOnMemory          bool
 }
 
-func newGitleaksClient(conf *GitleaksConfig) gitleaksServiceClient {
-	appLogger.Infof(
+func newGitleaksClient(ctx context.Context, conf *GitleaksConfig) gitleaksServiceClient {
+	appLogger.Infof(ctx,
 		"new gitleaks configuration: LIMIT_REPOSITORY_SIZE_KB=%d, SEPERATE_SCAN_DAYS=%d, GITLEAKS_SCAN_THREADS=%d, SCAN_ON_MEMORY=%t",
 		conf.LimitRepositorySizeKb, conf.SeperateScanDays, conf.GitleaksScanThreads, conf.ScanOnMemory)
 	return &gitleaksClient{
@@ -71,11 +71,11 @@ func (l *leakFinding) generateDataSourceID() {
 }
 
 func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *repositoryFinding) error {
-	if g.skipScan(f) {
+	if g.skipScan(ctx, f) {
 		f.SkipScan = true
 		return nil
 	}
-	clonePath, err := generateClonePath(*f.FullName)
+	clonePath, err := generateClonePath(ctx, *f.FullName)
 	if err != nil {
 		return err
 	}
@@ -93,9 +93,9 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 	if g.scanOnMemory {
 		opts.ClonePath = ""
 	}
-	appLogger.Infof("Start scan repository: fullname=%s, size=%d(kb), createdAt: %v, pushedAt:%v, lastScanedAt: %v",
+	appLogger.Infof(ctx, "Start scan repository: fullname=%s, size=%d(kb), createdAt: %v, pushedAt:%v, lastScanedAt: %v",
 		*f.FullName, *f.Size, f.CreatedAt, f.PushedAt, f.LastScanedAt)
-	durations := g.getScanDuration(f.CreatedAt.Time, f.PushedAt.Time, f.LastScanedAt)
+	durations := g.getScanDuration(ctx, f.CreatedAt.Time, f.PushedAt.Time, f.LastScanedAt)
 	for idx, duration := range durations {
 		if !g.scanOnMemory && idx > 0 {
 			//   runtime.GC()
@@ -114,16 +114,16 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		if err != nil {
 			return err
 		}
-		appLogger.Infof("Scan %s %d/%d started... (%s ~ %s)", *f.FullName, idx+1, len(durations), opts.CommitSince, opts.CommitUntil)
-		writeMemStats()
+		appLogger.Infof(ctx, "Scan %s %d/%d started... (%s ~ %s)", *f.FullName, idx+1, len(durations), opts.CommitSince, opts.CommitUntil)
+		writeMemStats(ctx)
 		report, err := scanner.Scan()
 		if err != nil {
 			// A scanning error occurred, but continue scanning the other repositories...
-			appLogger.Errorf("Failed to scan `Gitleaks`: repository=%s, err=%+v", *f.FullName, err)
+			appLogger.Errorf(ctx, "Failed to scan `Gitleaks`: repository=%s, err=%+v", *f.FullName, err)
 			return nil
 		}
-		appLogger.Infof("Scan %s %d/%d ended... (%s ~ %s)", *f.FullName, idx+1, len(durations), opts.CommitSince, opts.CommitUntil)
-		writeMemStats()
+		appLogger.Infof(ctx, "Scan %s %d/%d ended... (%s ~ %s)", *f.FullName, idx+1, len(durations), opts.CommitSince, opts.CommitUntil)
+		writeMemStats(ctx)
 		for _, leak := range report.Leaks {
 			f.LeakFindings = append(f.LeakFindings, &leakFinding{
 				Line:       cutString(leak.Line, 200),
@@ -142,13 +142,13 @@ func (g *gitleaksClient) scanRepository(ctx context.Context, token string, f *re
 		}
 		time.Sleep(1 * time.Second)
 	}
-	return removeDir(clonePath)
+	return removeDir(ctx, clonePath)
 }
 
-func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
+func (g *gitleaksClient) skipScan(ctx context.Context, repo *repositoryFinding) bool {
 	// Check the repo status
 	if repo == nil {
-		appLogger.Warnf("Skip scan repository(data not found)")
+		appLogger.Warnf(ctx, "Skip scan repository(data not found)")
 		return true
 	}
 
@@ -157,31 +157,31 @@ func (g *gitleaksClient) skipScan(repo *repositoryFinding) bool {
 		repoName = *repo.FullName
 	}
 	if repo.Archived != nil && *repo.Archived {
-		appLogger.Infof("Skip scan for %s repository(archived)", repoName)
+		appLogger.Infof(ctx, "Skip scan for %s repository(archived)", repoName)
 		return true
 	}
 	if repo.Fork != nil && *repo.Fork {
-		appLogger.Infof("Skip scan for %s repository(fork repo)", repoName)
+		appLogger.Infof(ctx, "Skip scan for %s repository(fork repo)", repoName)
 		return true
 	}
 	if repo.Disabled != nil && *repo.Disabled {
-		appLogger.Infof("Skip scan for %s repository(disabled)", repoName)
+		appLogger.Infof(ctx, "Skip scan for %s repository(disabled)", repoName)
 		return true
 	}
 	if repo.Size != nil && *repo.Size < 1 {
-		appLogger.Infof("Skip scan for %s repository(empty)", repoName)
+		appLogger.Infof(ctx, "Skip scan for %s repository(empty)", repoName)
 		return true
 	}
 
 	// Hard limit size
 	if repo.Size != nil && *repo.Size > g.limitRepositorySizeKb {
-		appLogger.Warnf("Skip scan for %s repository(too big size, limit=%dkb, size(kb)=%dkb)", repoName, g.limitRepositorySizeKb, *repo.Size)
+		appLogger.Warnf(ctx, "Skip scan for %s repository(too big size, limit=%dkb, size(kb)=%dkb)", repoName, g.limitRepositorySizeKb, *repo.Size)
 		return true
 	}
 
 	// Check coparing pushedAt and lastScanedAt
 	if repo.alreadyScaned() {
-		appLogger.Infof("Skip scan for %s repository(already scaned)", repoName)
+		appLogger.Infof(ctx, "Skip scan for %s repository(already scaned)", repoName)
 		return true
 	}
 	return false
@@ -192,7 +192,7 @@ type scanDuration struct {
 	To   time.Time
 }
 
-func (g *gitleaksClient) getScanDuration(createdAt, pushedAt, lastScanedAt time.Time) []scanDuration {
+func (g *gitleaksClient) getScanDuration(ctx context.Context, createdAt, pushedAt, lastScanedAt time.Time) []scanDuration {
 	start := createdAt
 	if createdAt.Unix() < lastScanedAt.Unix() {
 		start = lastScanedAt
@@ -200,7 +200,7 @@ func (g *gitleaksClient) getScanDuration(createdAt, pushedAt, lastScanedAt time.
 
 	duration := []scanDuration{}
 	if g.seperateScanDays < 1 {
-		appLogger.Errorf("SeparateScanDays must more than 1, day=%d", g.seperateScanDays)
+		appLogger.Errorf(ctx, "SeparateScanDays must more than 1, day=%d", g.seperateScanDays)
 		return duration
 	}
 
@@ -216,28 +216,28 @@ func (g *gitleaksClient) getScanDuration(createdAt, pushedAt, lastScanedAt time.
 	return duration
 }
 
-func generateClonePath(fullName string) (string, error) {
+func generateClonePath(ctx context.Context, fullName string) (string, error) {
 	if fullName == "" {
-		return "", errors.New("Failed to generateClonePath: required name.")
+		return "", errors.New("failed to generateClonePath: required name.")
 	}
 	uu, err := uuid.NewRandom()
 	if err != nil {
-		return "", fmt.Errorf("Failed to generateClonePath: could not generate UUID, err=%+v", err)
+		return "", fmt.Errorf("failed to generateClonePath: could not generate UUID, err=%+v", err)
 	}
 	clonePath := fmt.Sprintf("/tmp/%s-%s", fullName, uu.String())
 	if _, err := os.Stat(clonePath); !os.IsNotExist(err) {
 		// clonePath is exists
-		if err := removeDir(clonePath); err != nil {
+		if err := removeDir(ctx, clonePath); err != nil {
 			return "", err
 		}
 	}
 	return clonePath, nil
 }
 
-func removeDir(dir string) error {
+func removeDir(ctx context.Context, dir string) error {
 	if err := os.RemoveAll(dir); err != nil {
-		appLogger.Warnf("Failed to remove directory, dir=%s, err=%+v", dir, err)
+		appLogger.Warnf(ctx, "Failed to remove directory, dir=%s, err=%+v", dir, err)
 	}
-	appLogger.Infof("Success remove directory, dir=%s", dir)
+	appLogger.Infof(ctx, "Success remove directory, dir=%s", dir)
 	return nil
 }

@@ -1,12 +1,10 @@
 package main
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sqs"
+	"context"
+
 	"github.com/ca-risken/common/pkg/logging"
-	"github.com/gassara-kys/go-sqs-poller/worker/v4"
-	"github.com/vikyd/zero"
+	"github.com/ca-risken/go-sqs-poller/worker/v5"
 )
 
 type SqsConfig struct {
@@ -17,30 +15,17 @@ type SqsConfig struct {
 
 	GitleaksQueueName  string `split_words:"true" default:"code-gitleaks"`
 	GitleaksQueueURL   string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
-	MaxNumberOfMessage int64  `split_words:"true" default:"10"`
-	WaitTimeSecond     int64  `split_words:"true" default:"20"`
+	MaxNumberOfMessage int32  `split_words:"true" default:"10"`
+	WaitTimeSecond     int32  `split_words:"true" default:"20"`
 }
 
-func newSQSConsumer(conf *SqsConfig) *worker.Worker {
+func newSQSConsumer(ctx context.Context, conf *SqsConfig) *worker.Worker {
 	if conf.Debug == "true" {
 		appLogger.Level(logging.DebugLevel)
 	}
-	var sqsClient *sqs.SQS
-	sess, err := session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	})
+	sqsClient, err := worker.CreateSqsClient(ctx, conf.AWSRegion, conf.SQSEndpoint)
 	if err != nil {
-		appLogger.Fatalf("Failed to create a new session, %v", err)
-	}
-	if !zero.IsZeroVal(&conf.SQSEndpoint) {
-		sqsClient = sqs.New(sess, &aws.Config{
-			Region:   &conf.AWSRegion,
-			Endpoint: &conf.SQSEndpoint,
-		})
-	} else {
-		sqsClient = sqs.New(sess, &aws.Config{
-			Region: &conf.AWSRegion,
-		})
+		appLogger.Fatalf(ctx, "Failed to create a new client, %v", err)
 	}
 	return &worker.Worker{
 		Config: &worker.Config{

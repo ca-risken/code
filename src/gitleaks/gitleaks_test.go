@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -91,7 +92,7 @@ func TestSkipScan(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := client.skipScan(c.input)
+			got := client.skipScan(context.TODO(), c.input)
 			if !reflect.DeepEqual(c.want, got) {
 				t.Fatalf("Unexpected data match: want=%+v, got=%+v", c.want, got)
 			}
@@ -204,7 +205,7 @@ func TestGetScanDuration(t *testing.T) {
 			if c.input.CustomScanDays != 0 {
 				client.seperateScanDays = c.input.CustomScanDays
 			}
-			got := client.getScanDuration(c.input.CreatedAt, c.input.PushedAt, c.input.LastScanedAt)
+			got := client.getScanDuration(context.TODO(), c.input.CreatedAt, c.input.PushedAt, c.input.LastScanedAt)
 			if !reflect.DeepEqual(c.want, got) {
 				t.Fatalf("Unexpected data match: want=%+v, got=%+v", c.want, got)
 			}

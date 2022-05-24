@@ -160,7 +160,7 @@ func (g *githubClient) listEnterpriseOrg(ctx context.Context, config *code.Gitle
 	var allOrg []githubOrganization
 	for {
 		if err := client.Query(ctx, &q, variables); err != nil {
-			appLogger.Errorf("GitHub Enterprise API error occured, enterpriseName: %s, err: %+v", enterpriseName, err)
+			appLogger.Errorf(ctx, "GitHub Enterprise API error occured, enterpriseName: %s, err: %+v", enterpriseName, err)
 			return nil, err
 		}
 		allOrg = append(allOrg, q.Enterprise.Organizations.Nodes...)
@@ -169,7 +169,7 @@ func (g *githubClient) listEnterpriseOrg(ctx context.Context, config *code.Gitle
 		}
 		variables["orgCursor"] = githubv4.NewString(q.Enterprise.Organizations.PageInfo.EndCursor)
 	}
-	appLogger.Debugf("Got organizations: %+v", q.Enterprise.Organizations.Nodes)
+	appLogger.Debugf(ctx, "Got organizations: %+v", q.Enterprise.Organizations.Nodes)
 	return &allOrg, nil
 }
 
@@ -199,7 +199,7 @@ func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.G
 func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, baseURL, token, login, visibility string) ([]*github.Repository, error) {
 	client, err := g.newV3Client(ctx, token, baseURL)
 	if err != nil {
-		appLogger.Errorf("Failed to create github-v3 client, err=%+v", err)
+		appLogger.Errorf(ctx, "Failed to create github-v3 client, err=%+v", err)
 		return nil, err
 	}
 	var allRepo []*github.Repository
@@ -212,7 +212,7 @@ func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, base
 		if err != nil {
 			return nil, err
 		}
-		appLogger.Infof("Success GitHub API for user repos, baseURL: %s,login:%s, option:%+v, repo_count: %d, response:%+v", client.BaseURL, login, opt, len(repos), resp)
+		appLogger.Infof(ctx, "Success GitHub API for user repos, baseURL: %s,login:%s, option:%+v, repo_count: %d, response:%+v", client.BaseURL, login, opt, len(repos), resp)
 		for _, r := range repos {
 			if *r.Owner.Login == login {
 				allRepo = append(allRepo, r)
@@ -247,7 +247,7 @@ func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gi
 func (g *githubClient) listRepositoryForOrgWithOption(ctx context.Context, baseURL, token, login, visibility string) ([]*github.Repository, error) {
 	client, err := g.newV3Client(ctx, token, baseURL)
 	if err != nil {
-		appLogger.Errorf("Failed to create github-v3 client, err=%+v", err)
+		appLogger.Errorf(ctx, "Failed to create github-v3 client, err=%+v", err)
 		return nil, err
 	}
 
@@ -261,7 +261,7 @@ func (g *githubClient) listRepositoryForOrgWithOption(ctx context.Context, baseU
 		if err != nil {
 			return nil, err
 		}
-		appLogger.Infof("Success GitHub API for user repos, baseURL: %s,login:%s, option:%+v, repo_count: %d, response:%+v", client.BaseURL, login, opt, len(repos), resp)
+		appLogger.Infof(ctx, "Success GitHub API for user repos, baseURL: %s,login:%s, option:%+v, repo_count: %d, response:%+v", client.BaseURL, login, opt, len(repos), resp)
 		allRepo = append(allRepo, repos...)
 		if resp.NextPage == 0 {
 			break
