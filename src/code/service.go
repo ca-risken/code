@@ -349,8 +349,6 @@ func (c *codeService) InvokeScanAllGitleaks(ctx context.Context, _ *empty.Empty)
 			appLogger.Errorf(ctx, "InvokeScanGitleaks error occured: gitleaks_id=%d, err=%+v", g.GitleaksID, err)
 			return nil, err
 		}
-		// TODO delete jitter
-		time.Sleep(time.Millisecond * 100) // jitter
 	}
 	return &empty.Empty{}, nil
 }
