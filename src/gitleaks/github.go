@@ -4,18 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/url"
-	"strings"
-	"time"
 
 	"github.com/ca-risken/code/proto/code"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/go-github/v44/github"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
 
 type githubServiceClient interface {
-	listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, enterpriseName string) (*[]githubOrganization, error)
-	listRepository(ctx context.Context, config *code.Gitleaks, findings *[]repositoryFinding) error
+	listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, enterpriseName string) ([]githubOrganization, error)
+	listRepository(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error)
+	clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 }
 
 type githubClient struct {
@@ -57,89 +58,48 @@ func getToken(token, defaultToken string) string {
 	return defaultToken
 }
 
-type repositoryFinding struct {
-	ID                  *int64           `json:"id,omitempty"`
-	NodeID              *string          `json:"node_id,omitempty"`
-	Name                *string          `json:"name,omitempty"`
-	FullName            *string          `json:"full_name,omitempty"`
-	Description         *string          `json:"description,omitempty"`
-	Homepage            *string          `json:"homepage,omitempty"`
-	CloneURL            *string          `json:"clone_url,omitempty"`
-	GitURL              *string          `json:"git_url,omitempty"`
-	MirrorURL           *string          `json:"mirror_url,omitempty"`
-	SSHURL              *string          `json:"ssh_url,omitempty"`
-	Language            *string          `json:"language,omitempty"`
-	Fork                *bool            `json:"fork,omitempty"`
-	ForksCount          *int             `json:"forks_count,omitempty"`
-	NetworkCount        *int             `json:"network_count,omitempty"`
-	OpenIssuesCount     *int             `json:"open_issues_count,omitempty"`
-	StargazersCount     *int             `json:"stargazers_count,omitempty"`
-	SubscribersCount    *int             `json:"subscribers_count,omitempty"`
-	WatchersCount       *int             `json:"watchers_count,omitempty"`
-	Size                *int             `json:"size,omitempty"`
-	AutoInit            *bool            `json:"auto_init,omitempty"`
-	AllowRebaseMerge    *bool            `json:"allow_rebase_merge,omitempty"`
-	AllowSquashMerge    *bool            `json:"allow_squash_merge,omitempty"`
-	AllowMergeCommit    *bool            `json:"allow_merge_commit,omitempty"`
-	DeleteBranchOnMerge *bool            `json:"delete_branch_on_merge,omitempty"`
-	Topics              []string         `json:"topics,omitempty"`
-	Archived            *bool            `json:"archived,omitempty"`
-	Disabled            *bool            `json:"disabled,omitempty"`
-	Permissions         *map[string]bool `json:"permissions,omitempty"`
-	Private             *bool            `json:"private,omitempty"`
-	HasIssues           *bool            `json:"has_issues,omitempty"`
-	HasWiki             *bool            `json:"has_wiki,omitempty"`
-	HasPages            *bool            `json:"has_pages,omitempty"`
-	HasProjects         *bool            `json:"has_projects,omitempty"`
-	HasDownloads        *bool            `json:"has_downloads,omitempty"`
-	IsTemplate          *bool            `json:"is_template,omitempty"`
-	LicenseTemplate     *string          `json:"license_template,omitempty"`
-	GitignoreTemplate   *string          `json:"gitignore_template,omitempty"`
-	TeamID              *int64           `json:"team_id,omitempty"`
-	Visibility          *string          `json:"visibility,omitempty"`
+func (g *githubClient) clone(ctx context.Context, token string, cloneURL string, dstDir string) error {
+	_, err := git.PlainClone(dstDir, false, &git.CloneOptions{
+		URL: cloneURL,
+		Auth: &http.BasicAuth{
+			Username: "dummy", // anything except an empty string
+			Password: getToken(token, g.defaultToken),
+		},
+	})
 
-	CreatedAt *github.Timestamp `json:"created_at,omitempty"`
-	PushedAt  *github.Timestamp `json:"pushed_at,omitempty"`
-	UpdatedAt *github.Timestamp `json:"updated_at,omitempty"`
-
-	LeakFindings []*leakFinding `json:"leak_findings,omitempty"`
-	LastScanedAt time.Time      `json:"last_scaned_at"`
-	SkipScan     bool           `json:"skip_scan"`
-}
-
-func (r *repositoryFinding) alreadyScaned() bool {
-	if r.PushedAt != nil {
-		return r.PushedAt.Time.Unix() <= r.LastScanedAt.Unix()
+	if err != nil {
+		return fmt.Errorf("failed to clone %s to %s: %w", cloneURL, dstDir, err)
 	}
-	return false
+
+	return nil
 }
 
-func (g *githubClient) listRepository(ctx context.Context, config *code.Gitleaks, findings *[]repositoryFinding) error {
+func (g *githubClient) listRepository(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error) {
 	var repos []*github.Repository
 	var err error
 	switch config.Type {
 	case code.Type_ORGANIZATION:
-		repos, err = g.listRepositoryForOrg(ctx, config, config.TargetResource)
+		repos, err = g.listRepositoryForOrg(ctx, config)
 		if err != nil {
-			return err
+			return repos, err
 		}
 	case code.Type_USER:
-		repos, err = g.listRepositoryForUser(ctx, config, config.TargetResource)
+		repos, err = g.listRepositoryForUser(ctx, config)
 		if err != nil {
-			return err
+			return repos, err
 		}
 	default:
-		return fmt.Errorf("Unknown github type: type=%+v", config.Type)
+		return repos, fmt.Errorf("unknown github type: type=%s", config.Type.String())
 	}
-	setRepositoryFinding(repos, config.RepositoryPattern, findings)
-	return nil
+
+	return repos, nil
 }
 
 type githubOrganization struct {
 	Login string
 }
 
-func (g *githubClient) listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, enterpriseName string) (*[]githubOrganization, error) {
+func (g *githubClient) listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, enterpriseName string) ([]githubOrganization, error) {
 	client := g.newV4Client(ctx, config.PersonalAccessToken)
 	var q struct {
 		Enterprise struct {
@@ -170,7 +130,7 @@ func (g *githubClient) listEnterpriseOrg(ctx context.Context, config *code.Gitle
 		variables["orgCursor"] = githubv4.NewString(q.Enterprise.Organizations.PageInfo.EndCursor)
 	}
 	appLogger.Debugf(ctx, "Got organizations: %+v", q.Enterprise.Organizations.Nodes)
-	return &allOrg, nil
+	return allOrg, nil
 }
 
 const (
@@ -180,9 +140,9 @@ const (
 	githubVisibilityAll      string = "all"
 )
 
-func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.Gitleaks, login string) ([]*github.Repository, error) {
+func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error) {
 	var repos []*github.Repository
-	allRepos, err := g.listRepositoryForUserWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityAll)
+	allRepos, err := g.listRepositoryForUserWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, config.TargetResource, githubVisibilityAll)
 	if err != nil {
 		return nil, err
 	}
@@ -226,9 +186,9 @@ func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, base
 	return allRepo, nil
 }
 
-func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gitleaks, login string) ([]*github.Repository, error) {
+func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error) {
 	var repos []*github.Repository
-	allRepos, err := g.listRepositoryForOrgWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, login, githubVisibilityAll)
+	allRepos, err := g.listRepositoryForOrgWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, config.TargetResource, githubVisibilityAll)
 	if err != nil {
 		return nil, err
 	}
@@ -269,55 +229,4 @@ func (g *githubClient) listRepositoryForOrgWithOption(ctx context.Context, baseU
 		opt.Page = resp.NextPage
 	}
 	return allRepo, nil
-}
-
-func setRepositoryFinding(repos []*github.Repository, pattern string, findings *[]repositoryFinding) {
-	for _, repo := range repos {
-		if strings.Contains(*repo.Name, pattern) {
-			*findings = append(*findings, repositoryFinding{
-				ID:                  repo.ID,
-				NodeID:              repo.NodeID,
-				Name:                repo.Name,
-				FullName:            repo.FullName,
-				Description:         repo.Description,
-				Homepage:            repo.Homepage,
-				CloneURL:            repo.CloneURL,
-				GitURL:              repo.GitURL,
-				MirrorURL:           repo.MirrorURL,
-				SSHURL:              repo.SSHURL,
-				Language:            repo.Language,
-				Fork:                repo.Fork,
-				ForksCount:          repo.ForksCount,
-				NetworkCount:        repo.NetworkCount,
-				OpenIssuesCount:     repo.OpenIssuesCount,
-				StargazersCount:     repo.StargazersCount,
-				SubscribersCount:    repo.SubscribersCount,
-				WatchersCount:       repo.WatchersCount,
-				Size:                repo.Size,
-				AutoInit:            repo.AutoInit,
-				AllowRebaseMerge:    repo.AllowRebaseMerge,
-				AllowSquashMerge:    repo.AllowSquashMerge,
-				AllowMergeCommit:    repo.AllowMergeCommit,
-				DeleteBranchOnMerge: repo.DeleteBranchOnMerge,
-				Topics:              repo.Topics,
-				Archived:            repo.Archived,
-				Disabled:            repo.Disabled,
-				Private:             repo.Private,
-				HasIssues:           repo.HasIssues,
-				HasWiki:             repo.HasWiki,
-				HasPages:            repo.HasPages,
-				HasProjects:         repo.HasProjects,
-				HasDownloads:        repo.HasDownloads,
-				IsTemplate:          repo.IsTemplate,
-				LicenseTemplate:     repo.LicenseTemplate,
-				GitignoreTemplate:   repo.GitignoreTemplate,
-				TeamID:              repo.TeamID,
-				Visibility:          repo.Visibility,
-
-				CreatedAt: repo.CreatedAt,
-				PushedAt:  repo.PushedAt,
-				UpdatedAt: repo.UpdatedAt,
-			})
-		}
-	}
 }

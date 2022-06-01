@@ -12,9 +12,10 @@ import (
 )
 
 const (
-	nameSpace   = "code"
-	serviceName = "gitleaks"
-	settingURL  = "https://docs.security-hub.jp/code/gitleaks_datasource/"
+	nameSpace     = "code"
+	serviceName   = "gitleaks"
+	settingURL    = "https://docs.security-hub.jp/code/gitleaks_datasource/"
+	defaultGitleaksScore = 0.8
 )
 
 func getFullServiceName() string {
@@ -41,10 +42,9 @@ type AppConfig struct {
 
 	// gitleaks
 	GithubDefaultToken    string `required:"true" split_words:"true" default:"your-token-here"`
+
+	// scan settings
 	LimitRepositorySizeKb int    `required:"true" split_words:"true" default:"500000"` // 500MB
-	SeperateScanDays      int    `required:"true" split_words:"true" default:"365"`
-	GitleaksScanThreads   int    `required:"true" split_words:"true" default:"1"`
-	ScanOnMemory          bool   `split_words:"true" default:"false"`
 
 	// grpc
 	CoreSvcAddr string `split_words:"true" default:"core.core.svc.cluster.local:8080"`
