@@ -160,7 +160,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	// Get repositories
 	repos, err := s.listRepository(ctx, gitleaksConfig)
 	if err != nil {
-		return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to list repositories: gitleaks_id=%d, err=%w", msg.GitleaksID, err))
+		appLogger.Errorf(ctx, "Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+		return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 	}
 	appLogger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
 		len(repos), gitleaksConfig.BaseUrl, gitleaksConfig.TargetResource, gitleaksConfig.RepositoryPattern)
@@ -171,7 +172,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		// Get LastScanedAt
 		lastScannedAt, err := s.getLastScanedAt(ctx, msg.ProjectID, *r.FullName)
 		if err != nil {
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to get LastScanedAt: project_id=%d, err=%w", msg.ProjectID, err))
+			appLogger.Errorf(ctx, "Failed to get LastScanedAt: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 
 		if skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
@@ -181,13 +183,15 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		// Scan per repository
 		results, err := s.scanRepository(ctx, r, token, lastScannedAt)
 		if err != nil {
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to scan repositories: gitleaks_id=%d, err=%w", msg.GitleaksID, err))
+			appLogger.Errorf(ctx, "Failed to scan repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 
 		// Put Resource for caching scanned time when len(result) is zero
 		if len(results) == 0 {
 			if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
-				return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to put resource: project_id=%d, repository=%s, err=%w", msg.ProjectID, *r.Name, err))
+				appLogger.Errorf(ctx, "Failed to put resource: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+				return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 			}
 			continue
 		}
@@ -203,7 +207,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 
 		// Put findings
 		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err))
+			appLogger.Errorf(ctx, "failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 	}
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
@@ -467,7 +472,7 @@ func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resource
 		},
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to put resource: project_id=%d, resource_name=%s", projectID, resourceName)
 	}
 	s.tagResource(ctx, common.TagCode, resp.Resource.ResourceId, projectID)
 	s.tagResource(ctx, common.TagRipository, resp.Resource.ResourceId, projectID)
