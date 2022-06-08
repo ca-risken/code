@@ -117,6 +117,7 @@ func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
 	}
 	gitleaksConf := &gitleaksConfig{
 		githubDefaultToken: conf.GithubDefaultToken,
+		redact:             conf.Redact,
 	}
 	return &sqsHandler{
 		cipherBlock:           block,

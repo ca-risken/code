@@ -14,7 +14,8 @@ type gitleaksServiceClient interface {
 }
 
 type gitleaksConfig struct {
-	githubDefaultToken  string
+	githubDefaultToken string
+	redact             bool
 }
 
 type gitleaksClient struct {
@@ -33,6 +34,7 @@ func (g *gitleaksClient) scan(ctx context.Context, source string, duration *scan
 		return nil, fmt.Errorf("failed to initialize detector: %w", err)
 	}
 
+	d.Redact = g.config.redact
 	logOps := ""
 	if duration != nil {
 		logOps = fmt.Sprintf("--after=%s --until=%s", duration.From.Format("2006-01-02"), duration.To.Format("2006-01-02"))
