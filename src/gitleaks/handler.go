@@ -174,34 +174,36 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 			return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to get LastScanedAt: project_id=%d, err=%w", msg.ProjectID, err))
 		}
 
-		if !skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
-			// Scan per repository
-			results, err := s.scanRepository(ctx, r, token, lastScannedAt)
-			if err != nil {
-				return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to scan repositories: gitleaks_id=%d, err=%w", msg.GitleaksID, err))
-			}
+		if skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
+			continue
+		}
 
-			// Put Resource for caching scanned time when len(result) is zero
-			if len(results) == 0 {
-				if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
-					return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to put resource: project_id=%d, repository=%s, err=%w", msg.ProjectID, *r.Name, err))
-				}
-				continue
-			}
+		// Scan per repository
+		results, err := s.scanRepository(ctx, r, token, lastScannedAt)
+		if err != nil {
+			return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to scan repositories: gitleaks_id=%d, err=%w", msg.GitleaksID, err))
+		}
 
-			m := genRepositoryMetadata(r)
-			var findings []*gitleaksFinding
-			for _, rs := range results {
-				findings = append(findings, &gitleaksFinding{
-					RepositoryMetadata: m,
-					Result:             rs,
-				})
+		// Put Resource for caching scanned time when len(result) is zero
+		if len(results) == 0 {
+			if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
+				return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to put resource: project_id=%d, repository=%s, err=%w", msg.ProjectID, *r.Name, err))
 			}
+			continue
+		}
 
-			// Put findings
-			if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
-				return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err))
-			}
+		m := genRepositoryMetadata(r)
+		var findings []*gitleaksFinding
+		for _, rs := range results {
+			findings = append(findings, &gitleaksFinding{
+				RepositoryMetadata: m,
+				Result:             rs,
+			})
+		}
+
+		// Put findings
+		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
+			return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err))
 		}
 	}
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
