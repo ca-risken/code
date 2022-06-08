@@ -7,11 +7,6 @@ RUN go mod download
 
 COPY . .
 ENV CGO_ENABLED=0
-ARG GITHUB_USER
-ARG GITHUB_TOKEN
-RUN echo "machine github.com" > ~/.netrc
-RUN echo "login $GITHUB_USER" >> ~/.netrc
-RUN echo "password $GITHUB_TOKEN" >> ~/.netrc
 RUN go build && cp gitleaks /go/bin/
 
 FROM public.ecr.aws/risken/base/risken-base:v0.0.1
