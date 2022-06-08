@@ -186,6 +186,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 				if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
 					return s.handleErrorWithUpdateStatus(ctx, scanStatus, fmt.Errorf("failed to put resource: project_id=%d, repository=%s, err=%w", msg.ProjectID, *r.Name, err))
 				}
+				continue
 			}
 
 			m := genRepositoryMetadata(r)
