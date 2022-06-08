@@ -533,25 +533,24 @@ func (s *sqsHandler) getLastScanedAt(ctx context.Context, projectID uint32, repo
 	if err != nil {
 		return nil, fmt.Errorf("failed to list resources, project_id=%d, repository=%s, err=%w", projectID, repoName, err)
 	}
-	if len(resp.ResourceId) < 1 {
-		appLogger.Infof(ctx, "No resource registerd: %s", repoName)
-		return nil, nil
-	}
-	resourceID := resp.ResourceId[0]
-	resp2, err := s.findingClient.GetResource(ctx, &finding.GetResourceRequest{
-		ProjectId:  projectID,
-		ResourceId: resourceID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get resources, project_id=%d, repository=%s, err=%w", projectID, repoName, err)
-	}
-	appLogger.Debugf(ctx, "Got resource: %+v", resp2)
-	if resp2 == nil || resp2.Resource == nil {
-		return nil, err
+
+	for _, id := range resp.ResourceId {
+		resp2, err := s.findingClient.GetResource(ctx, &finding.GetResourceRequest{
+			ProjectId:  projectID,
+			ResourceId: id,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to get resources, project_id=%d, repository=%s, err=%w", projectID, repoName, err)
+		}
+		appLogger.Debugf(ctx, "Got resource: %+v", resp2)
+		if resp2 != nil && resp2.Resource != nil && resp2.Resource.ResourceName == repoName {
+			lastScannedAt := time.Unix(resp2.Resource.UpdatedAt, 0)
+			return &lastScannedAt, nil
+		}
 	}
 
-	lastScannedAt := time.Unix(resp2.Resource.UpdatedAt, 0)
-	return &lastScannedAt, err
+	appLogger.Infof(ctx, "No resource registerd: %s", repoName)
+	return nil, nil
 }
 
 func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint64, projectID uint32) {
