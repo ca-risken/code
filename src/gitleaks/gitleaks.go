@@ -35,9 +35,10 @@ func (g *gitleaksClient) scan(ctx context.Context, source string, duration *scan
 	}
 
 	d.Redact = g.config.redact
-	logOps := ""
+	logOps := "--all"
 	if duration != nil {
-		logOps = fmt.Sprintf("--after=%s --until=%s", duration.From.Format("2006-01-02"), duration.To.Format("2006-01-02"))
+		d := fmt.Sprintf("--after=%s --until=%s", duration.From.Format("2006-01-02"), duration.To.Format("2006-01-02"))
+		logOps = fmt.Sprintf("%s %s", logOps, d)
 	}
 
 	findings, err := d.DetectGit(source, logOps, detect.DetectType)
