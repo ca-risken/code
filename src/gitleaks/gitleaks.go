@@ -33,11 +33,12 @@ func (g *gitleaksClient) scan(ctx context.Context, source string, duration *scan
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize detector: %w", err)
 	}
-
 	d.Redact = g.config.redact
-	logOps := "--all"
+
+	logOps := "--all --date=local"
+	timeformat := "2006-01-02T15:04:05-0700"
 	if duration != nil {
-		d := fmt.Sprintf("--after=%s --until=%s", duration.From.Format("2006-01-02"), duration.To.Format("2006-01-02"))
+		d := fmt.Sprintf("--after=%s --until=%s", duration.From.Format(timeformat), duration.To.Format(timeformat))
 		logOps = fmt.Sprintf("%s %s", logOps, d)
 	}
 
@@ -59,8 +60,17 @@ func getScanDuration(from, to time.Time) *scanDuration {
 		return nil
 	}
 
+	toDuration := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.Local)
+	if from.Day() == to.Day() {
+		toDuration = toDuration.AddDate(0, 0, 1)
+	}
+
+	if to.Unix() > toDuration.Unix() {
+		toDuration = toDuration.AddDate(0, 0, 1)
+	}
+
 	return &scanDuration{
 		From: time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.Local),
-		To:   time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.Local),
+		To:   toDuration,
 	}
 }
