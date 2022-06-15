@@ -9,6 +9,7 @@ import (
 func TestGetScanDuration(t *testing.T) {
 	first := time.Now()
 	second := first.AddDate(0, 0, 1)
+	ans := time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, time.Local)
 
 	type args struct {
 		from time.Time
@@ -21,14 +22,26 @@ func TestGetScanDuration(t *testing.T) {
 	}{
 		{
 
-			name: "Return scanDuration",
+			name: "If the days are the same, the date will be returned as 'to' plus one day",
+			args: args{
+				from: first,
+				to:   first,
+			},
+			want: &scanDuration{
+				From: ans,
+				To:   ans.AddDate(0, 0, 1),
+			},
+		},
+		{
+
+			name: "If 'to' is not exactly 0:00 am, the date will be returned as 'to' plus one day",
 			args: args{
 				from: first,
 				to:   second,
 			},
 			want: &scanDuration{
-				From: time.Date(first.Year(), first.Month(), first.Day(), 0, 0, 0, 0, time.Local),
-				To:   time.Date(second.Year(), second.Month(), second.Day(), 0, 0, 0, 0, time.Local),
+				From: ans,
+				To:   ans.AddDate(0, 0, 2),
 			},
 		},
 		{
