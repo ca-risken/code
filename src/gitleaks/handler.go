@@ -150,7 +150,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		appLogger.Errorf(ctx, "Failed to get scan status: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	token, err := common.DecryptWithBase64(&s.cipherBlock, gitleaksConfig.PersonalAccessToken)
+	token, err := decryptWithBase64(&s.cipherBlock, gitleaksConfig.PersonalAccessToken)
 	if err != nil {
 		appLogger.Errorf(ctx, "Failed to decrypted personal access token: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
 		return mimosasqs.WrapNonRetryable(err)
@@ -475,8 +475,8 @@ func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resource
 	if err != nil {
 		return fmt.Errorf("failed to put resource: project_id=%d, resource_name=%s", projectID, resourceName)
 	}
-	s.tagResource(ctx, common.TagCode, resp.Resource.ResourceId, projectID)
-	s.tagResource(ctx, common.TagRipository, resp.Resource.ResourceId, projectID)
+	s.tagResource(ctx, tagCode, resp.Resource.ResourceId, projectID)
+	s.tagResource(ctx, tagRipository, resp.Resource.ResourceId, projectID)
 	appLogger.Debugf(ctx, "Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
 	return nil
 }
@@ -506,9 +506,9 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 			return err
 		}
 		// finding-tag
-		s.tagFinding(ctx, common.TagCode, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, common.TagRipository, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, common.TagGitleaks, resp.Finding.FindingId, resp.Finding.ProjectId)
+		s.tagFinding(ctx, tagCode, resp.Finding.FindingId, resp.Finding.ProjectId)
+		s.tagFinding(ctx, tagRipository, resp.Finding.FindingId, resp.Finding.ProjectId)
+		s.tagFinding(ctx, tagGitleaks, resp.Finding.FindingId, resp.Finding.ProjectId)
 		s.tagFinding(ctx, *f.Visibility, resp.Finding.FindingId, resp.Finding.ProjectId)
 		s.tagFinding(ctx, *f.FullName, resp.Finding.FindingId, resp.Finding.ProjectId)
 		if len(f.Result.Tags) > 0 {

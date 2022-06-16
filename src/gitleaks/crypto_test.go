@@ -1,7 +1,12 @@
-package common
+package main
 
 import (
+	"bytes"
 	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/base64"
+	"io"
 	"reflect"
 	"testing"
 )
@@ -31,7 +36,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			encrypted, err := EncryptWithBase64(&block, c.input)
+			encrypted, err := encryptWithBase64(&block, c.input)
 			if c.wantEncError && err == nil {
 				t.Fatal("Unexpected no error")
 			}
@@ -39,7 +44,7 @@ func TestEncryptDecrypt(t *testing.T) {
 				t.Fatalf("Unexpected error occured, err=%+v", err)
 			}
 
-			decrypted, err := DecryptWithBase64(&block, encrypted)
+			decrypted, err := decryptWithBase64(&block, encrypted)
 			if c.wantDecError && err == nil {
 				t.Fatal("Unexpected no error")
 			}
@@ -52,4 +57,27 @@ func TestEncryptDecrypt(t *testing.T) {
 			}
 		})
 	}
+}
+
+func encryptWithBase64(block *cipher.Block, plainText string) (string, error) {
+	buf, err := encrypt(block, plainText)
+	if err != nil {
+		return "", err
+	}
+	return base64.RawStdEncoding.EncodeToString(buf), nil
+}
+
+func encrypt(block *cipher.Block, plainText string) ([]byte, error) {
+	padSize := aes.BlockSize - (len(plainText) % aes.BlockSize)
+	pad := bytes.Repeat([]byte{byte(padSize)}, padSize)
+	paddedText := append([]byte(plainText), pad...)
+
+	encrypted := make([]byte, aes.BlockSize+len(paddedText))
+	iv := encrypted[:aes.BlockSize]
+	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
+		return encrypted, err
+	}
+	encrypter := cipher.NewCBCEncrypter(*block, iv)
+	encrypter.CryptBlocks(encrypted[aes.BlockSize:], []byte(paddedText))
+	return encrypted, nil
 }
