@@ -1,4 +1,4 @@
-TARGETS = code gitleaks
+TARGETS = gitleaks
 BUILD_TARGETS = $(TARGETS:=.build)
 BUILD_CI_TARGETS = $(TARGETS:=.build-ci)
 IMAGE_PUSH_TARGETS = $(TARGETS:=.push-image)
@@ -16,38 +16,6 @@ IMAGE_REGISTRY=local
 
 PHONY: all
 all: build
-
-PHONY: install
-install:
-	go get \
-		google.golang.org/grpc \
-		github.com/golang/protobuf/protoc-gen-go \
-		github.com/grpc-ecosystem/go-grpc-middleware
-
-PHONY: clean
-clean:
-	rm -f proto/**/*.pb.go
-	rm -f doc/*.md
-
-PHONY: fmt
-fmt: proto/**/*.proto
-	clang-format -i proto/**/*.proto
-
-PHONY: doc
-doc: fmt
-	protoc \
-		--proto_path=proto \
-		--error_format=gcc \
-		--doc_out=markdown,README.md:doc \
-		proto/**/*.proto;
-
-PHONY: proto
-proto: fmt
-	protoc \
-		--proto_path=proto \
-		--error_format=gcc \
-		--go_out=plugins=grpc,paths=source_relative:proto \
-		proto/**/*.proto;
 
 PHONY: build $(BUILD_TARGETS)
 build: $(BUILD_TARGETS)
@@ -88,31 +56,23 @@ push-manifest: $(MANIFEST_PUSH_TARGETS)
 	docker manifest push $(IMAGE_REGISTRY)/$(IMAGE_PREFIX)/$(*):$(MANIFEST_TAG)
 	docker manifest inspect $(IMAGE_REGISTRY)/$(IMAGE_PREFIX)/$(*):$(MANIFEST_TAG)
 
-PHONY: go-test $(TEST_TARGETS) proto-test
-go-test: $(TEST_TARGETS) proto-test
+PHONY: go-test $(TEST_TARGETS)
+go-test: $(TEST_TARGETS)
 %.go-test:
 	cd src/$(*) && GO111MODULE=on go test ./...
-proto-test:
-	cd proto/code && GO111MODULE=on go test ./...
 
 PHONY: go-mod-tidy
-go-mod-tidy: proto
-	cd proto/code   && go mod tidy
-	cd src/code     && go mod tidy
+go-mod-tidy:
 	cd src/gitleaks && go mod tidy
 
 PHONY: go-mod-update
 go-mod-update:
-	cd src/code \
-		&& go get github.com/ca-risken/code/...
 	cd src/gitleaks \
 		&& go get github.com/ca-risken/code/...
 
-.PHONY: lint proto-lint
-lint: $(LINT_TARGETS) proto-lint
+.PHONY: lint
+lint: $(LINT_TARGETS)
 %.lint: FAKE
 	sh hack/golinter.sh src/$(*)
-proto-lint:
-	sh hack/golinter.sh proto/code
 
 FAKE:
