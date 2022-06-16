@@ -56,16 +56,13 @@ push-manifest: $(MANIFEST_PUSH_TARGETS)
 	docker manifest push $(IMAGE_REGISTRY)/$(IMAGE_PREFIX)/$(*):$(MANIFEST_TAG)
 	docker manifest inspect $(IMAGE_REGISTRY)/$(IMAGE_PREFIX)/$(*):$(MANIFEST_TAG)
 
-PHONY: go-test $(TEST_TARGETS) pkg-test
-go-test: $(TEST_TARGETS) pkg-test
+PHONY: go-test $(TEST_TARGETS)
+go-test: $(TEST_TARGETS)
 %.go-test:
 	cd src/$(*) && GO111MODULE=on go test ./...
-pkg-test:
-	cd pkg/common && GO111MODULE=on go test ./...
 
 PHONY: go-mod-tidy
 go-mod-tidy:
-	cd pkg/common   && go mod tidy
 	cd src/gitleaks && go mod tidy
 
 PHONY: go-mod-update
@@ -74,10 +71,8 @@ go-mod-update:
 		&& go get github.com/ca-risken/code/...
 
 .PHONY: lint pkg-lint
-lint: $(LINT_TARGETS) pkg-lint
+lint: $(LINT_TARGETS)
 %.lint: FAKE
 	sh hack/golinter.sh src/$(*)
-pkg-lint:
-	sh hack/golinter.sh pkg/common
 
 FAKE:
