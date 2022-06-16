@@ -88,19 +88,16 @@ push-manifest: $(MANIFEST_PUSH_TARGETS)
 	docker manifest push $(IMAGE_REGISTRY)/$(IMAGE_PREFIX)/$(*):$(MANIFEST_TAG)
 	docker manifest inspect $(IMAGE_REGISTRY)/$(IMAGE_PREFIX)/$(*):$(MANIFEST_TAG)
 
-PHONY: go-test $(TEST_TARGETS) proto-test pkg-test
-go-test: $(TEST_TARGETS) proto-test pkg-test
+PHONY: go-test $(TEST_TARGETS) proto-test
+go-test: $(TEST_TARGETS) proto-test
 %.go-test:
 	cd src/$(*) && GO111MODULE=on go test ./...
 proto-test:
 	cd proto/code && GO111MODULE=on go test ./...
-pkg-test:
-	cd pkg/common && GO111MODULE=on go test ./...
 
 PHONY: go-mod-tidy
 go-mod-tidy: proto
 	cd proto/code   && go mod tidy
-	cd pkg/common   && go mod tidy
 	cd src/code     && go mod tidy
 	cd src/gitleaks && go mod tidy
 
@@ -111,13 +108,11 @@ go-mod-update:
 	cd src/gitleaks \
 		&& go get github.com/ca-risken/code/...
 
-.PHONY: lint proto-lint pkg-lint
-lint: $(LINT_TARGETS) proto-lint pkg-lint
+.PHONY: lint proto-lint
+lint: $(LINT_TARGETS) proto-lint
 %.lint: FAKE
 	sh hack/golinter.sh src/$(*)
 proto-lint:
 	sh hack/golinter.sh proto/code
-pkg-lint:
-	sh hack/golinter.sh pkg/common
 
 FAKE:
