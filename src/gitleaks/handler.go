@@ -110,7 +110,7 @@ func (l *leakFinding) generateDataSourceID() {
 }
 
 func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
-	key := []byte(conf.DataKey)
+	key := []byte(conf.CodeDataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		appLogger.Fatal(ctx, err.Error())

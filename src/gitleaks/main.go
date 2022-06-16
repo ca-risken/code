@@ -52,7 +52,7 @@ type AppConfig struct {
 	DataSourceAPISvcAddr string `required:"true" split_words:"true" default:"datasource-api.core.svc.cluster.local:8081"`
 
 	// handler
-	DataKey string `split_words:"true" required:"true"`
+	CodeDataKey string `split_words:"true" required:"true"`
 }
 
 func main() {

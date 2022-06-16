@@ -3,8 +3,6 @@ module github.com/ca-risken/code/src/gitleaks
 go 1.17
 
 require (
-	github.com/ca-risken/code/pkg/common v0.0.0-20220106102406-524b02ed4f0b
-	github.com/ca-risken/code/proto/code v0.0.0-20210917082353-3ada53fdb98c
 	github.com/ca-risken/common/pkg/logging v0.0.0-20220601065422-5b97bd6efc9b
 	github.com/ca-risken/common/pkg/profiler v0.0.0-20220601065422-5b97bd6efc9b
 	github.com/ca-risken/common/pkg/sqs v0.0.0-20220525094706-413e91572a52
