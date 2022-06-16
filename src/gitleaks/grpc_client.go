@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/ca-risken/code/proto/code"
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
+	"github.com/ca-risken/datasource-api/proto/code"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )

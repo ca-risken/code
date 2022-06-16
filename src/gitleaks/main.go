@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/common/pkg/profiler"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/common/pkg/tracer"
+	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/gassara-kys/envconfig"
 )
 
@@ -35,10 +35,10 @@ type AppConfig struct {
 	AWSRegion   string `envconfig:"aws_region"    default:"ap-northeast-1"`
 	SQSEndpoint string `envconfig:"sqs_endpoint"  default:"http://queue.middleware.svc.cluster.local:9324"`
 
-	GitleaksQueueName  string `split_words:"true" default:"code-gitleaks"`
-	GitleaksQueueURL   string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
-	MaxNumberOfMessage int32  `split_words:"true" default:"10"`
-	WaitTimeSecond     int32  `split_words:"true" default:"20"`
+	CodeGitleaksQueueName string `split_words:"true" default:"code-gitleaks"`
+	CodeGitleaksQueueURL  string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
+	MaxNumberOfMessage    int32  `split_words:"true" default:"10"`
+	WaitTimeSecond        int32  `split_words:"true" default:"20"`
 
 	// gitleaks
 	GithubDefaultToken string `required:"true" split_words:"true" default:"your-token-here"`
@@ -48,8 +48,8 @@ type AppConfig struct {
 	LimitRepositorySizeKb int `required:"true" split_words:"true" default:"500000"` // 500MB
 
 	// grpc
-	CoreSvcAddr string `split_words:"true" default:"core.core.svc.cluster.local:8080"`
-	CodeSvcAddr string `split_words:"true"  default:"code.code.svc.cluster.local:10001"`
+	CoreSvcAddr          string `split_words:"true" default:"core.core.svc.cluster.local:8080"`
+	DataSourceAPISvcAddr string `required:"true" split_words:"true" default:"datasource-api.core.svc.cluster.local:8081"`
 
 	// handler
 	DataKey string `split_words:"true" required:"true"`
@@ -92,15 +92,15 @@ func main() {
 	defer tracer.Stop()
 
 	sqsConf := &SqsConfig{
-		Debug:              conf.Debug,
-		AWSRegion:          conf.AWSRegion,
-		SQSEndpoint:        conf.SQSEndpoint,
-		GitleaksQueueName:  conf.GitleaksQueueName,
-		GitleaksQueueURL:   conf.GitleaksQueueURL,
-		MaxNumberOfMessage: conf.MaxNumberOfMessage,
-		WaitTimeSecond:     conf.WaitTimeSecond,
+		Debug:                 conf.Debug,
+		AWSRegion:             conf.AWSRegion,
+		SQSEndpoint:           conf.SQSEndpoint,
+		CodeGitleaksQueueName: conf.CodeGitleaksQueueName,
+		CodeGitleaksQueueURL:  conf.CodeGitleaksQueueURL,
+		MaxNumberOfMessage:    conf.MaxNumberOfMessage,
+		WaitTimeSecond:        conf.WaitTimeSecond,
 	}
-	f, err := mimosasqs.NewFinalizer(common.GitleaksDataSource, settingURL, conf.CoreSvcAddr, nil)
+	f, err := mimosasqs.NewFinalizer(message.GitleaksDataSource, settingURL, conf.CoreSvcAddr, nil)
 	if err != nil {
 		appLogger.Fatalf(ctx, "Failed to create Finalizer, err=%+v", err)
 	}
