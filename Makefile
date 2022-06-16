@@ -70,7 +70,7 @@ go-mod-update:
 	cd src/gitleaks \
 		&& go get github.com/ca-risken/code/...
 
-.PHONY: lint pkg-lint
+.PHONY: lint
 lint: $(LINT_TARGETS)
 %.lint: FAKE
 	sh hack/golinter.sh src/$(*)
