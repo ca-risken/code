@@ -92,13 +92,13 @@ func main() {
 	defer tracer.Stop()
 
 	sqsConf := &SqsConfig{
-		Debug:                 conf.Debug,
-		AWSRegion:             conf.AWSRegion,
-		SQSEndpoint:           conf.SQSEndpoint,
-		CodeGitleaksQueueName: conf.CodeGitleaksQueueName,
-		CodeGitleaksQueueURL:  conf.CodeGitleaksQueueURL,
-		MaxNumberOfMessage:    conf.MaxNumberOfMessage,
-		WaitTimeSecond:        conf.WaitTimeSecond,
+		Debug:              conf.Debug,
+		AWSRegion:          conf.AWSRegion,
+		SQSEndpoint:        conf.SQSEndpoint,
+		QueueName:          conf.CodeGitleaksQueueName,
+		QueueURL:           conf.CodeGitleaksQueueURL,
+		MaxNumberOfMessage: conf.MaxNumberOfMessage,
+		WaitTimeSecond:     conf.WaitTimeSecond,
 	}
 	f, err := mimosasqs.NewFinalizer(message.GitleaksDataSource, settingURL, conf.CoreSvcAddr, nil)
 	if err != nil {
