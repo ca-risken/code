@@ -13,8 +13,8 @@ type SqsConfig struct {
 	AWSRegion   string `envconfig:"aws_region"    default:"ap-northeast-1"`
 	SQSEndpoint string `envconfig:"sqs_endpoint"  default:"http://queue.middleware.svc.cluster.local:9324"`
 
-	GitleaksQueueName  string `split_words:"true" default:"code-gitleaks"`
-	GitleaksQueueURL   string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
+	QueueName          string `split_words:"true" default:"code-gitleaks"`
+	QueueURL           string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
 	MaxNumberOfMessage int32  `split_words:"true" default:"10"`
 	WaitTimeSecond     int32  `split_words:"true" default:"20"`
 }
@@ -29,8 +29,8 @@ func newSQSConsumer(ctx context.Context, conf *SqsConfig) *worker.Worker {
 	}
 	return &worker.Worker{
 		Config: &worker.Config{
-			QueueName:          conf.GitleaksQueueName,
-			QueueURL:           conf.GitleaksQueueURL,
+			QueueName:          conf.QueueName,
+			QueueURL:           conf.QueueURL,
 			MaxNumberOfMessage: conf.MaxNumberOfMessage,
 			WaitTimeSecond:     conf.WaitTimeSecond,
 		},

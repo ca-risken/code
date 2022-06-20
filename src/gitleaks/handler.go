@@ -15,12 +15,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/ca-risken/code/pkg/common"
-	"github.com/ca-risken/code/proto/code"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
+	"github.com/ca-risken/datasource-api/pkg/message"
+	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/google/go-github/v44/github"
 )
 
@@ -110,7 +110,7 @@ func (l *leakFinding) generateDataSourceID() {
 }
 
 func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
-	key := []byte(conf.DataKey)
+	key := []byte(conf.CodeDataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		appLogger.Fatal(ctx, err.Error())
@@ -125,7 +125,7 @@ func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
 		gitleaksClient:        newGitleaksClient(ctx, gitleaksConf),
 		findingClient:         newFindingClient(conf.CoreSvcAddr),
 		alertClient:           newAlertClient(conf.CoreSvcAddr),
-		codeClient:            newCodeClient(conf.CodeSvcAddr),
+		codeClient:            newCodeClient(conf.DataSourceAPISvcAddr),
 		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
 	}
 }
@@ -133,7 +133,7 @@ func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
 func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) error {
 	msgBody := aws.ToString(sqsMsg.Body)
 	appLogger.Infof(ctx, "got message: %s", msgBody)
-	msg, err := common.ParseMessage(msgBody)
+	msg, err := message.ParseMessageGitleaks(msgBody)
 	if err != nil {
 		appLogger.Errorf(ctx, "Invalid message: msg=%+v, err=%+v", msg, err)
 		return mimosasqs.WrapNonRetryable(err)
@@ -493,7 +493,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{
 			Finding: &finding.FindingForUpsert{
 				Description:      fmt.Sprintf("Secrets scanning by Gitleaks for %s", *f.FullName),
-				DataSource:       common.GitleaksDataSource,
+				DataSource:       message.GitleaksDataSource,
 				DataSourceId:     f.Result.DataSourceID,
 				ResourceName:     *f.FullName,
 				ProjectId:        projectID,
@@ -613,7 +613,7 @@ func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, finding
 	if _, err := s.findingClient.PutRecommend(ctx, &finding.PutRecommendRequest{
 		ProjectId:      projectID,
 		FindingId:      findingID,
-		DataSource:     common.GitleaksDataSource,
+		DataSource:     message.GitleaksDataSource,
 		Type:           rule,
 		Risk:           r.Risk,
 		Recommendation: r.Recommendation,

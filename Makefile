@@ -68,7 +68,8 @@ go-mod-tidy:
 PHONY: go-mod-update
 go-mod-update:
 	cd src/gitleaks \
-		&& go get github.com/ca-risken/code/...
+		&& go get github.com/ca-risken/core/... \
+		&& go get github.com/ca-risken/datasource-api/...
 
 .PHONY: lint
 lint: $(LINT_TARGETS)
