@@ -85,6 +85,7 @@ type leakFinding struct {
 	File            string   `json:"file,omitempty"`
 	Date            string   `json:"date,omitempty"`
 	Tags            []string `json:"tags,omitempty"`
+	URL             string   `json:"url,omitempty"`
 }
 
 type recommend struct {
@@ -104,9 +105,14 @@ func getRecommend(rule string) *recommend {
 	}
 }
 
-func (l *leakFinding) generateDataSourceID() {
+func (l *leakFinding) generateDataSourceID() string {
 	hash := sha256.Sum256([]byte(l.Repo + l.Commit + l.Secret + l.File + fmt.Sprint(l.StartLine) + fmt.Sprint(l.EndLine) + fmt.Sprint(l.StartColumn)))
-	l.DataSourceID = hex.EncodeToString(hash[:])
+	return hex.EncodeToString(hash[:])
+}
+
+func (l *leakFinding) generateGitHubURL(repositoryURL string) string {
+	url := fmt.Sprintf("%s/blob/%s/%s#L%d-L%d", repositoryURL, l.Commit, l.File, l.StartLine, l.EndLine)
+	return url
 }
 
 func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
@@ -252,7 +258,7 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 
 	var leaks []*leakFinding
 	for _, rs := range results {
-		leaks = append(leaks, &leakFinding{
+		l := leakFinding{
 			StartColumn:     rs.StartColumn,
 			StartLine:       rs.StartLine,
 			EndLine:         rs.EndLine,
@@ -266,7 +272,10 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 			File:            rs.File,
 			Date:            rs.Date,
 			Tags:            rs.Tags,
-		})
+		}
+		l.DataSourceID = l.generateDataSourceID()
+		l.URL = l.generateGitHubURL(*r.HTMLURL)
+		leaks = append(leaks, &l)
 	}
 
 	return leaks, nil
@@ -485,7 +494,6 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 	// Exists leaks
 	for _, f := range findings {
 		// finding
-		f.Result.generateDataSourceID()
 		buf, err := json.Marshal(f)
 		if err != nil {
 			return fmt.Errorf("failed to marshal user data: project_id=%d, repository=%s, err=%w", projectID, *f.FullName, err)
