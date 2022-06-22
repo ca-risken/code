@@ -43,6 +43,7 @@ type AppConfig struct {
 	// gitleaks
 	GithubDefaultToken string `required:"true" split_words:"true" default:"your-token-here"`
 	Redact             bool   `split_words:"true" default:"true"`
+	GitleaksConfigPath string `split_words:"true"`
 
 	// scan settings
 	LimitRepositorySizeKb int `required:"true" split_words:"true" default:"500000"` // 500MB
