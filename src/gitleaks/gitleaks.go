@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spf13/viper"
+	"github.com/zricethezav/gitleaks/v8/config"
 	"github.com/zricethezav/gitleaks/v8/detect"
 	"github.com/zricethezav/gitleaks/v8/report"
 )
@@ -16,6 +18,7 @@ type gitleaksServiceClient interface {
 type gitleaksConfig struct {
 	githubDefaultToken string
 	redact             bool
+	configPath         string
 }
 
 type gitleaksClient struct {
@@ -32,6 +35,24 @@ func (g *gitleaksClient) scan(ctx context.Context, source string, duration *scan
 	d, err := detect.NewDetectorDefaultConfig()
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize detector: %w", err)
+	}
+
+	if g.config.configPath != "" {
+		viper.SetConfigFile(g.config.configPath)
+		if err := viper.ReadInConfig(); err != nil {
+			return nil, fmt.Errorf("failed to read gitleaks config: %w", err)
+		}
+
+		var vc config.ViperConfig
+		if err := viper.Unmarshal(&vc); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal gitleaks config: %w", err)
+		}
+		cfg, err := vc.Translate()
+		if err != nil {
+			return nil, fmt.Errorf("failed to translate gitleaks config: %w", err)
+		}
+
+		d = detect.NewDetector(cfg)
 	}
 	d.Redact = g.config.redact
 
