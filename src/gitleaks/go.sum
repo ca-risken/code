@@ -164,6 +164,8 @@ github.com/ca-risken/core/proto/finding v0.0.0-20220309052852-c058b4e5cb84/go.mo
 github.com/ca-risken/core/proto/project v0.0.0-20220428031553-0579e204c316/go.mod h1:2wvmStoiOXmoWx8TbXMJPRc+rN6uGA1uPEbDAVT5gDo=
 github.com/ca-risken/datasource-api v0.0.0-20220615043958-794d01b2e367 h1:lOMbN0oL+5CZh/GTP7M9wPCTVyKUorIIcWHT1Uq+BKw=
 github.com/ca-risken/datasource-api v0.0.0-20220615043958-794d01b2e367/go.mod h1:b46r0U7p/fiwwWJ0tXEcspNN3/uDRaqG3539Fu+qSpw=
+github.com/ca-risken/go-git/v5 v5.4.3-0.20220715100214-652d3d7d4a0e h1:8kuSRT+ZQxmCu0eBSzhzCEWKb3gZKh6pfuNgIgqyckI=
+github.com/ca-risken/go-git/v5 v5.4.3-0.20220715100214-652d3d7d4a0e/go.mod h1:cGzI9Lmtnh5wmJ5NjO/Cr3d6Iljyy588mEFUKs5vMvw=
 github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee h1:aIrvjCnF+Owzzh7dnE1w4442CdcuUkHaJsJOXImjeqg=
 github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee/go.mod h1:pboVfH7X3jKqsVKSpYNYAgqgPQ6gVb+AjFuWH1e8dSU=
 github.com/cenkalti/backoff/v3 v3.0.0/go.mod h1:cIeZDE3IrqwwJl6VUwCN6trj1oXrTS4rc0ij+ULvLYs=
@@ -284,8 +286,6 @@ github.com/go-git/go-billy/v5 v5.3.1 h1:CPiOUAzKtMRvolEKw+bG1PLRpT7D3LIs3/3ey4Ai
 github.com/go-git/go-billy/v5 v5.3.1/go.mod h1:pmpqyWchKfYfrkb/UVH4otLvyi/5gJlGI4Hb3ZqZ3W0=
 github.com/go-git/go-git-fixtures/v4 v4.3.1 h1:y5z6dd3qi8Hl+stezc8p3JxDkoTRqMAlKnXHuzrfjTQ=
 github.com/go-git/go-git-fixtures/v4 v4.3.1/go.mod h1:8LHG1a3SRW71ettAD/jW13h8c6AqjVSeL11RAdgaqpo=
-github.com/go-git/go-git/v5 v5.4.3-0.20220529141257-bc1f419cebcf h1:tmTaR5nN6RJs6G9+tmd3MRBNXSk6YTI9+8nv1WrIKzI=
-github.com/go-git/go-git/v5 v5.4.3-0.20220529141257-bc1f419cebcf/go.mod h1:cGzI9Lmtnh5wmJ5NjO/Cr3d6Iljyy588mEFUKs5vMvw=
 github.com/go-gl/glfw v0.0.0-20190409004039-e6da0acd62b1/go.mod h1:vR7hzQXu2zJy9AVAgeJqvqgH9Q5CA+iKCZ2gyEVpxRU=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20191125211704-12ad95a8df72/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
 github.com/go-gl/glfw/v3.3/glfw v0.0.0-20200222043503-6f7a984d4dc4/go.mod h1:tQ2UAYgL5IevRw8kRxooKSPJfGvJ9fJQFa0TUsXzTg8=
