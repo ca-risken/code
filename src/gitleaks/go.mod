@@ -2,6 +2,9 @@ module github.com/ca-risken/code/src/gitleaks
 
 go 1.17
 
+// patch https://github.com/ca-risken/go-git/pull/1
+replace github.com/go-git/go-git/v5 v5.4.3-0.20220529141257-bc1f419cebcf => github.com/ca-risken/go-git/v5 v5.4.3-0.20220715100214-652d3d7d4a0e
+
 require (
 	github.com/ca-risken/common/pkg/logging v0.0.0-20220601065422-5b97bd6efc9b
 	github.com/ca-risken/common/pkg/profiler v0.0.0-20220601065422-5b97bd6efc9b
