@@ -14,8 +14,8 @@ import (
 )
 
 type githubServiceClient interface {
-	listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, enterpriseName string) ([]githubOrganization, error)
-	listRepository(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error)
+	listGitHubEnterpriseOrg(ctx context.Context, config *code.GitHubSetting, enterpriseName string) ([]githubOrganization, error)
+	listRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error)
 	clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 }
 
@@ -74,7 +74,7 @@ func (g *githubClient) clone(ctx context.Context, token string, cloneURL string,
 	return nil
 }
 
-func (g *githubClient) listRepository(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error) {
+func (g *githubClient) listRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error) {
 	var repos []*github.Repository
 	var err error
 	switch config.Type {
@@ -99,7 +99,7 @@ type githubOrganization struct {
 	Login string
 }
 
-func (g *githubClient) listEnterpriseOrg(ctx context.Context, config *code.Gitleaks, enterpriseName string) ([]githubOrganization, error) {
+func (g *githubClient) listGitHubEnterpriseOrg(ctx context.Context, config *code.GitHubSetting, enterpriseName string) ([]githubOrganization, error) {
 	client := g.newV4Client(ctx, config.PersonalAccessToken)
 	var q struct {
 		Enterprise struct {
@@ -140,16 +140,16 @@ const (
 	githubVisibilityAll      string = "all"
 )
 
-func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error) {
+func (g *githubClient) listRepositoryForUser(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error) {
 	var repos []*github.Repository
 	allRepos, err := g.listRepositoryForUserWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, config.TargetResource, githubVisibilityAll)
 	if err != nil {
 		return nil, err
 	}
 	for _, r := range allRepos {
-		if config.ScanPublic && *r.Visibility == githubVisibilityPublic {
+		if config.GitleaksSetting.ScanPublic && *r.Visibility == githubVisibilityPublic {
 			repos = append(repos, r) // public
-		} else if config.ScanPrivate && *r.Visibility == githubVisibilityPrivate {
+		} else if config.GitleaksSetting.ScanPrivate && *r.Visibility == githubVisibilityPrivate {
 			repos = append(repos, r) // private
 		}
 	}
@@ -186,18 +186,18 @@ func (g *githubClient) listRepositoryForUserWithOption(ctx context.Context, base
 	return allRepo, nil
 }
 
-func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error) {
+func (g *githubClient) listRepositoryForOrg(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error) {
 	var repos []*github.Repository
 	allRepos, err := g.listRepositoryForOrgWithOption(ctx, config.BaseUrl, config.PersonalAccessToken, config.TargetResource, githubVisibilityAll)
 	if err != nil {
 		return nil, err
 	}
 	for _, r := range allRepos {
-		if config.ScanPublic && *r.Visibility == githubVisibilityPublic {
+		if config.GitleaksSetting.ScanPublic && *r.Visibility == githubVisibilityPublic {
 			repos = append(repos, r) // public
-		} else if config.ScanInternal && *r.Visibility == githubVisibilityInternal {
+		} else if config.GitleaksSetting.ScanInternal && *r.Visibility == githubVisibilityInternal {
 			repos = append(repos, r) // internal
-		} else if config.ScanPrivate && *r.Visibility == githubVisibilityPrivate {
+		} else if config.GitleaksSetting.ScanPrivate && *r.Visibility == githubVisibilityPrivate {
 			repos = append(repos, r) // private
 		}
 	}
