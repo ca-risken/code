@@ -140,7 +140,7 @@ func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
 func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) error {
 	msgBody := aws.ToString(sqsMsg.Body)
 	appLogger.Infof(ctx, "got message: %s", msgBody)
-	msg, err := message.ParseMessageGitleaks(msgBody)
+	msg, err := message.ParseMessageGitHub(msgBody)
 	if err != nil {
 		appLogger.Errorf(ctx, "Invalid message: msg=%+v, err=%+v", msg, err)
 		return mimosasqs.WrapNonRetryable(err)
@@ -152,35 +152,35 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	}
 	appLogger.Infof(ctx, "start Scan, RequestID=%s", requestID)
 
-	gitleaksConfig, err := s.getGitleaks(ctx, msg.ProjectID, msg.GitleaksID)
+	gitHubSetting, err := s.getGitHubSetting(ctx, msg.ProjectID, msg.GitHubSettingID)
 	if err != nil {
-		appLogger.Errorf(ctx, "Failed to get scan status: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+		appLogger.Errorf(ctx, "Failed to get scan status: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	token, err := decryptWithBase64(&s.cipherBlock, gitleaksConfig.PersonalAccessToken)
+	token, err := decryptWithBase64(&s.cipherBlock, gitHubSetting.PersonalAccessToken)
 	if err != nil {
-		appLogger.Errorf(ctx, "Failed to decrypted personal access token: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+		appLogger.Errorf(ctx, "Failed to decrypted personal access token: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	gitleaksConfig.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable after updated.
-	scanStatus := s.initScanStatus(gitleaksConfig, gitleaksConfig.PersonalAccessToken)
+	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
+	scanStatus := s.initScanStatus(gitHubSetting.GitleaksSetting)
 
 	// Get repositories
-	repos, err := s.listRepository(ctx, gitleaksConfig)
+	repos, err := s.listRepository(ctx, gitHubSetting)
 	if err != nil {
-		appLogger.Errorf(ctx, "Failed to list repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+		appLogger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 	}
 	appLogger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
-		len(repos), gitleaksConfig.BaseUrl, gitleaksConfig.TargetResource, gitleaksConfig.RepositoryPattern)
+		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, gitHubSetting.GitleaksSetting.RepositoryPattern)
 
 	// Filtered By Name
-	repos = filterByNamePattern(repos, gitleaksConfig.RepositoryPattern)
+	repos = filterByNamePattern(repos, gitHubSetting.GitleaksSetting.RepositoryPattern)
 	for _, r := range repos {
 		// Get LastScanedAt
 		lastScannedAt, err := s.getLastScanedAt(ctx, msg.ProjectID, *r.FullName)
 		if err != nil {
-			appLogger.Errorf(ctx, "Failed to get LastScanedAt: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			appLogger.Errorf(ctx, "Failed to get LastScanedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 
@@ -191,14 +191,14 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		// Scan per repository
 		results, err := s.scanRepository(ctx, r, token, lastScannedAt)
 		if err != nil {
-			appLogger.Errorf(ctx, "Failed to scan repositories: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			appLogger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 
 		// Put Resource for caching scanned time when len(result) is zero
 		if len(results) == 0 {
 			if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
-				appLogger.Errorf(ctx, "Failed to put resource: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+				appLogger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 				return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 			}
 			continue
@@ -215,7 +215,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 
 		// Put findings
 		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
-			appLogger.Errorf(ctx, "failed to put findngs: gitleaks_id=%d, err=%+v", msg.GitleaksID, err)
+			appLogger.Errorf(ctx, "failed to put findngs: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
 		}
 	}
@@ -324,54 +324,46 @@ func skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.
 	return false
 }
 
-func (s *sqsHandler) handleErrorWithUpdateStatus(ctx context.Context, scanStatus *code.PutGitleaksRequest, err error) error {
+func (s *sqsHandler) handleErrorWithUpdateStatus(ctx context.Context, scanStatus *code.PutGitleaksSettingRequest, err error) error {
 	if updateErr := s.updateScanStatusError(ctx, scanStatus, err.Error()); updateErr != nil {
 		appLogger.Warnf(ctx, "Failed to update scan status error: err=%+v", updateErr)
 	}
 	return mimosasqs.WrapNonRetryable(err)
 }
 
-func (s *sqsHandler) getGitleaks(ctx context.Context, projectID, gitleaksID uint32) (*code.Gitleaks, error) {
-	data, err := s.codeClient.GetGitleaks(ctx, &code.GetGitleaksRequest{
-		ProjectId:  projectID,
-		GitleaksId: gitleaksID,
+func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
+	data, err := s.codeClient.GetGitHubSetting(ctx, &code.GetGitHubSettingRequest{
+		ProjectId:       projectID,
+		GithubSettingId: GitHubSettingID,
 	})
 	if err != nil {
 		return nil, err
 	}
-	if data == nil || data.Gitleaks == nil {
-		return nil, fmt.Errorf("no data for scan gitleaks, project_id=%d, gitleaks_id=%d", projectID, gitleaksID)
+	if data == nil || data.GithubSetting == nil || data.GithubSetting.GitleaksSetting == nil {
+		return nil, fmt.Errorf("no data for scan gitleaks, project_id=%d, github_setting_id=%d", projectID, GitHubSettingID)
 	}
-	return data.Gitleaks, nil
+	return data.GithubSetting, nil
 }
 
-func (s *sqsHandler) initScanStatus(g *code.Gitleaks, token string) *code.PutGitleaksRequest {
-	return &code.PutGitleaksRequest{
+func (s *sqsHandler) initScanStatus(g *code.GitleaksSetting) *code.PutGitleaksSettingRequest {
+	return &code.PutGitleaksSettingRequest{
 		ProjectId: g.ProjectId,
-		Gitleaks: &code.GitleaksForUpsert{
-			GitleaksId:          g.GitleaksId,
-			CodeDataSourceId:    g.CodeDataSourceId,
-			Name:                g.Name,
-			Type:                g.Type,
-			BaseUrl:             g.BaseUrl,
-			TargetResource:      g.TargetResource,
-			RepositoryPattern:   g.RepositoryPattern,
-			GithubUser:          g.GithubUser,
-			PersonalAccessToken: token,
-			ScanPublic:          g.ScanPublic,
-			ScanInternal:        g.ScanInternal,
-			ScanPrivate:         g.ScanPrivate,
-			GitleaksConfig:      g.GitleaksConfig,
-			ProjectId:           g.ProjectId,
-			ScanAt:              time.Now().Unix(),
-			ScanSucceededAt:     g.ScanSucceededAt,
-			Status:              code.Status_UNKNOWN, // After scan, will be updated
-			StatusDetail:        "",
+		GitleaksSetting: &code.GitleaksSettingForUpsert{
+			GithubSettingId:   g.GithubSettingId,
+			CodeDataSourceId:  g.CodeDataSourceId,
+			RepositoryPattern: g.RepositoryPattern,
+			ScanPublic:        g.ScanPublic,
+			ScanInternal:      g.ScanInternal,
+			ScanPrivate:       g.ScanPrivate,
+			ProjectId:         g.ProjectId,
+			ScanAt:            time.Now().Unix(),
+			Status:            code.Status_UNKNOWN, // After scan, will be updated
+			StatusDetail:      "",
 		},
 	}
 }
 
-func (s *sqsHandler) listRepository(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error) {
+func (s *sqsHandler) listRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error) {
 	var repos []*github.Repository
 	var err error
 
@@ -393,7 +385,7 @@ func (s *sqsHandler) listRepository(ctx context.Context, config *code.Gitleaks) 
 	return repos, err
 }
 
-func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.Gitleaks) ([]*github.Repository, error) {
+func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error) {
 	list, err := s.listEnterpriseOrg(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list enterprise org: %w", err)
@@ -401,13 +393,13 @@ func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.
 
 	var repos []*github.Repository
 	if list != nil {
-		for _, org := range list.EnterpriseOrg {
+		for _, org := range list.GithubEnterpriseOrg {
 			config.Type = code.Type_ORGANIZATION
-			config.TargetResource = org.Login
+			config.TargetResource = org.Organization
 			repo, err := s.githubClient.listRepository(ctx, config)
 			if err != nil {
 				// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす
-				appLogger.Warnf(ctx, "Failed to ListRepository by enterprise, org=%s, err=%+v", org.Login, err)
+				appLogger.Warnf(ctx, "Failed to ListRepository by enterprise, org=%s, err=%+v", org.Organization, err)
 				continue
 			}
 			repos = append(repos, repo...)
@@ -417,59 +409,59 @@ func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.
 	return repos, nil
 }
 
-func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.Gitleaks) (*code.ListEnterpriseOrgResponse, error) {
-	orgs, err := s.githubClient.listEnterpriseOrg(ctx, config, config.TargetResource)
+func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.GitHubSetting) (*code.ListGitHubEnterpriseOrgResponse, error) {
+	orgs, err := s.githubClient.listGitHubEnterpriseOrg(ctx, config, config.TargetResource)
 	if err != nil {
-		return &code.ListEnterpriseOrgResponse{}, err
+		return &code.ListGitHubEnterpriseOrgResponse{}, err
 	}
 	existsOrgMap := make(map[string]bool)
 	// update enterprise orgs
 	for _, org := range orgs {
 		existsOrgMap[org.Login] = true
-		if _, err := s.codeClient.PutEnterpriseOrg(ctx, &code.PutEnterpriseOrgRequest{
+		if _, err := s.codeClient.PutGitHubEnterpriseOrg(ctx, &code.PutGitHubEnterpriseOrgRequest{
 			ProjectId: config.ProjectId,
-			EnterpriseOrg: &code.EnterpriseOrgForUpsert{
-				GitleaksId: config.GitleaksId,
-				Login:      org.Login,
-				ProjectId:  config.ProjectId,
+			GithubEnterpriseOrg: &code.GitHubEnterpriseOrgForUpsert{
+				GithubSettingId: config.GithubSettingId,
+				Organization:    org.Login,
+				ProjectId:       config.ProjectId,
 			},
 		}); err != nil {
 			appLogger.Errorf(ctx, "Failed to PutEnterpriseOrg API, err=%+v", err)
-			return &code.ListEnterpriseOrgResponse{}, err
+			return &code.ListGitHubEnterpriseOrgResponse{}, err
 		}
 	}
 
 	// delete enterprise orgs
 	if len(orgs) > 0 {
-		list, err := s.codeClient.ListEnterpriseOrg(ctx, &code.ListEnterpriseOrgRequest{
-			ProjectId:  config.ProjectId,
-			GitleaksId: config.GitleaksId,
+		list, err := s.codeClient.ListGitHubEnterpriseOrg(ctx, &code.ListGitHubEnterpriseOrgRequest{
+			ProjectId:       config.ProjectId,
+			GithubSettingId: config.GithubSettingId,
 		})
 		if err != nil {
 			appLogger.Errorf(ctx, "Failed to ListEnterpriseOrg API, err=%+v", err)
-			return &code.ListEnterpriseOrgResponse{}, err
+			return &code.ListGitHubEnterpriseOrgResponse{}, err
 		}
-		for _, org := range list.EnterpriseOrg {
-			if _, ok := existsOrgMap[org.Login]; ok {
+		for _, org := range list.GithubEnterpriseOrg {
+			if _, ok := existsOrgMap[org.Organization]; ok {
 				continue
 			}
-			if _, err := s.codeClient.DeleteEnterpriseOrg(ctx, &code.DeleteEnterpriseOrgRequest{
-				ProjectId:  config.ProjectId,
-				GitleaksId: config.GitleaksId,
-				Login:      org.Login,
+			if _, err := s.codeClient.DeleteGitHubEnterpriseOrg(ctx, &code.DeleteGitHubEnterpriseOrgRequest{
+				ProjectId:       config.ProjectId,
+				GithubSettingId: config.GithubSettingId,
+				Organization:    org.Organization,
 			}); err != nil {
 				appLogger.Errorf(ctx, "Failed to DeleteEnterpriseOrg API, err=%+v", err)
-				return &code.ListEnterpriseOrgResponse{}, err
+				return &code.ListGitHubEnterpriseOrgResponse{}, err
 			}
 		}
 	}
-	updatedList, err := s.codeClient.ListEnterpriseOrg(ctx, &code.ListEnterpriseOrgRequest{
-		ProjectId:  config.ProjectId,
-		GitleaksId: config.GitleaksId,
+	updatedList, err := s.codeClient.ListGitHubEnterpriseOrg(ctx, &code.ListGitHubEnterpriseOrgRequest{
+		ProjectId:       config.ProjectId,
+		GithubSettingId: config.GithubSettingId,
 	})
 	if err != nil {
 		appLogger.Errorf(ctx, "Failed to ListEnterpriseOrg API, err=%+v", err)
-		return &code.ListEnterpriseOrgResponse{}, err
+		return &code.ListGitHubEnterpriseOrgResponse{}, err
 	}
 	return updatedList, nil
 }
@@ -587,22 +579,21 @@ func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uin
 	}
 }
 
-func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutGitleaksRequest, statusDetail string) error {
-	putData.Gitleaks.Status = code.Status_ERROR
+func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutGitleaksSettingRequest, statusDetail string) error {
+	putData.GitleaksSetting.Status = code.Status_ERROR
 	statusDetail = cutString(statusDetail, 200)
-	putData.Gitleaks.StatusDetail = statusDetail
+	putData.GitleaksSetting.StatusDetail = statusDetail
 	return s.updateScanStatus(ctx, putData)
 }
 
-func (s *sqsHandler) updateScanStatusSuccess(ctx context.Context, putData *code.PutGitleaksRequest) error {
-	putData.Gitleaks.Status = code.Status_OK
-	putData.Gitleaks.StatusDetail = ""
-	putData.Gitleaks.ScanSucceededAt = time.Now().Unix()
+func (s *sqsHandler) updateScanStatusSuccess(ctx context.Context, putData *code.PutGitleaksSettingRequest) error {
+	putData.GitleaksSetting.Status = code.Status_OK
+	putData.GitleaksSetting.StatusDetail = ""
 	return s.updateScanStatus(ctx, putData)
 }
 
-func (s *sqsHandler) updateScanStatus(ctx context.Context, putData *code.PutGitleaksRequest) error {
-	resp, err := s.codeClient.PutGitleaks(ctx, putData)
+func (s *sqsHandler) updateScanStatus(ctx context.Context, putData *code.PutGitleaksSettingRequest) error {
+	resp, err := s.codeClient.PutGitleaksSetting(ctx, putData)
 	if err != nil {
 		return err
 	}
