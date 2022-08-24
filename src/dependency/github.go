@@ -25,10 +25,6 @@ type GitHubRepoService interface {
 	ListByOrg(ctx context.Context, org string, opts *github.RepositoryListByOrgOptions) ([]*github.Repository, *github.Response, error)
 }
 
-type GitHubQueryService interface {
-	Query(ctx context.Context, q interface{}, variables map[string]interface{}) error
-}
-
 type GitHubV3Client struct {
 	Repositories GitHubRepoService
 	*github.Client

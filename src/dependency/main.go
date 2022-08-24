@@ -12,10 +12,9 @@ import (
 )
 
 const (
-	nameSpace              = "code"
-	serviceName            = "dependency"
-	settingURL             = "https://docs.security-hub.jp/code/dependency_datasource/"
-	defaultDependencyScore = 0.8
+	nameSpace   = "code"
+	serviceName = "dependency"
+	settingURL  = "https://docs.security-hub.jp/code/dependency_datasource/"
 )
 
 func getFullServiceName() string {
