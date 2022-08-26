@@ -8,6 +8,8 @@ MANIFEST_CREATE_TARGETS = $(TARGETS:=.create-manifest)
 MANIFEST_PUSH_TARGETS = $(TARGETS:=.push-manifest)
 TEST_TARGETS = $(TARGETS:=.go-test)
 LINT_TARGETS = $(TARGETS:=.lint)
+GO_MOD_TIDY_TARGETS = $(TARGETS:=.go-mod-tidy)
+GO_MOD_UPDATE_TARGETS = $(TARGETS:=.go-mod-update)
 BUILD_OPT=""
 IMAGE_TAG=latest
 MANIFEST_TAG=latest
@@ -61,13 +63,15 @@ go-test: $(TEST_TARGETS)
 %.go-test:
 	cd src/$(*) && GO111MODULE=on go test ./...
 
-PHONY: go-mod-tidy
-go-mod-tidy:
-	cd src/gitleaks && go mod tidy
+PHONY: go-mod-tidy $(GO_MOD_TIDY_TARGETS)
+go-mod-tidy: $(GO_MOD_TIDY_TARGETS)
+%.go-mod-tidy:
+	cd src/$(*) && go mod tidy
 
-PHONY: go-mod-update
-go-mod-update:
-	cd src/gitleaks \
+PHONY: go-mod-update $(GO_MOD_UPDATE_TARGETS)
+go-mod-update: $(GO_MOD_UPDATE_TARGETS)
+%.go-mod-update:
+	cd src/$(*) \
 		&& go get github.com/ca-risken/core/... \
 		&& go get github.com/ca-risken/datasource-api/...
 
