@@ -228,74 +228,28 @@ func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.
 	}
 
 	var repos []*github.Repository
-	if list != nil {
-		for _, org := range list.GithubEnterpriseOrg {
-			config.Type = code.Type_ORGANIZATION
-			config.TargetResource = org.Organization
-			repo, err := s.githubClient.ListRepository(ctx, config)
-			if err != nil {
-				// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす
-				appLogger.Warnf(ctx, "Failed to ListRepository by enterprise, org=%s, err=%+v", org.Organization, err)
-				continue
-			}
-			repos = append(repos, repo...)
+	for _, org := range list {
+		config.Type = code.Type_ORGANIZATION
+		config.TargetResource = org.Login
+		repo, err := s.githubClient.ListRepository(ctx, config)
+		if err != nil {
+			// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす
+			appLogger.Warnf(ctx, "Failed to ListRepository by enterprise, org=%s, err=%+v", org.Login, err)
+			continue
 		}
+		repos = append(repos, repo...)
 	}
 
 	return repos, nil
 }
 
-func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.GitHubSetting) (*code.ListGitHubEnterpriseOrgResponse, error) {
+func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.GitHubSetting) ([]githubOrganization, error) {
 	orgs, err := s.githubClient.ListGitHubEnterpriseOrg(ctx, config, config.TargetResource)
 	if err != nil {
-		return &code.ListGitHubEnterpriseOrgResponse{}, err
-	}
-	existsOrgMap := make(map[string]bool)
-	// update enterprise orgs
-	for _, org := range orgs {
-		existsOrgMap[org.Login] = true
-		if _, err := s.codeClient.PutGitHubEnterpriseOrg(ctx, &code.PutGitHubEnterpriseOrgRequest{
-			ProjectId: config.ProjectId,
-			GithubEnterpriseOrg: &code.GitHubEnterpriseOrgForUpsert{
-				GithubSettingId: config.GithubSettingId,
-				Organization:    org.Login,
-				ProjectId:       config.ProjectId,
-			},
-		}); err != nil {
-			return &code.ListGitHubEnterpriseOrgResponse{}, err
-		}
+		return []githubOrganization{}, err
 	}
 
-	// delete enterprise orgs
-	if len(orgs) > 0 {
-		list, err := s.codeClient.ListGitHubEnterpriseOrg(ctx, &code.ListGitHubEnterpriseOrgRequest{
-			ProjectId:       config.ProjectId,
-			GithubSettingId: config.GithubSettingId,
-		})
-		if err != nil {
-			return &code.ListGitHubEnterpriseOrgResponse{}, err
-		}
-		for _, org := range list.GithubEnterpriseOrg {
-			if _, ok := existsOrgMap[org.Organization]; ok {
-				continue
-			}
-			if _, err := s.codeClient.DeleteGitHubEnterpriseOrg(ctx, &code.DeleteGitHubEnterpriseOrgRequest{
-				ProjectId:       config.ProjectId,
-				GithubSettingId: config.GithubSettingId,
-				Organization:    org.Organization,
-			}); err != nil {
-				return &code.ListGitHubEnterpriseOrgResponse{}, err
-			}
-		}
-	}
-	updatedList, err := s.codeClient.ListGitHubEnterpriseOrg(ctx, &code.ListGitHubEnterpriseOrgRequest{
-		ProjectId:       config.ProjectId,
-		GithubSettingId: config.GithubSettingId,
-	})
-	if err != nil {
-		return &code.ListGitHubEnterpriseOrgResponse{}, err
-	}
-	return updatedList, nil
+	return orgs, nil
 }
 
 func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutDependencySettingRequest, statusDetail string) error {
