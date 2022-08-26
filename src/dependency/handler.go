@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"errors"
 	"fmt"
 	"time"
 
@@ -39,14 +38,26 @@ func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
 		githubDefaultToken: conf.GithubDefaultToken,
 		trivyPath:          conf.TrivyPath,
 	}
+	fcc, err := getGRPCConn(ctx, conf.CoreSvcAddr)
+	if err != nil {
+		appLogger.Fatalf(ctx, "failed to create finding grpc connection, err=%+v", err)
+	}
+	acc, err := getGRPCConn(ctx, conf.CoreSvcAddr)
+	if err != nil {
+		appLogger.Fatalf(ctx, "failed to create alert grpc connection, err=%+v", err)
+	}
+	codecc, err := getGRPCConn(ctx, conf.DataSourceAPISvcAddr)
+	if err != nil {
+		appLogger.Fatalf(ctx, "failed to create code grpc connection, err=%+v", err)
+	}
 
 	return &sqsHandler{
 		cipherBlock:           block,
 		dependencyClient:      newDependencyClient(ctx, dependencyConf),
 		githubClient:          newGithubClient(dependencyConf.githubDefaultToken, appLogger),
-		findingClient:         newFindingClient(conf.CoreSvcAddr),
-		alertClient:           newAlertClient(conf.CoreSvcAddr),
-		codeClient:            newCodeClient(conf.DataSourceAPISvcAddr),
+		findingClient:         finding.NewFindingServiceClient(fcc),
+		alertClient:           alert.NewAlertServiceClient(acc),
+		codeClient:            code.NewCodeServiceClient(codecc),
 		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
 	}
 }
@@ -70,12 +81,6 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		appLogger.Errorf(ctx, "Failed to get scan status: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	token, err := decryptWithBase64(&s.cipherBlock, gitHubSetting.PersonalAccessToken)
-	if err != nil {
-		appLogger.Errorf(ctx, "Failed to decrypted personal access token: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-		return mimosasqs.WrapNonRetryable(err)
-	}
-	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 	scanStatus := s.initScanStatus(gitHubSetting.DependencySetting)
 
 	// Get repositories
@@ -89,18 +94,14 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 
 	for _, r := range repos {
-		isSkip, err := skipScan(ctx, r, s.limitRepositorySizeKb)
-		if err != nil {
-			appLogger.Errorf(ctx, "Failed to skip scan repositories: github_setting_id=%d,repository:%+v, err=%+v", msg.GitHubSettingID, r, err)
-			s.updateStatusToError(ctx, scanStatus, err)
-			return mimosasqs.WrapNonRetryable(err)
-		}
+		isSkip := skipScan(ctx, r, s.limitRepositorySizeKb)
 		if isSkip {
 			continue
 		}
 
 		// Scan per repository
-		result, err := s.dependencyClient.scan(ctx, r, token)
+		resultFilePath := fmt.Sprintf("%v_%v_%s_%v.json", msg.ProjectID, msg.GitHubSettingID, *r.Name, time.Now().Unix())
+		result, err := s.dependencyClient.getResult(ctx, r, gitHubSetting.PersonalAccessToken, resultFilePath)
 		if err != nil {
 			appLogger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
 			s.updateStatusToError(ctx, scanStatus, err)
@@ -134,30 +135,26 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	return nil
 }
 
-func skipScan(ctx context.Context, repo *github.Repository, limitRepositorySize int) (bool, error) {
-	if repo == nil {
-		return false, errors.New("repositories data is not found")
-	}
-
+func skipScan(ctx context.Context, repo *github.Repository, limitRepositorySize int) bool {
 	repoName := repo.GetFullName()
 
 	if repo.GetFork() {
 		appLogger.Infof(ctx, "Skip scan for %s repository(fork repo)", repoName)
-		return true, nil
+		return true
 	}
 	// repositoryがemptyの場合にスキャンに失敗するためスキップする
 	repoSize := repo.GetSize()
 	if repoSize == 0 {
 		appLogger.Infof(ctx, "Skip scan for %s repository(empty)", repoName)
-		return true, nil
+		return true
 	}
 	// Hard limit size
 	if repoSize > limitRepositorySize {
 		appLogger.Warnf(ctx, "Skip scan for %s repository(too big size, limit=%dkb, size(kb)=%dkb)", repoName, limitRepositorySize, *repo.Size)
-		return true, nil
+		return true
 	}
 
-	return false, nil
+	return false
 }
 
 func (s *sqsHandler) updateStatusToError(ctx context.Context, scanStatus *code.PutDependencySettingRequest, err error) {
@@ -177,6 +174,14 @@ func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSett
 	if data == nil || data.GithubSetting == nil || data.GithubSetting.DependencySetting == nil {
 		return nil, fmt.Errorf("no data for dependency scan, project_id=%d, github_setting_id=%d", projectID, GitHubSettingID)
 	}
+	if data.GithubSetting.PersonalAccessToken == "" {
+		return data.GithubSetting, nil
+	}
+	token, err := decryptWithBase64(&s.cipherBlock, data.GithubSetting.PersonalAccessToken)
+	if err != nil {
+		return nil, err
+	}
+	data.GithubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 	return data.GithubSetting, nil
 }
 

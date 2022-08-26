@@ -4,39 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/ca-risken/core/proto/alert"
-	"github.com/ca-risken/core/proto/finding"
-	"github.com/ca-risken/datasource-api/proto/code"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
-
-func newFindingClient(svcAddr string) finding.FindingServiceClient {
-	ctx := context.Background()
-	conn, err := getGRPCConn(ctx, svcAddr)
-	if err != nil {
-		appLogger.Fatalf(ctx, "Faild to get GRPC connection: err=%+v", err)
-	}
-	return finding.NewFindingServiceClient(conn)
-}
-
-func newAlertClient(svcAddr string) alert.AlertServiceClient {
-	ctx := context.Background()
-	conn, err := getGRPCConn(ctx, svcAddr)
-	if err != nil {
-		appLogger.Fatalf(ctx, "Faild to get GRPC connection: err=%+v", err)
-	}
-	return alert.NewAlertServiceClient(conn)
-}
-
-func newCodeClient(svcAddr string) code.CodeServiceClient {
-	ctx := context.Background()
-	conn, err := getGRPCConn(ctx, svcAddr)
-	if err != nil {
-		appLogger.Fatalf(ctx, "Faild to get GRPC connection: err=%+v", err)
-	}
-	return code.NewCodeServiceClient(conn)
-}
 
 func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	// gRPCクライアントの呼び出し回数が非常に多くトレーシング情報の送信がエラーになるため、トレースは無効にしておく

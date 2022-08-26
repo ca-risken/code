@@ -9,7 +9,7 @@ COPY . .
 ENV CGO_ENABLED=0
 RUN go build && cp dependency /go/bin/
 
-FROM public.ecr.aws/risken/code/dependency-base:v0.31.2
+FROM public.ecr.aws/risken/code/dependency-base:v0.0.1
 COPY --from=builder /go/bin/dependency /usr/local/dependency/bin/
 ENV DEBUG= \
     TRACE_EXPORTER= \
@@ -26,14 +26,10 @@ ENV DEBUG= \
     WAIT_TIME_SECOND=20 \
     FINDING_SVC_ADDR= \
     ALERT_SVC_ADDR= \
-    AWS_SVC_ADDR= \
     CODE_SVC_ADDR= \
     GITHUB_DEFAULT_TOKEN= \
     DATA_KEY= \
     LIMIT_REPOSITORY_SIZE_KB= \
-    SEPERATE_SCAN_DAYS= \
-    DEPENDENCY_SCAN_THREADS= \
-    SCAN_ON_MEMORY= \
     TZ=Asia/Tokyo
 WORKDIR /usr/local/dependency
 ENTRYPOINT ["/usr/local/bin/env-injector"]

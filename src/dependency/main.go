@@ -71,7 +71,7 @@ func main() {
 		appLogger.Fatal(ctx, err.Error())
 	}
 	pc := profiler.Config{
-		ServiceName:  fmt.Sprintf("%s.%s", nameSpace, serviceName),
+		ServiceName:  getFullServiceName(),
 		EnvName:      conf.EnvName,
 		ProfileTypes: pTypes,
 		ExporterType: pExporter,

@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/aquasecurity/trivy v0.30.4
+	github.com/aquasecurity/trivy-db v0.0.0-20220801073337-2c0339bb9085
 	github.com/aws/aws-sdk-go-v2 v1.16.8
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.1
 	github.com/ca-risken/common/pkg/logging v0.0.0-20220722052427-594b4a737610
@@ -20,6 +21,7 @@ require (
 	github.com/shurcooL/githubv4 v0.0.0-20220520033151-0b4e3294ff00
 	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
 	google.golang.org/grpc v1.48.0
+	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73
 )
 
 require (
@@ -30,7 +32,6 @@ require (
 	github.com/Microsoft/go-winio v0.5.2 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20220730123233-d6ffb7692adf // indirect
 	github.com/acomagu/bufpipe v1.0.3 // indirect
-	github.com/aquasecurity/trivy-db v0.0.0-20220801073337-2c0339bb9085 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.15.15 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.12.10 // indirect

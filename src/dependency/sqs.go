@@ -8,15 +8,15 @@ import (
 )
 
 type SqsConfig struct {
-	Debug string `default:"false"`
+	Debug string
 
-	AWSRegion   string `envconfig:"aws_region"    default:"ap-northeast-1"`
-	SQSEndpoint string `envconfig:"sqs_endpoint"  default:"http://queue.middleware.svc.cluster.local:9324"`
+	AWSRegion   string
+	SQSEndpoint string
 
-	QueueName          string `split_words:"true" default:"code-dependency"`
-	QueueURL           string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-dependency"`
-	MaxNumberOfMessage int32  `split_words:"true" default:"10"`
-	WaitTimeSecond     int32  `split_words:"true" default:"20"`
+	QueueName          string
+	QueueURL           string
+	MaxNumberOfMessage int32
+	WaitTimeSecond     int32
 }
 
 func newSQSConsumer(ctx context.Context, conf *SqsConfig) *worker.Worker {

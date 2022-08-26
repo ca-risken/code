@@ -11,60 +11,66 @@ import (
 	"testing"
 )
 
-func TestEncryptDecrypt(t *testing.T) {
+func TestDecryptWithBase64(t *testing.T) {
 	block, err := aes.NewCipher([]byte("12345678901234567890123456789012")) // AES128=16bytes, AES192=24bytes, AES256=32bytes
 	if err != nil {
 		t.Fatal(err)
 	}
 	cases := []struct {
-		name         string
-		input        string
-		want         string
-		wantEncError bool
-		wantDecError bool
+		name      string
+		plainText string
+		encoder   func(block *cipher.Block, input string) (string, error)
+		want      string
+		wantErr   bool
 	}{
 		{
-			name:  "OK",
-			input: "plain text",
-			want:  "plain text",
+			name:      "OK",
+			plainText: "plain text",
+			encoder: func(block *cipher.Block, input string) (string, error) {
+				encrypted, err := encrypt(block, input)
+				if err != nil {
+					return "", err
+				}
+				return base64.RawStdEncoding.EncodeToString(encrypted), nil
+			},
+			want: "plain text",
 		},
 		{
-			name:  "OK (black))",
-			input: "",
-			want:  "",
+			name:      "NG failed to decode base64",
+			plainText: "plain text!",
+			encoder: func(block *cipher.Block, input string) (string, error) {
+				return "not base64", nil
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG failed to decrypt",
+			encoder: func(block *cipher.Block, input string) (string, error) {
+				return "", nil
+			},
+			plainText: "plain text",
+			wantErr:   true,
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			encrypted, err := encryptWithBase64(&block, c.input)
-			if c.wantEncError && err == nil {
+			input, err := c.encoder(&block, c.plainText)
+			if err != nil {
+				t.Fatalf("failed to encrypt err: %v", err)
+			}
+			got, err := decryptWithBase64(&block, input)
+			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
-			if !c.wantEncError && err != nil {
+			if !c.wantErr && err != nil {
 				t.Fatalf("Unexpected error occured, err=%+v", err)
 			}
 
-			decrypted, err := decryptWithBase64(&block, encrypted)
-			if c.wantDecError && err == nil {
-				t.Fatal("Unexpected no error")
-			}
-			if !c.wantDecError && err != nil {
-				t.Fatalf("Unexpected error occured, err=%+v", err)
-			}
-
-			if !reflect.DeepEqual(c.want, decrypted) {
-				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, decrypted)
+			if !reflect.DeepEqual(c.want, got) {
+				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, got)
 			}
 		})
 	}
-}
-
-func encryptWithBase64(block *cipher.Block, plainText string) (string, error) {
-	buf, err := encrypt(block, plainText)
-	if err != nil {
-		return "", err
-	}
-	return base64.RawStdEncoding.EncodeToString(buf), nil
 }
 
 func encrypt(block *cipher.Block, plainText string) ([]byte, error) {

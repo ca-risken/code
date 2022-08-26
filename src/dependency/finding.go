@@ -31,13 +31,17 @@ func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report) ([]*
 			if err != nil {
 				return nil, err
 			}
+			score, err := getScore(vuls)
+			if err != nil {
+				return nil, err
+			}
 			f := finding.FindingForUpsert{
 				Description:      getDescription(pkg, report.ArtifactName),
 				DataSource:       message.DependencyDataSource,
 				DataSourceId:     generateDataSourceID(fmt.Sprintf("%s_%s_%s", report.ArtifactName, result.Target, pkg)),
 				ResourceName:     pkg,
 				ProjectId:        msg.ProjectID,
-				OriginalScore:    getScore(vuls),
+				OriginalScore:    score,
 				OriginalMaxScore: 1.0,
 				Data:             string(data),
 			}
@@ -99,45 +103,37 @@ func getDescription(target, repository string) string {
 	return fmt.Sprintf("One or more vulnerabilities are discovered in %s. Repository: %s", target, repository)
 }
 
-func getScore(vulnerabilities []trivytypes.DetectedVulnerability) float32 {
-	severity := "UNKNOWN"
+func getScore(vulnerabilities []trivytypes.DetectedVulnerability) (float32, error) {
+	mapSeverityScore := map[string]float32{
+		SEVERITY_CRITICAL: SCORE_CRITICAL,
+		SEVERITY_HIGH:     SCORE_HIGH,
+		SEVERITY_MEDIUM:   SCORE_MEDIUM,
+		SEVERITY_LOW:      SCORE_LOW,
+		SEVERITY_UNKNOWN:  SCORE_UNKNOWN,
+	}
+	score := SCORE_LOW
 	// 各パッケージごとに一番Severityの高い脆弱性にスコアを合わせる
 	for _, vuls := range vulnerabilities {
-		switch vuls.Severity {
-		case "CRITICAL":
-			severity = "CRITICAL"
-		case "HIGH":
-			if severity != "CRITICAL" {
-				severity = "HIGH"
-			}
-		case "MEDIUM":
-			if severity != "CRITICAL" && severity != "HIGH" {
-				severity = "MEDIUM"
-			}
-		case "LOW":
-			if severity != "UNKNOWN" {
-				severity = "LOW"
-			}
+		s, ok := mapSeverityScore[vuls.Severity]
+		if !ok {
+			return 0, fmt.Errorf("unknown severity: %s", vuls.Severity)
+		}
+		if s > score {
+			score = s
 		}
 	}
-	switch severity {
-	case "CRITICAL":
-		return SCORE_CRITICAL
-	case "HIGH":
-		return SCORE_HIGH
-	case "MEDIUM":
-		return SCORE_MEDIUM
-	case "LOW":
-		return SCORE_LOW
-	default:
-		return SCORE_DEFAULT
-	}
+	return score, nil
 }
 
 const (
-	SCORE_CRITICAL = 0.9
-	SCORE_HIGH     = 0.8
-	SCORE_MEDIUM   = 0.6
-	SCORE_LOW      = 0.3
-	SCORE_DEFAULT  = 0.6
+	SEVERITY_CRITICAL = "CRITICAL"
+	SEVERITY_HIGH     = "HIGH"
+	SEVERITY_MEDIUM   = "MEDIUM"
+	SEVERITY_LOW      = "LOW"
+	SEVERITY_UNKNOWN  = "UNKNOWN"
+	SCORE_CRITICAL    = float32(0.9)
+	SCORE_HIGH        = float32(0.8)
+	SCORE_MEDIUM      = float32(0.6)
+	SCORE_LOW         = float32(0.3)
+	SCORE_UNKNOWN     = float32(0.6)
 )
