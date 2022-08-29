@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
-	"github.com/google/go-github/v44/github"
 	"k8s.io/utils/exec"
 	fakeexec "k8s.io/utils/exec/testing"
 )
@@ -18,7 +17,7 @@ type fakeTrivyClient struct {
 	err error
 }
 
-func (f *fakeTrivyClient) scan(ctx context.Context, repo *github.Repository, token string, filePath string) error {
+func (f *fakeTrivyClient) scan(ctx context.Context, cloneURL, token, filePath string) error {
 	return f.err
 }
 
@@ -38,17 +37,10 @@ func makeFakeCmd(fakeCmd *fakeexec.FakeCmd, cmd string, args ...string) fakeexec
 	}
 }
 
-func newRepository(name, cloneURL string) *github.Repository {
-	return &github.Repository{
-		Name:     &name,
-		CloneURL: &cloneURL,
-	}
-}
-
 func TestGetResult(t *testing.T) {
 	cases := []struct {
 		name           string
-		repo           *github.Repository
+		cloneURL       string
 		token          string
 		scanResultPath string
 		resultContent  string
@@ -58,7 +50,7 @@ func TestGetResult(t *testing.T) {
 	}{
 		{
 			name:           "OK",
-			repo:           newRepository("test", ""),
+			cloneURL:       "test",
 			scanResultPath: "result.json",
 			resultContent: `{
 "ArtifactName": "ArtifactName",
@@ -86,7 +78,7 @@ func TestGetResult(t *testing.T) {
 		},
 		{
 			name:           "NG scan error",
-			repo:           newRepository("test", ""),
+			cloneURL:       "test",
 			scanResultPath: `scan_error.json`,
 			resultContent:  ``,
 			scanError:      errors.New("something error"),
@@ -95,7 +87,7 @@ func TestGetResult(t *testing.T) {
 		},
 		{
 			name:           "NG json unmarshal error",
-			repo:           newRepository("test", ""),
+			cloneURL:       "test",
 			scanResultPath: `invalid_format.json`,
 			resultContent:  `invalid format`,
 			scanError:      nil,
@@ -124,7 +116,7 @@ func TestGetResult(t *testing.T) {
 				t.Fatalf("Failed to close test result file. err: %+v", err)
 			}
 			defer os.Remove(f.Name())
-			got, err := client.getResult(ctx, c.repo, c.token, f.Name())
+			got, err := client.getResult(ctx, c.cloneURL, c.token, f.Name())
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
@@ -141,7 +133,7 @@ func TestGetResult(t *testing.T) {
 func TestScan(t *testing.T) {
 	cases := []struct {
 		name       string
-		repo       *github.Repository
+		cloneURL   string
 		token      string
 		filePath   string
 		execScript ExecArgs
@@ -153,13 +145,13 @@ func TestScan(t *testing.T) {
 		{
 			name:       "OK",
 			wantErr:    false,
-			repo:       newRepository("", ""),
+			cloneURL:   "test",
 			execScript: ExecArgs{"/usr/local/bin/trivy", []string{"repository", "--security-checks", "vuln", "--output", "path", "--format", "json", "url"}, "", nil},
 		},
 		{
 			name:       "NG scan error",
 			wantErr:    true,
-			repo:       newRepository("", ""),
+			cloneURL:   "test",
 			execScript: ExecArgs{"/usr/local/bin/trivy", []string{"repository", "--security-checks", "vuln", "--output", "path", "--format", "json", "url"}, "", errors.New("something occurs")},
 		},
 	}
@@ -177,8 +169,8 @@ func TestScan(t *testing.T) {
 			fakeCmd.Stderr = &stderr
 			fakeExec.CommandScript = append(fakeExec.CommandScript, cmdAction)
 
-			client := newtrivyClient("trivyPath", fakeExec)
-			err := client.scan(ctx, c.repo, c.token, c.filePath)
+			client := newTrivyClient("trivyPath", fakeExec)
+			err := client.scan(ctx, c.cloneURL, c.token, c.filePath)
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
