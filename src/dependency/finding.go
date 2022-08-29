@@ -14,10 +14,10 @@ import (
 
 func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report) ([]*finding.FindingBatchForUpsert, error) {
 	var findings []*finding.FindingBatchForUpsert
-	mapVulnerabilities := make(map[string][]trivytypes.DetectedVulnerability)
 	results := report.Results
 	for _, result := range results {
 		// ファイルとパッケージごとにFindingを生成するためにマッピング
+		mapVulnerabilities := make(map[string][]trivytypes.DetectedVulnerability)
 		for _, vulnerability := range result.Vulnerabilities {
 			mapVulnerabilities[vulnerability.PkgName] = append(mapVulnerabilities[vulnerability.PkgName], vulnerability)
 		}
