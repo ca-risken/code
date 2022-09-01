@@ -233,35 +233,35 @@ func TestGetScore(t *testing.T) {
 			vulnerabilities: []types.DetectedVulnerability{
 				{Vulnerability: dbtypes.Vulnerability{Severity: "CRITICAL"}},
 			},
-			want: 0.9,
+			want: 0.6,
 		},
 		{
 			name: "OK High",
 			vulnerabilities: []types.DetectedVulnerability{
 				{Vulnerability: dbtypes.Vulnerability{Severity: "HIGH"}},
 			},
-			want: 0.8,
+			want: 0.5,
 		},
 		{
 			name: "OK Medium",
 			vulnerabilities: []types.DetectedVulnerability{
 				{Vulnerability: dbtypes.Vulnerability{Severity: "MEDIUM"}},
 			},
-			want: 0.6,
+			want: 0.3,
 		},
 		{
 			name: "OK Low",
 			vulnerabilities: []types.DetectedVulnerability{
 				{Vulnerability: dbtypes.Vulnerability{Severity: "LOW"}},
 			},
-			want: 0.3,
+			want: 0.1,
 		},
 		{
 			name: "OK Unknown",
 			vulnerabilities: []types.DetectedVulnerability{
 				{Vulnerability: dbtypes.Vulnerability{Severity: "UNKNOWN"}},
 			},
-			want: 0.6,
+			want: 0.1,
 		},
 		{
 			name: "OK Multiple",
@@ -271,7 +271,7 @@ func TestGetScore(t *testing.T) {
 				{Vulnerability: dbtypes.Vulnerability{Severity: "HIGH"}},
 				{Vulnerability: dbtypes.Vulnerability{Severity: "CRITICAL"}},
 			},
-			want: 0.9,
+			want: 0.6,
 		},
 		{
 			name: "NG Undefined Severity",

@@ -116,10 +116,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		resultFilePath := fmt.Sprintf("%v_%v_%s_%v.json", msg.ProjectID, msg.GitHubSettingID, *r.Name, time.Now().Unix())
 		result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, gitHubSetting.PersonalAccessToken, resultFilePath)
 		if err != nil {
-			appLogger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
-			if trivyErr, ok := err.(*trivyError); ok {
-				err = trivyErr.Unwrap()
-			}
+			appLogger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}

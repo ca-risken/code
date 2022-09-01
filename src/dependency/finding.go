@@ -12,20 +12,26 @@ import (
 	"github.com/ca-risken/datasource-api/pkg/message"
 )
 
+type vulnerabililityIndex struct {
+	packageName string
+	vulnID      string
+}
+
 func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report) ([]*finding.FindingBatchForUpsert, error) {
 	var findings []*finding.FindingBatchForUpsert
 	results := report.Results
 	for _, result := range results {
-		// ファイルとパッケージごとにFindingを生成するためにマッピング
-		mapVulnerabilities := make(map[string][]trivytypes.DetectedVulnerability)
+		// ファイル/パッケージ/脆弱性ごとにFindingを生成するためにマッピング
+		mapVulnerabilities := make(map[vulnerabililityIndex][]trivytypes.DetectedVulnerability)
 		for _, vulnerability := range result.Vulnerabilities {
-			mapVulnerabilities[vulnerability.PkgName] = append(mapVulnerabilities[vulnerability.PkgName], vulnerability)
+			vi := vulnerabililityIndex{vulnerability.PkgName, vulnerability.VulnerabilityID}
+			mapVulnerabilities[vi] = append(mapVulnerabilities[vi], vulnerability)
 		}
-		for pkg, vuls := range mapVulnerabilities {
+		for vi, vuls := range mapVulnerabilities {
 			targetInfo := map[string]string{
 				"repositoryURL": report.ArtifactName,
 				"target":        result.Target,
-				"packageName":   pkg,
+				"packageName":   vi.packageName,
 			}
 			data, err := json.Marshal(map[string]interface{}{"target": targetInfo, "vulnerabilities": vuls})
 			if err != nil {
@@ -36,10 +42,10 @@ func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report) ([]*
 				return nil, err
 			}
 			f := finding.FindingForUpsert{
-				Description:      getDescription(pkg, report.ArtifactName),
+				Description:      getDescription(vi.vulnID, vi.packageName, report.ArtifactName),
 				DataSource:       message.DependencyDataSource,
-				DataSourceId:     generateDataSourceID(fmt.Sprintf("%s_%s_%s", report.ArtifactName, result.Target, pkg)),
-				ResourceName:     pkg,
+				DataSourceId:     generateDataSourceID(fmt.Sprintf("%s_%s_%s_%s", report.ArtifactName, result.Target, vi.packageName, vi.vulnID)),
+				ResourceName:     vi.packageName,
 				ProjectId:        msg.ProjectID,
 				OriginalScore:    score,
 				OriginalMaxScore: 1.0,
@@ -47,7 +53,7 @@ func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report) ([]*
 			}
 			findings = append(findings, &finding.FindingBatchForUpsert{
 				Finding:   &f,
-				Recommend: getRecommend(pkg),
+				Recommend: getRecommend(vi.packageName),
 				Tag: []*finding.FindingTagForBatch{
 					{Tag: tagCode},
 					{Tag: tagRepository},
@@ -99,8 +105,8 @@ func generateDataSourceID(input string) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func getDescription(target, repository string) string {
-	return fmt.Sprintf("One or more vulnerabilities are discovered in %s. Repository: %s", target, repository)
+func getDescription(vulnerabilityID, target, repository string) string {
+	return fmt.Sprintf("Vulnerability %s found in %s. Repository: %s", vulnerabilityID, target, repository)
 }
 
 func getScore(vulnerabilities []trivytypes.DetectedVulnerability) (float32, error) {
@@ -131,9 +137,9 @@ const (
 	SEVERITY_MEDIUM   = "MEDIUM"
 	SEVERITY_LOW      = "LOW"
 	SEVERITY_UNKNOWN  = "UNKNOWN"
-	SCORE_CRITICAL    = float32(0.9)
-	SCORE_HIGH        = float32(0.8)
-	SCORE_MEDIUM      = float32(0.6)
-	SCORE_LOW         = float32(0.3)
-	SCORE_UNKNOWN     = float32(0.6)
+	SCORE_CRITICAL    = float32(0.6)
+	SCORE_HIGH        = float32(0.5)
+	SCORE_MEDIUM      = float32(0.3)
+	SCORE_LOW         = float32(0.1)
+	SCORE_UNKNOWN     = float32(0.1)
 )

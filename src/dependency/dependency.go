@@ -32,19 +32,6 @@ type trivyScanner interface {
 	scan(ctx context.Context, cloneURL, token, outputPath string) error
 }
 
-type trivyError struct {
-	stderr string
-	err    error
-}
-
-func (e *trivyError) Error() string {
-	return fmt.Sprintf("trivy error: %v, stderr: %s", e.err, string(e.stderr))
-}
-
-func (e *trivyError) Unwrap() error {
-	return e.err
-}
-
 type trivyClient struct {
 	trivyPath string
 	exec      exec.Interface
@@ -94,7 +81,7 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 	cmd.SetStderr(&stderr)
 	err := cmd.Run()
 	if err != nil {
-		return &trivyError{stderr: stderr.String(), err: err}
+		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)
 	}
 	return nil
 }
