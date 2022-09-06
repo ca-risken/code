@@ -45,6 +45,7 @@ Deploy the pre-built containers to the Kubernetes environment on your local mach
 | service  | spec                                | before (public images)                       | after (pre-build images on your machine) |
 | -------- | ----------------------------------- | -------------------------------------------- | ---------------------------------------- |
 | gitleaks | spec.template.spec.containers.image | `public.ecr.aws/risken/code/gitleaks:latest` | `code/gitleaks:latest`                   |
+| dependency | spec.template.spec.containers.image | `public.ecr.aws/risken/code/dependency:latest` | `code/dependency:latest`                   |
 
 ## Community
 
