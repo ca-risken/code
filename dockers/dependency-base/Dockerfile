@@ -9,5 +9,7 @@ RUN git clone https://github.com/gassara-kys/env-injector.git -b ${ENV_INJECTOR_
     && cp env-injector /go/bin/
 
 FROM aquasec/trivy:0.31.2
+RUN addgroup -g 1000 -S appgroup && adduser -u 1000 -S appuser -G appgroup
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /go/bin/env-injector /usr/local/bin/
+USER appuser

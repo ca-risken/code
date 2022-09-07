@@ -10,7 +10,7 @@ batch:
         variables:
           OS: linux
           ARCH: amd64
-          DEPENDENCY_BASE_VERSION: v0.0.1
+          DEPENDENCY_BASE_VERSION: v0.0.2
     - identifier: build_arm64
       buildspec: codebuild/dependency-base-image/buildspec-image.yml
       env:
@@ -21,7 +21,7 @@ batch:
         variables:
           OS: linux
           ARCH: arm64
-          DEPENDENCY_BASE_VERSION: v0.0.1
+          DEPENDENCY_BASE_VERSION: v0.0.2
     - identifier: build_manifest
       buildspec: codebuild/dependency-base-image/buildspec-manifest.yml
       env:
@@ -30,7 +30,7 @@ batch:
         privileged-mode: true
         type: LINUX_CONTAINER
         variables:
-          DEPENDENCY_BASE_VERSION: v0.0.1
+          DEPENDENCY_BASE_VERSION: v0.0.2
       depend-on:
         - build_amd64
         - build_arm64
