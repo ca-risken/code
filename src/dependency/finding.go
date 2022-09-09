@@ -17,7 +17,7 @@ type vulnerabililityIndex struct {
 	vulnID      string
 }
 
-func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report) ([]*finding.FindingBatchForUpsert, error) {
+func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report, repositoryID int64) ([]*finding.FindingBatchForUpsert, error) {
 	var findings []*finding.FindingBatchForUpsert
 	results := report.Results
 	for _, result := range results {
@@ -60,6 +60,7 @@ func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report) ([]*
 					{Tag: tagDependency},
 					// ex) gomod,pip
 					{Tag: result.Type},
+					{Tag: fmt.Sprintf("repository_id:%v", repositoryID)},
 				},
 			})
 		}
