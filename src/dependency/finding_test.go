@@ -12,11 +12,12 @@ import (
 
 func TestMakeFinding(t *testing.T) {
 	cases := []struct {
-		name    string
-		msg     *message.CodeQueueMessage
-		report  *types.Report
-		want    []*finding.FindingBatchForUpsert
-		wantErr bool
+		name         string
+		msg          *message.CodeQueueMessage
+		report       *types.Report
+		repositoryID int64
+		want         []*finding.FindingBatchForUpsert
+		wantErr      bool
 	}{
 		{
 			name: "OK",
@@ -42,6 +43,7 @@ func TestMakeFinding(t *testing.T) {
 					},
 				},
 			},
+			repositoryID: 1,
 			want: []*finding.FindingBatchForUpsert{
 				{
 					Finding: &finding.FindingForUpsert{
@@ -55,7 +57,7 @@ func TestMakeFinding(t *testing.T) {
 						Data:             "{\"target\":{\"packageName\":\"pkg\",\"repositoryURL\":\"artifact_name\",\"target\":\"target\"},\"vulnerabilities\":[{\"PkgName\":\"pkg\",\"Layer\":{},\"Severity\":\"HIGH\"}]}",
 					},
 					Recommend: getRecommend("pkg"),
-					Tag:       []*finding.FindingTagForBatch{{Tag: tagCode}, {Tag: tagRepository}, {Tag: tagDependency}, {Tag: "module"}},
+					Tag:       []*finding.FindingTagForBatch{{Tag: tagCode}, {Tag: tagRepository}, {Tag: tagDependency}, {Tag: "module"}, {Tag: "repository_id:1"}},
 				},
 			},
 		},
@@ -89,6 +91,7 @@ func TestMakeFinding(t *testing.T) {
 					},
 				},
 			},
+			repositoryID: 1,
 			want: []*finding.FindingBatchForUpsert{
 				{
 					Finding: &finding.FindingForUpsert{
@@ -102,7 +105,7 @@ func TestMakeFinding(t *testing.T) {
 						Data:             "{\"target\":{\"packageName\":\"pkg\",\"repositoryURL\":\"artifact_name\",\"target\":\"target\"},\"vulnerabilities\":[{\"PkgName\":\"pkg\",\"Layer\":{},\"Severity\":\"LOW\"}]}",
 					},
 					Recommend: getRecommend("pkg"),
-					Tag:       []*finding.FindingTagForBatch{{Tag: tagCode}, {Tag: tagRepository}, {Tag: tagDependency}, {Tag: "module"}},
+					Tag:       []*finding.FindingTagForBatch{{Tag: tagCode}, {Tag: tagRepository}, {Tag: tagDependency}, {Tag: "module"}, {Tag: "repository_id:1"}},
 				},
 				{
 					Finding: &finding.FindingForUpsert{
@@ -116,7 +119,7 @@ func TestMakeFinding(t *testing.T) {
 						Data:             "{\"target\":{\"packageName\":\"pkg2\",\"repositoryURL\":\"artifact_name\",\"target\":\"target\"},\"vulnerabilities\":[{\"PkgName\":\"pkg2\",\"Layer\":{},\"Severity\":\"MEDIUM\"}]}",
 					},
 					Recommend: getRecommend("pkg2"),
-					Tag:       []*finding.FindingTagForBatch{{Tag: tagCode}, {Tag: tagRepository}, {Tag: tagDependency}, {Tag: "module"}},
+					Tag:       []*finding.FindingTagForBatch{{Tag: tagCode}, {Tag: tagRepository}, {Tag: tagDependency}, {Tag: "module"}, {Tag: "repository_id:1"}},
 				},
 			},
 		},
@@ -150,6 +153,7 @@ func TestMakeFinding(t *testing.T) {
 					},
 				},
 			},
+			repositoryID: 1,
 			want: []*finding.FindingBatchForUpsert{
 				{
 					Finding: &finding.FindingForUpsert{
@@ -163,7 +167,7 @@ func TestMakeFinding(t *testing.T) {
 						Data:             "{\"target\":{\"packageName\":\"pkg\",\"repositoryURL\":\"artifact_name\",\"target\":\"target\"},\"vulnerabilities\":[{\"PkgName\":\"pkg\",\"Layer\":{},\"Severity\":\"LOW\"},{\"PkgName\":\"pkg\",\"Layer\":{},\"Severity\":\"MEDIUM\"}]}",
 					},
 					Recommend: getRecommend("pkg"),
-					Tag:       []*finding.FindingTagForBatch{{Tag: tagCode}, {Tag: tagRepository}, {Tag: tagDependency}, {Tag: "module"}},
+					Tag:       []*finding.FindingTagForBatch{{Tag: tagCode}, {Tag: tagRepository}, {Tag: tagDependency}, {Tag: "module"}, {Tag: "repository_id:1"}},
 				},
 			},
 		},
@@ -207,7 +211,7 @@ func TestMakeFinding(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := makeFindings(c.msg, c.report)
+			got, err := makeFindings(c.msg, c.report, c.repositoryID)
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
