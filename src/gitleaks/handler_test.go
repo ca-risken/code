@@ -245,4 +245,3 @@ func TestGetRecommend(t *testing.T) {
 		})
 	}
 }
-

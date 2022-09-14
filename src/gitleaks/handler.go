@@ -115,26 +115,38 @@ func (l *leakFinding) generateGitHubURL(repositoryURL string) string {
 	return url
 }
 
-func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
+func newHandler(ctx context.Context, conf *AppConfig) (*sqsHandler, error) {
 	key := []byte(conf.CodeDataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		appLogger.Fatal(ctx, err.Error())
+		return nil, err
 	}
 	gitleaksConf := &gitleaksConfig{
 		githubDefaultToken: conf.GithubDefaultToken,
 		redact:             conf.Redact,
 		configPath:         conf.GitleaksConfigPath,
 	}
+	findingClient, err := newFindingClient(ctx, conf.CoreSvcAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create finding client: %w", err)
+	}
+	alertClient, err := newAlertClient(ctx, conf.CoreSvcAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create alert client: %w", err)
+	}
+	codeClient, err := newCodeClient(ctx, conf.DataSourceAPISvcAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create code client: %w", err)
+	}
 	return &sqsHandler{
 		cipherBlock:           block,
 		githubClient:          newGithubClient(gitleaksConf.githubDefaultToken),
 		gitleaksClient:        newGitleaksClient(ctx, gitleaksConf),
-		findingClient:         newFindingClient(conf.CoreSvcAddr),
-		alertClient:           newAlertClient(conf.CoreSvcAddr),
-		codeClient:            newCodeClient(conf.DataSourceAPISvcAddr),
+		findingClient:         findingClient,
+		alertClient:           alertClient,
+		codeClient:            codeClient,
 		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
-	}
+	}, nil
 }
 
 func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) error {
