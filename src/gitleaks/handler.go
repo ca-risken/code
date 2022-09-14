@@ -181,7 +181,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	repos, err := s.listRepository(ctx, gitHubSetting)
 	if err != nil {
 		appLogger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-		return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+		s.updateStatusToError(ctx, scanStatus, err)
+		return mimosasqs.WrapNonRetryable(err)
 	}
 	appLogger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, gitHubSetting.GitleaksSetting.RepositoryPattern)
@@ -193,7 +194,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		lastScannedAt, err := s.getLastScanedAt(ctx, msg.ProjectID, *r.FullName)
 		if err != nil {
 			appLogger.Errorf(ctx, "Failed to get LastScanedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
 		}
 
 		if skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
@@ -204,14 +206,16 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		results, err := s.scanRepository(ctx, r, token, lastScannedAt)
 		if err != nil {
 			appLogger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
 		}
 
 		// Put Resource for caching scanned time when len(result) is zero
 		if len(results) == 0 {
 			if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
 				appLogger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-				return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+				s.updateStatusToError(ctx, scanStatus, err)
+				return mimosasqs.WrapNonRetryable(err)
 			}
 			continue
 		}
@@ -228,7 +232,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		// Put findings
 		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
 			appLogger.Errorf(ctx, "failed to put findngs: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
 		}
 	}
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
@@ -336,11 +341,10 @@ func skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.
 	return false
 }
 
-func (s *sqsHandler) handleErrorWithUpdateStatus(ctx context.Context, scanStatus *code.PutGitleaksSettingRequest, err error) error {
+func (s *sqsHandler) updateStatusToError(ctx context.Context, scanStatus *code.PutGitleaksSettingRequest, err error) {
 	if updateErr := s.updateScanStatusError(ctx, scanStatus, err.Error()); updateErr != nil {
 		appLogger.Warnf(ctx, "Failed to update scan status error: err=%+v", updateErr)
 	}
-	return mimosasqs.WrapNonRetryable(err)
 }
 
 func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
