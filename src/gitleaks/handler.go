@@ -527,14 +527,18 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 			return err
 		}
 		// finding-tag
-		s.tagFinding(ctx, tagCode, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, tagRipository, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, tagGitleaks, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, *f.Visibility, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, *f.FullName, resp.Finding.FindingId, resp.Finding.ProjectId)
+		for _, t := range []string{tagCode, tagRipository, tagGitleaks, *f.Visibility, *f.FullName} {
+			err = s.tagFinding(ctx, t, resp.Finding.FindingId, resp.Finding.ProjectId)
+			if err != nil {
+				return err
+			}
+		}
 		if len(f.Result.Tags) > 0 {
 			for _, tag := range f.Result.Tags {
-				s.tagFinding(ctx, strings.TrimSpace(tag), resp.Finding.FindingId, resp.Finding.ProjectId)
+				err = s.tagFinding(ctx, strings.TrimSpace(tag), resp.Finding.FindingId, resp.Finding.ProjectId)
+				if err != nil {
+					return err
+				}
 			}
 		}
 		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, f.Result.RuleDescription)
@@ -577,7 +581,7 @@ func (s *sqsHandler) getLastScanedAt(ctx context.Context, projectID uint32, repo
 	return nil, nil
 }
 
-func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint64, projectID uint32) {
+func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint64, projectID uint32) error {
 	_, err := s.findingClient.TagFinding(ctx, &finding.TagFindingRequest{
 		ProjectId: projectID,
 		Tag: &finding.FindingTagForUpsert{
@@ -586,8 +590,9 @@ func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint6
 			Tag:       tag,
 		}})
 	if err != nil {
-		appLogger.Errorf(ctx, "Failed to TagFinding, finding_id=%d, tag=%s, error=%+v", findingID, tag, err)
+		return fmt.Errorf("failed to TagFinding, finding_id=%d, tag=%s, error=%w", findingID, tag, err)
 	}
+	return nil
 }
 
 func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uint64, projectID uint32) error {
