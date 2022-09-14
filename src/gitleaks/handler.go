@@ -533,7 +533,10 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 				s.tagFinding(ctx, strings.TrimSpace(tag), resp.Finding.FindingId, resp.Finding.ProjectId)
 			}
 		}
-		s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, f.Result.RuleDescription)
+		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, f.Result.RuleDescription)
+		if err != nil {
+			return err
+		}
 		appLogger.Debugf(ctx, "Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
 	}
 	return nil
@@ -624,7 +627,7 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
-func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string) {
+func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string) error {
 	r := *getRecommend(rule)
 	if _, err := s.findingClient.PutRecommend(ctx, &finding.PutRecommendRequest{
 		ProjectId:      projectID,
@@ -634,9 +637,10 @@ func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, finding
 		Risk:           r.Risk,
 		Recommendation: r.Recommendation,
 	}); err != nil {
-		appLogger.Errorf(ctx, "Failed to TagFinding, finding_id=%d, rule=%s, error=%+v", findingID, rule, err)
+		return fmt.Errorf("failed to PutRecommend, finding_id=%d, rule=%s, error=%w", findingID, rule, err)
 	}
 	appLogger.Debugf(ctx, "Success PutRecommend, finding_id=%d, reccomend=%+v", findingID, r)
+	return nil
 }
 
 func genRepositoryMetadata(repo *github.Repository) *RepositoryMetadata {
