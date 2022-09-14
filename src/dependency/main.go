@@ -109,10 +109,14 @@ func main() {
 		appLogger.Fatalf(ctx, "Failed to create SQS consumer, err=%+v", err)
 	}
 	appLogger.Info(ctx, "Start the dependency SQS consumer server...")
+	handler, err := newHandler(ctx, &conf)
+	if err != nil {
+		appLogger.Fatalf(ctx, "Failed to create new handler, err=%+v", err)
+	}
 	consumer.Start(ctx,
 		mimosasqs.InitializeHandler(
 			mimosasqs.RetryableErrorHandler(
 				mimosasqs.TracingHandler(getFullServiceName(),
 					mimosasqs.StatusLoggingHandler(appLogger,
-						f.FinalizeHandler(newHandler(ctx, &conf)))))))
+						f.FinalizeHandler(handler))))))
 }
