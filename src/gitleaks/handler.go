@@ -414,7 +414,7 @@ func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.
 			config.TargetResource = org.Organization
 			repo, err := s.githubClient.listRepository(ctx, config)
 			if err != nil {
-				// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす
+				// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす（スキャンすべきリポジトリが漏れる可能性はあるが、enterpriseのサポートは廃止予定なので対応は行わない）
 				appLogger.Warnf(ctx, "Failed to ListRepository by enterprise, org=%s, err=%+v", org.Organization, err)
 				continue
 			}
