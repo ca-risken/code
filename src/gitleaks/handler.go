@@ -491,7 +491,7 @@ func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resource
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to put resource: project_id=%d, resource_name=%s", projectID, resourceName)
+		return fmt.Errorf("failed to put resource: project_id=%d, resource_name=%s, err=%w", projectID, resourceName, err)
 	}
 	s.tagResource(ctx, tagCode, resp.Resource.ResourceId, projectID)
 	s.tagResource(ctx, tagRipository, resp.Resource.ResourceId, projectID)
