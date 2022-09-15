@@ -41,11 +41,11 @@ func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	return conn, nil
 }
 
-func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
+func newHandler(ctx context.Context, conf *AppConfig) (*sqsHandler, error) {
 	key := []byte(conf.CodeDataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		appLogger.Fatal(ctx, err.Error())
+		return nil, fmt.Errorf("failed to create new cipher, err=%w", err)
 	}
 	dependencyConf := &dependencyConfig{
 		githubDefaultToken: conf.GithubDefaultToken,
@@ -53,15 +53,15 @@ func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
 	}
 	fcc, err := getGRPCConn(ctx, conf.CoreSvcAddr)
 	if err != nil {
-		appLogger.Fatalf(ctx, "failed to create finding grpc connection, err=%+v", err)
+		return nil, fmt.Errorf("failed to create finding grpc connection, err=%w", err)
 	}
 	acc, err := getGRPCConn(ctx, conf.CoreSvcAddr)
 	if err != nil {
-		appLogger.Fatalf(ctx, "failed to create alert grpc connection, err=%+v", err)
+		return nil, fmt.Errorf("failed to create alert grpc connection, err=%w", err)
 	}
 	codecc, err := getGRPCConn(ctx, conf.DataSourceAPISvcAddr)
 	if err != nil {
-		appLogger.Fatalf(ctx, "failed to create code grpc connection, err=%+v", err)
+		return nil, fmt.Errorf("failed to create code grpc connection, err=%w", err)
 	}
 
 	return &sqsHandler{
@@ -72,7 +72,7 @@ func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
 		alertClient:           alert.NewAlertServiceClient(acc),
 		codeClient:            code.NewCodeServiceClient(codecc),
 		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
-	}
+	}, nil
 }
 
 func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) error {
