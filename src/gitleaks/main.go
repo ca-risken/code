@@ -105,12 +105,19 @@ func main() {
 	if err != nil {
 		appLogger.Fatalf(ctx, "Failed to create Finalizer, err=%+v", err)
 	}
-	consumer := newSQSConsumer(ctx, sqsConf)
+	consumer, err := newSQSConsumer(ctx, sqsConf)
+	if err != nil {
+		appLogger.Fatalf(ctx, "Failed to create SQS consumer, err=%+v", err)
+	}
+	handler, err := newHandler(ctx, &conf)
+	if err != nil {
+		appLogger.Fatalf(ctx, "Failed to create Handler, err=%+v", err)
+	}
 	appLogger.Info(ctx, "Start the gitleaks SQS consumer server...")
 	consumer.Start(ctx,
 		mimosasqs.InitializeHandler(
 			mimosasqs.RetryableErrorHandler(
 				mimosasqs.TracingHandler(getFullServiceName(),
 					mimosasqs.StatusLoggingHandler(appLogger,
-						f.FinalizeHandler(newHandler(ctx, &conf)))))))
+						f.FinalizeHandler(handler))))))
 }

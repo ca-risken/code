@@ -115,26 +115,38 @@ func (l *leakFinding) generateGitHubURL(repositoryURL string) string {
 	return url
 }
 
-func newHandler(ctx context.Context, conf *AppConfig) *sqsHandler {
+func newHandler(ctx context.Context, conf *AppConfig) (*sqsHandler, error) {
 	key := []byte(conf.CodeDataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
-		appLogger.Fatal(ctx, err.Error())
+		return nil, err
 	}
 	gitleaksConf := &gitleaksConfig{
 		githubDefaultToken: conf.GithubDefaultToken,
 		redact:             conf.Redact,
 		configPath:         conf.GitleaksConfigPath,
 	}
+	findingClient, err := newFindingClient(ctx, conf.CoreSvcAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create finding client: %w", err)
+	}
+	alertClient, err := newAlertClient(ctx, conf.CoreSvcAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create alert client: %w", err)
+	}
+	codeClient, err := newCodeClient(ctx, conf.DataSourceAPISvcAddr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create code client: %w", err)
+	}
 	return &sqsHandler{
 		cipherBlock:           block,
 		githubClient:          newGithubClient(gitleaksConf.githubDefaultToken),
 		gitleaksClient:        newGitleaksClient(ctx, gitleaksConf),
-		findingClient:         newFindingClient(conf.CoreSvcAddr),
-		alertClient:           newAlertClient(conf.CoreSvcAddr),
-		codeClient:            newCodeClient(conf.DataSourceAPISvcAddr),
+		findingClient:         findingClient,
+		alertClient:           alertClient,
+		codeClient:            codeClient,
 		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
-	}
+	}, nil
 }
 
 func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) error {
@@ -169,7 +181,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	repos, err := s.listRepository(ctx, gitHubSetting)
 	if err != nil {
 		appLogger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-		return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+		s.updateStatusToError(ctx, scanStatus, err)
+		return mimosasqs.WrapNonRetryable(err)
 	}
 	appLogger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, gitHubSetting.GitleaksSetting.RepositoryPattern)
@@ -181,7 +194,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		lastScannedAt, err := s.getLastScanedAt(ctx, msg.ProjectID, *r.FullName)
 		if err != nil {
 			appLogger.Errorf(ctx, "Failed to get LastScanedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
 		}
 
 		if skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
@@ -192,14 +206,16 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		results, err := s.scanRepository(ctx, r, token, lastScannedAt)
 		if err != nil {
 			appLogger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
 		}
 
 		// Put Resource for caching scanned time when len(result) is zero
 		if len(results) == 0 {
 			if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
 				appLogger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-				return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+				s.updateStatusToError(ctx, scanStatus, err)
+				return mimosasqs.WrapNonRetryable(err)
 			}
 			continue
 		}
@@ -216,7 +232,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		// Put findings
 		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
 			appLogger.Errorf(ctx, "failed to put findngs: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			return s.handleErrorWithUpdateStatus(ctx, scanStatus, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
 		}
 	}
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
@@ -324,11 +341,10 @@ func skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.
 	return false
 }
 
-func (s *sqsHandler) handleErrorWithUpdateStatus(ctx context.Context, scanStatus *code.PutGitleaksSettingRequest, err error) error {
+func (s *sqsHandler) updateStatusToError(ctx context.Context, scanStatus *code.PutGitleaksSettingRequest, err error) {
 	if updateErr := s.updateScanStatusError(ctx, scanStatus, err.Error()); updateErr != nil {
 		appLogger.Warnf(ctx, "Failed to update scan status error: err=%+v", updateErr)
 	}
-	return mimosasqs.WrapNonRetryable(err)
 }
 
 func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
@@ -398,7 +414,7 @@ func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.
 			config.TargetResource = org.Organization
 			repo, err := s.githubClient.listRepository(ctx, config)
 			if err != nil {
-				// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす
+				// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす（スキャンすべきリポジトリが漏れる可能性はあるが、enterpriseのサポートは廃止予定なので対応は行わない）
 				appLogger.Warnf(ctx, "Failed to ListRepository by enterprise, org=%s, err=%+v", org.Organization, err)
 				continue
 			}
@@ -475,10 +491,14 @@ func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resource
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to put resource: project_id=%d, resource_name=%s", projectID, resourceName)
+		return fmt.Errorf("failed to put resource: project_id=%d, resource_name=%s, err=%w", projectID, resourceName, err)
 	}
-	s.tagResource(ctx, tagCode, resp.Resource.ResourceId, projectID)
-	s.tagResource(ctx, tagRipository, resp.Resource.ResourceId, projectID)
+	for _, t := range []string{tagCode, tagRipository} {
+		err = s.tagResource(ctx, t, resp.Resource.ResourceId, projectID)
+		if err != nil {
+			return err
+		}
+	}
 	appLogger.Debugf(ctx, "Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
 	return nil
 }
@@ -507,17 +527,24 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 			return err
 		}
 		// finding-tag
-		s.tagFinding(ctx, tagCode, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, tagRipository, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, tagGitleaks, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, *f.Visibility, resp.Finding.FindingId, resp.Finding.ProjectId)
-		s.tagFinding(ctx, *f.FullName, resp.Finding.FindingId, resp.Finding.ProjectId)
-		if len(f.Result.Tags) > 0 {
-			for _, tag := range f.Result.Tags {
-				s.tagFinding(ctx, strings.TrimSpace(tag), resp.Finding.FindingId, resp.Finding.ProjectId)
+		for _, t := range []string{tagCode, tagRipository, tagGitleaks, *f.Visibility, *f.FullName} {
+			err = s.tagFinding(ctx, t, resp.Finding.FindingId, resp.Finding.ProjectId)
+			if err != nil {
+				return err
 			}
 		}
-		s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, f.Result.RuleDescription)
+		if len(f.Result.Tags) > 0 {
+			for _, tag := range f.Result.Tags {
+				err = s.tagFinding(ctx, strings.TrimSpace(tag), resp.Finding.FindingId, resp.Finding.ProjectId)
+				if err != nil {
+					return err
+				}
+			}
+		}
+		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, f.Result.RuleDescription)
+		if err != nil {
+			return err
+		}
 		appLogger.Debugf(ctx, "Success to PutFinding, finding_id=%d", resp.Finding.FindingId)
 	}
 	return nil
@@ -554,7 +581,7 @@ func (s *sqsHandler) getLastScanedAt(ctx context.Context, projectID uint32, repo
 	return nil, nil
 }
 
-func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint64, projectID uint32) {
+func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint64, projectID uint32) error {
 	_, err := s.findingClient.TagFinding(ctx, &finding.TagFindingRequest{
 		ProjectId: projectID,
 		Tag: &finding.FindingTagForUpsert{
@@ -563,11 +590,12 @@ func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint6
 			Tag:       tag,
 		}})
 	if err != nil {
-		appLogger.Errorf(ctx, "Failed to TagFinding, finding_id=%d, tag=%s, error=%+v", findingID, tag, err)
+		return fmt.Errorf("failed to TagFinding, finding_id=%d, tag=%s, error=%w", findingID, tag, err)
 	}
+	return nil
 }
 
-func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uint64, projectID uint32) {
+func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uint64, projectID uint32) error {
 	if _, err := s.findingClient.TagResource(ctx, &finding.TagResourceRequest{
 		ProjectId: projectID,
 		Tag: &finding.ResourceTagForUpsert{
@@ -575,8 +603,9 @@ func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uin
 			ProjectId:  projectID,
 			Tag:        tag,
 		}}); err != nil {
-		appLogger.Errorf(ctx, "Failed to TagResource, resource_id=%d, tag=%s, error=%+v", resourceID, tag, err)
+		return fmt.Errorf("failed to TagResource, resource_id=%d, tag=%s, error=%w", resourceID, tag, err)
 	}
+	return nil
 }
 
 func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutGitleaksSettingRequest, statusDetail string) error {
@@ -608,7 +637,7 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
-func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string) {
+func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string) error {
 	r := *getRecommend(rule)
 	if _, err := s.findingClient.PutRecommend(ctx, &finding.PutRecommendRequest{
 		ProjectId:      projectID,
@@ -618,9 +647,10 @@ func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, finding
 		Risk:           r.Risk,
 		Recommendation: r.Recommendation,
 	}); err != nil {
-		appLogger.Errorf(ctx, "Failed to TagFinding, finding_id=%d, rule=%s, error=%+v", findingID, rule, err)
+		return fmt.Errorf("failed to PutRecommend, finding_id=%d, rule=%s, error=%w", findingID, rule, err)
 	}
 	appLogger.Debugf(ctx, "Success PutRecommend, finding_id=%d, reccomend=%+v", findingID, r)
+	return nil
 }
 
 func genRepositoryMetadata(repo *github.Repository) *RepositoryMetadata {
