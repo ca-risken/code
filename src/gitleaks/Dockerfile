@@ -6,7 +6,7 @@ COPY go.sum .
 RUN go mod download
 
 COPY . .
-RUN GO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/
 
 FROM public.ecr.aws/risken/base/risken-base:v0.0.1
 COPY --from=builder /go/bin/gitleaks /usr/local/gitleaks/bin/
