@@ -1,4 +1,4 @@
-FROM golang:1.17 as builder
+FROM golang:1.18.2 as builder
 WORKDIR /go/src/github.com/ca-risken/code/src/dependency/
 
 COPY go.mod .
@@ -6,8 +6,7 @@ COPY go.sum .
 RUN go mod download
 
 COPY . .
-ENV CGO_ENABLED=0
-RUN go build && cp dependency /go/bin/
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/
 
 FROM public.ecr.aws/risken/code/dependency-base:v0.0.1
 COPY --from=builder /go/bin/dependency /usr/local/dependency/bin/

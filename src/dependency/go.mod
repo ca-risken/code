@@ -1,6 +1,6 @@
 module github.com/ca-risken/code/src/dependency
 
-go 1.17
+go 1.18
 
 require (
 	github.com/aquasecurity/trivy v0.30.4
