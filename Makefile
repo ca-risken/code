@@ -80,4 +80,8 @@ lint: $(LINT_TARGETS)
 %.lint: FAKE
 	sh hack/golinter.sh src/$(*)
 
+.PHONY: workspace
+workspace:
+	go work use -r .
+
 FAKE:
