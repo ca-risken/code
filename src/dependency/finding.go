@@ -83,43 +83,8 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 	return nil
 }
 
-func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resourceName string) error {
-	resp, err := s.findingClient.PutResource(ctx, &finding.PutResourceRequest{
-		ProjectId: projectID,
-		Resource: &finding.ResourceForUpsert{
-			ResourceName: resourceName,
-			ProjectId:    projectID,
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to put resource: project_id=%d, resource_name=%s, err=%w", projectID, resourceName, err)
-	}
-	for _, t := range []string{tagCode, tagRepository} {
-		err = s.tagResource(ctx, t, resp.Resource.ResourceId, projectID)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uint64, projectID uint32) error {
-	if _, err := s.findingClient.TagResource(ctx, &finding.TagResourceRequest{
-		ProjectId: projectID,
-		Tag: &finding.ResourceTagForUpsert{
-			ResourceId: resourceID,
-			ProjectId:  projectID,
-			Tag:        tag,
-		}}); err != nil {
-		return fmt.Errorf("failed to TagResource, resource_id=%d, tag=%s, error=%w", resourceID, tag, err)
-	}
-	return nil
-}
-
 const (
 	tagCode       = "code"
-	tagRepository = "repository"
 	tagDependency = "dependency"
 )
 
