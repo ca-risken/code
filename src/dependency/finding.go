@@ -56,7 +56,6 @@ func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report, repo
 				Recommend: getRecommend(vi.packageName),
 				Tag: []*finding.FindingTagForBatch{
 					{Tag: tagCode},
-					{Tag: tagRepository},
 					{Tag: tagDependency},
 					// ex) gomod,pip
 					{Tag: result.Type},
@@ -86,7 +85,6 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 
 const (
 	tagCode       = "code"
-	tagRepository = "repository"
 	tagDependency = "dependency"
 )
 
