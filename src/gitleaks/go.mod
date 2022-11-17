@@ -27,6 +27,8 @@ require (
 	google.golang.org/grpc v1.50.1
 )
 
+require github.com/stretchr/testify v1.7.1
+
 require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.40.1 // indirect
 	github.com/DataDog/datadog-go/v5 v5.1.1 // indirect
@@ -48,6 +50,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sts v1.17.3 // indirect
 	github.com/aws/smithy-go v1.13.4 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dgraph-io/ristretto v0.1.1 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
@@ -74,6 +77,7 @@ require (
 	github.com/petar-dambovaliev/aho-corasick v0.0.0-20211021192214-5ab2d9280aa9 // indirect
 	github.com/philhofer/fwd v1.1.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/zerolog v1.26.1 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
 	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
@@ -83,6 +87,7 @@ require (
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/stretchr/objx v0.3.0 // indirect
 	github.com/subosito/gotenv v1.2.0 // indirect
 	github.com/tinylib/msgp v1.1.6 // indirect
 	github.com/xanzy/ssh-agent v0.3.1 // indirect
@@ -105,5 +110,6 @@ require (
 	gopkg.in/ini.v1 v1.62.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	inet.af/netaddr v0.0.0-20220811202034-502d2d690317 // indirect
 )

@@ -2,11 +2,15 @@ package main
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/ca-risken/datasource-api/proto/code"
+	"github.com/ca-risken/datasource-api/proto/code/mocks"
 	"github.com/google/go-github/v44/github"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestSkipScan(t *testing.T) {
@@ -241,6 +245,85 @@ func TestGetRecommend(t *testing.T) {
 			got := getRecommend(c.input)
 			if !reflect.DeepEqual(c.want, got) {
 				t.Fatalf("Unexpected data match: want=%+v, got=%+v", c.want, got)
+			}
+		})
+	}
+}
+
+func TestGetLastScanedAt(t *testing.T) {
+	nowUnix := time.Now().Unix()
+	now := time.Unix(nowUnix, 0)
+	type GetGitleaksCacheResponse struct {
+		Resp *code.GetGitleaksCacheResponse
+		Err  error
+	}
+	type args struct {
+		projectID       uint32
+		githubSettingID uint32
+		repoName        string
+	}
+	cases := []struct {
+		name     string
+		args     args
+		mockResp *GetGitleaksCacheResponse
+
+		want    *time.Time
+		wantErr bool
+	}{
+		{
+			name: "OK",
+			args: args{projectID: 1, githubSettingID: 1, repoName: "owner/repo"},
+			mockResp: &GetGitleaksCacheResponse{
+				Resp: &code.GetGitleaksCacheResponse{
+					GitleaksCache: &code.GitleaksCache{
+						GithubSettingId:    1,
+						RepositoryFullName: "owner/repo",
+						ScanAt:             nowUnix,
+					},
+				},
+				Err: nil,
+			},
+			want:    &now,
+			wantErr: false,
+		},
+		{
+			name: "OK no cache",
+			args: args{projectID: 1, githubSettingID: 1, repoName: "owner/repo"},
+			mockResp: &GetGitleaksCacheResponse{
+				Resp: nil,
+				Err:  nil,
+			},
+			want:    nil,
+			wantErr: false,
+		},
+		{
+			name: "NG API error",
+			args: args{projectID: 1, githubSettingID: 1, repoName: "owner/repo"},
+			mockResp: &GetGitleaksCacheResponse{
+				Resp: nil,
+				Err:  errors.New("something error"),
+			},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			// create mock
+			mockCode := mocks.CodeServiceClient{}
+			if c.mockResp != nil {
+				mockCode.On("GetGitleaksCache", mock.Anything, mock.Anything).Return(c.mockResp.Resp, c.mockResp.Err).Once()
+			}
+			// create handler
+			s := sqsHandler{codeClient: &mockCode}
+
+			// exec
+			got, err := s.getLastScanedAt(context.TODO(), c.args.projectID, c.args.githubSettingID, c.args.repoName)
+			if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error: %+v", err)
+			}
+			if !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("Unexpected mapping: want=%+v, got=%+v", c.want, got)
 			}
 		})
 	}

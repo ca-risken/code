@@ -191,11 +191,14 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	repos = filterByNamePattern(repos, gitHubSetting.GitleaksSetting.RepositoryPattern)
 	for _, r := range repos {
 		// Get LastScanedAt
-		lastScannedAt, err := s.getLastScanedAt(ctx, msg.ProjectID, *r.FullName)
-		if err != nil {
-			appLogger.Errorf(ctx, "Failed to get LastScanedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			s.updateStatusToError(ctx, scanStatus, err)
-			return mimosasqs.WrapNonRetryable(err)
+		var lastScannedAt *time.Time
+		if !msg.FullScan {
+			lastScannedAt, err = s.getLastScanedAt(ctx, msg.ProjectID, msg.GitHubSettingID, *r.FullName)
+			if err != nil {
+				appLogger.Errorf(ctx, "Failed to get LastScanedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+				s.updateStatusToError(ctx, scanStatus, err)
+				return mimosasqs.WrapNonRetryable(err)
+			}
 		}
 
 		if skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
@@ -203,14 +206,14 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		}
 
 		// Scan per repository
-		results, err := s.scanRepository(ctx, r, token, lastScannedAt)
+		results, err := s.scanRepository(ctx, r, token, lastScannedAt, msg)
 		if err != nil {
 			appLogger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
-		// Put Resource for caching scanned time when len(result) is zero
+		// Put Resource
 		if len(results) == 0 {
 			if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
 				appLogger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
@@ -250,7 +253,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	return nil
 }
 
-func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time) ([]*leakFinding, error) {
+func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, msg *message.CodeQueueMessage) ([]*leakFinding, error) {
 	// Clone repository
 	dir, err := createCloneDir(*r.Name)
 	if err != nil {
@@ -258,6 +261,7 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 	}
 	defer os.RemoveAll(dir)
 
+	cloneDate := time.Now()
 	err = s.githubClient.clone(ctx, token, *r.CloneURL, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone %s: %w", *r.FullName, err)
@@ -296,6 +300,17 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 		leaks = append(leaks, &l)
 	}
 
+	// Caching scanned time
+	if _, err := s.codeClient.PutGitleaksCache(ctx, &code.PutGitleaksCacheRequest{
+		ProjectId: msg.ProjectID,
+		GitleaksCache: &code.GitleaksCacheForUpsert{
+			GithubSettingId:    msg.GitHubSettingID,
+			RepositoryFullName: *r.FullName,
+			ScanAt:             cloneDate.Unix(),
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("failed to cache time %s: %w", *r.FullName, err)
+	}
 	return leaks, nil
 }
 
@@ -550,34 +565,21 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 	return nil
 }
 
-const unix99991231T235959 int64 = 253402268399
-
-func (s *sqsHandler) getLastScanedAt(ctx context.Context, projectID uint32, repoName string) (*time.Time, error) {
-	resp, err := s.findingClient.ListResource(ctx, &finding.ListResourceRequest{
-		ProjectId:    projectID,
-		ResourceName: []string{repoName},
-		ToAt:         unix99991231T235959,
+func (s *sqsHandler) getLastScanedAt(ctx context.Context, projectID, githubSettingID uint32, repoName string) (*time.Time, error) {
+	cache, err := s.codeClient.GetGitleaksCache(ctx, &code.GetGitleaksCacheRequest{
+		ProjectId:          projectID,
+		GithubSettingId:    githubSettingID,
+		RepositoryFullName: repoName,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list resources, project_id=%d, repository=%s, err=%w", projectID, repoName, err)
+		return nil, fmt.Errorf("failed to get gitleaks cache, project_id=%d, repository=%s, err=%w", projectID, repoName, err)
+	}
+	if cache != nil && cache.GitleaksCache != nil && cache.GitleaksCache.ScanAt != 0 {
+		lastScannedAt := time.Unix(cache.GitleaksCache.ScanAt, 0)
+		return &lastScannedAt, nil
 	}
 
-	for _, id := range resp.ResourceId {
-		resp2, err := s.findingClient.GetResource(ctx, &finding.GetResourceRequest{
-			ProjectId:  projectID,
-			ResourceId: id,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to get resources, project_id=%d, repository=%s, err=%w", projectID, repoName, err)
-		}
-		appLogger.Debugf(ctx, "Got resource: %+v", resp2)
-		if resp2 != nil && resp2.Resource != nil && resp2.Resource.ResourceName == repoName {
-			lastScannedAt := time.Unix(resp2.Resource.UpdatedAt, 0)
-			return &lastScannedAt, nil
-		}
-	}
-
-	appLogger.Infof(ctx, "No resource registerd: %s", repoName)
+	appLogger.Infof(ctx, "No repository cache: %s", repoName)
 	return nil, nil
 }
 
