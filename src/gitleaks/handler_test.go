@@ -250,7 +250,7 @@ func TestGetRecommend(t *testing.T) {
 	}
 }
 
-func TestGetLastScanedAt(t *testing.T) {
+func TestGetLastScannedAt(t *testing.T) {
 	nowUnix := time.Now().Unix()
 	now := time.Unix(nowUnix, 0)
 	type GetGitleaksCacheResponse struct {
@@ -318,7 +318,7 @@ func TestGetLastScanedAt(t *testing.T) {
 			s := sqsHandler{codeClient: &mockCode}
 
 			// exec
-			got, err := s.getLastScanedAt(context.TODO(), c.args.projectID, c.args.githubSettingID, c.args.repoName)
+			got, err := s.getLastScannedAt(context.TODO(), c.args.projectID, c.args.githubSettingID, c.args.repoName)
 			if !c.wantErr && err != nil {
 				t.Fatalf("Unexpected error: %+v", err)
 			}

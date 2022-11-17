@@ -190,12 +190,12 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	// Filtered By Name
 	repos = filterByNamePattern(repos, gitHubSetting.GitleaksSetting.RepositoryPattern)
 	for _, r := range repos {
-		// Get LastScanedAt
+		// Get LastScannedAt
 		var lastScannedAt *time.Time
 		if !msg.FullScan {
-			lastScannedAt, err = s.getLastScanedAt(ctx, msg.ProjectID, msg.GitHubSettingID, *r.FullName)
+			lastScannedAt, err = s.getLastScannedAt(ctx, msg.ProjectID, msg.GitHubSettingID, *r.FullName)
 			if err != nil {
-				appLogger.Errorf(ctx, "Failed to get LastScanedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+				appLogger.Errorf(ctx, "Failed to get LastScannedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 				s.updateStatusToError(ctx, scanStatus, err)
 				return mimosasqs.WrapNonRetryable(err)
 			}
@@ -347,7 +347,7 @@ func skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.
 		return true
 	}
 
-	// Check comparing pushedAt and lastScanedAt
+	// Check comparing pushedAt and lastScannedAt
 	if repo.PushedAt != nil && lastScannedAt != nil && repo.PushedAt.Time.Unix() <= lastScannedAt.Unix() {
 		appLogger.Infof(ctx, "Skip scan for %s repository(already scanned)", repoName)
 		return true
@@ -565,7 +565,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 	return nil
 }
 
-func (s *sqsHandler) getLastScanedAt(ctx context.Context, projectID, githubSettingID uint32, repoName string) (*time.Time, error) {
+func (s *sqsHandler) getLastScannedAt(ctx context.Context, projectID, githubSettingID uint32, repoName string) (*time.Time, error) {
 	cache, err := s.codeClient.GetGitleaksCache(ctx, &code.GetGitleaksCacheRequest{
 		ProjectId:          projectID,
 		GithubSettingId:    githubSettingID,
