@@ -9,10 +9,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.19.1
 	github.com/ca-risken/common/pkg/logging v0.0.0-20220722052427-594b4a737610
 	github.com/ca-risken/common/pkg/profiler v0.0.0-20220722052427-594b4a737610
-	github.com/ca-risken/common/pkg/sqs v0.0.0-20220722052427-594b4a737610
+	github.com/ca-risken/common/pkg/sqs v0.0.0-20221117060041-4f5403c49c56
 	github.com/ca-risken/common/pkg/tracer v0.0.0-20220722052427-594b4a737610
-	github.com/ca-risken/core/proto/alert v0.0.0-20220428031553-0579e204c316
-	github.com/ca-risken/core/proto/finding v0.0.0-20220428031553-0579e204c316
+	github.com/ca-risken/core v0.4.2-0.20221114035311-c4b88fcc3162
 	github.com/ca-risken/datasource-api v0.3.1-0.20220808084643-57ce84096352
 	github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee
 	github.com/gassara-kys/envconfig v1.4.4
