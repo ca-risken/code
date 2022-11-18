@@ -18,9 +18,6 @@ require (
 	github.com/gassara-kys/envconfig v1.4.4
 	github.com/go-git/go-git/v5 v5.4.3-0.20220529141257-bc1f419cebcf
 	github.com/google/go-github/v44 v44.1.0
-	// Gitleaks scanning may fleeze when v1.2.0, so don't udpdate this module
-	// github.com/sergi/go-diff v1.1.0 // indirect
-	github.com/shurcooL/githubv4 v0.0.0-20210725200734-83ba7b4c9228
 	github.com/spf13/viper v1.8.1
 	github.com/zricethezav/gitleaks/v8 v8.8.6
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
@@ -80,7 +77,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rs/zerolog v1.26.1 // indirect
 	github.com/sergi/go-diff v1.1.0 // indirect
-	github.com/shurcooL/graphql v0.0.0-20200928012149-18c5c3165e3a // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/smartystreets/assertions v1.0.1 // indirect
 	github.com/spf13/afero v1.9.2 // indirect

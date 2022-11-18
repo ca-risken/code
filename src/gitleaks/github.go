@@ -9,12 +9,10 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/go-github/v44/github"
-	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
 
 type githubServiceClient interface {
-	listGitHubEnterpriseOrg(ctx context.Context, config *code.GitHubSetting, enterpriseName string) ([]githubOrganization, error)
 	listRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error)
 	clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 }
@@ -42,13 +40,6 @@ func (g *githubClient) newV3Client(ctx context.Context, token, baseURL string) (
 		client.BaseURL = u
 	}
 	return client, nil
-}
-
-func (g *githubClient) newV4Client(ctx context.Context, token string) *githubv4.Client {
-	httpClient := oauth2.NewClient(ctx, oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: getToken(token, g.defaultToken)},
-	))
-	return githubv4.NewClient(httpClient)
 }
 
 func getToken(token, defaultToken string) string {
@@ -93,44 +84,6 @@ func (g *githubClient) listRepository(ctx context.Context, config *code.GitHubSe
 	}
 
 	return repos, nil
-}
-
-type githubOrganization struct {
-	Login string
-}
-
-func (g *githubClient) listGitHubEnterpriseOrg(ctx context.Context, config *code.GitHubSetting, enterpriseName string) ([]githubOrganization, error) {
-	client := g.newV4Client(ctx, config.PersonalAccessToken)
-	var q struct {
-		Enterprise struct {
-			Organizations struct {
-				Nodes    []githubOrganization
-				PageInfo struct {
-					EndCursor   githubv4.String
-					HasNextPage bool
-				}
-			} `graphql:"organizations(first: 100, after: $orgCursor)"` // 100 per page.
-		} `graphql:"enterprise(slug: $enterpriseName)"`
-	}
-	variables := map[string]interface{}{
-		"enterpriseName": githubv4.String(enterpriseName),
-		"orgCursor":      (*githubv4.String)(nil), // Null after argument to get first page.
-	}
-
-	var allOrg []githubOrganization
-	for {
-		if err := client.Query(ctx, &q, variables); err != nil {
-			appLogger.Errorf(ctx, "GitHub Enterprise API error occured, enterpriseName: %s, err: %+v", enterpriseName, err)
-			return nil, err
-		}
-		allOrg = append(allOrg, q.Enterprise.Organizations.Nodes...)
-		if !q.Enterprise.Organizations.PageInfo.HasNextPage {
-			break
-		}
-		variables["orgCursor"] = githubv4.NewString(q.Enterprise.Organizations.PageInfo.EndCursor)
-	}
-	appLogger.Debugf(ctx, "Got organizations: %+v", q.Enterprise.Organizations.Nodes)
-	return allOrg, nil
 }
 
 const (
