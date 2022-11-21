@@ -13,14 +13,14 @@ require (
 	github.com/ca-risken/common/pkg/sqs v0.0.0-20221117060041-4f5403c49c56
 	github.com/ca-risken/common/pkg/tracer v0.0.0-20221115050041-1674ac829fe2
 	github.com/ca-risken/core v0.4.2-0.20221114035311-c4b88fcc3162
-	github.com/ca-risken/datasource-api v0.4.2-0.20221117004341-8eb8754d620e
+	github.com/ca-risken/datasource-api v0.4.2-0.20221121055843-3dc9a448cda2
 	github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee
 	github.com/gassara-kys/envconfig v1.4.4
 	github.com/go-git/go-git/v5 v5.4.3-0.20220529141257-bc1f419cebcf
 	github.com/google/go-github/v44 v44.1.0
 	github.com/spf13/viper v1.8.1
 	github.com/zricethezav/gitleaks/v8 v8.8.6
-	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
+	golang.org/x/oauth2 v0.0.0-20221014153046-6fdb5e3db783
 	google.golang.org/grpc v1.50.1
 )
 
@@ -60,6 +60,7 @@ require (
 	github.com/go-ozzo/ozzo-validation/v4 v4.3.0 // indirect
 	github.com/golang/glog v1.0.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
+	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20221112000123-84eb7ad69597 // indirect
 	github.com/google/uuid v1.3.0 // indirect
