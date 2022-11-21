@@ -17,7 +17,6 @@ require (
 	github.com/gassara-kys/envconfig v1.4.4
 	github.com/go-git/go-git/v5 v5.4.2
 	github.com/google/go-github/v44 v44.1.0
-	github.com/shurcooL/githubv4 v0.0.0-20220520033151-0b4e3294ff00
 	golang.org/x/oauth2 v0.0.0-20220722155238-128564f6959c
 	google.golang.org/grpc v1.48.0
 	k8s.io/utils v0.0.0-20220823124924-e9cbc92d1a73
@@ -69,7 +68,6 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
-	github.com/shurcooL/graphql v0.0.0-20220606043923-3cf50f8a0a29 // indirect
 	github.com/sirupsen/logrus v1.9.0 // indirect
 	github.com/tinylib/msgp v1.1.6 // indirect
 	github.com/xanzy/ssh-agent v0.3.1 // indirect
