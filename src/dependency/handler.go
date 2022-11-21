@@ -97,7 +97,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	scanStatus := s.initScanStatus(gitHubSetting.DependencySetting)
 
 	// Get repositories
-	repos, err := s.listRepository(ctx, gitHubSetting)
+	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting)
 	if err != nil {
 		appLogger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateStatusToError(ctx, scanStatus, err)
@@ -221,59 +221,6 @@ func (s *sqsHandler) initScanStatus(g *code.DependencySetting) *code.PutDependen
 			StatusDetail:     "",
 		},
 	}
-}
-
-func (s *sqsHandler) listRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error) {
-	var repos []*github.Repository
-	var err error
-
-	switch config.Type {
-	case code.Type_ENTERPRISE:
-		repos, err = s.listRepositoryEnterprise(ctx, config)
-		if err != nil {
-			return nil, err
-		}
-	case code.Type_ORGANIZATION, code.Type_USER:
-		repos, err = s.githubClient.ListRepository(ctx, config)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("unknown github type: type=%+v", config.Type)
-	}
-
-	return repos, err
-}
-
-func (s *sqsHandler) listRepositoryEnterprise(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error) {
-	list, err := s.listEnterpriseOrg(ctx, config)
-	if err != nil {
-		return nil, err
-	}
-
-	var repos []*github.Repository
-	for _, org := range list {
-		config.Type = code.Type_ORGANIZATION
-		config.TargetResource = org.Login
-		repo, err := s.githubClient.ListRepository(ctx, config)
-		if err != nil {
-			// Enterprise配下のOrgがうまく取得できない場合（クローズ済みなど）もあるため、WARNログ吐いて握りつぶす
-			appLogger.Warnf(ctx, "Failed to ListRepository by enterprise, org=%s, err=%+v", org.Login, err)
-			continue
-		}
-		repos = append(repos, repo...)
-	}
-
-	return repos, nil
-}
-
-func (s *sqsHandler) listEnterpriseOrg(ctx context.Context, config *code.GitHubSetting) ([]githubOrganization, error) {
-	orgs, err := s.githubClient.ListGitHubEnterpriseOrg(ctx, config, config.TargetResource)
-	if err != nil {
-		return []githubOrganization{}, err
-	}
-
-	return orgs, nil
 }
 
 func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutDependencySettingRequest, statusDetail string) error {

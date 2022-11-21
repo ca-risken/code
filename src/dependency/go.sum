@@ -145,8 +145,8 @@ github.com/ca-risken/common/pkg/tracer v0.0.0-20220722052427-594b4a737610 h1:6Mp
 github.com/ca-risken/common/pkg/tracer v0.0.0-20220722052427-594b4a737610/go.mod h1:PIXjETIPseBEB/OXp5Rxn8FFuRwfQjFZe1VN+0Skh2E=
 github.com/ca-risken/core v0.4.2-0.20221114035311-c4b88fcc3162 h1:suceXZrT0FaTVnFBYPc/2hpsfPZFRWp1Aoil8q5EYGo=
 github.com/ca-risken/core v0.4.2-0.20221114035311-c4b88fcc3162/go.mod h1:bbn0h9PJ2aQW9hGeRNja98Tx3vQQ5hDFWrCVkKgaR2w=
-github.com/ca-risken/datasource-api v0.3.1-0.20220808084643-57ce84096352 h1:TCnrowln0+pLjjhT2nv5yYl0tMCfDSdYpVnzMSj+KTM=
-github.com/ca-risken/datasource-api v0.3.1-0.20220808084643-57ce84096352/go.mod h1:yLvRvp6cs4qZyCFfonD4Us1ZM1EeGHPnUXJami37zCw=
+github.com/ca-risken/datasource-api v0.4.2-0.20221121055843-3dc9a448cda2 h1:oAPXtAYeRdYsAJkaeuuUN5dLCOWlV6rPXPGo1czQZRc=
+github.com/ca-risken/datasource-api v0.4.2-0.20221121055843-3dc9a448cda2/go.mod h1:XAUaKNB8N0+1DED5mVuq2ldzT4pZlLzIwCbTlr1QBwg=
 github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee h1:aIrvjCnF+Owzzh7dnE1w4442CdcuUkHaJsJOXImjeqg=
 github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee/go.mod h1:pboVfH7X3jKqsVKSpYNYAgqgPQ6gVb+AjFuWH1e8dSU=
 github.com/caarlos0/env/v6 v6.9.3 h1:Tyg69hoVXDnpO5Qvpsu8EoquarbPyQb+YwExWHP8wWU=
@@ -657,10 +657,6 @@ github.com/sergi/go-diff v1.2.0/go.mod h1:STckp+ISIX8hZLjrqAeVduY0gWCT9IjLuqbuNX
 github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24/go.mod h1:M+9NzErvs504Cn4c5DxATwIqPbtswREoFCre64PpcG4=
 github.com/shopspring/decimal v0.0.0-20200227202807-02e2044944cc/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
 github.com/shopspring/decimal v1.2.0/go.mod h1:DKyhrW/HYNuLGql+MJL6WCR6knT2jwCFRcu2hWCYk4o=
-github.com/shurcooL/githubv4 v0.0.0-20220520033151-0b4e3294ff00 h1:fiFvD4lT0aWjuuAb64LlZ/67v87m+Kc9Qsu5cMFNK0w=
-github.com/shurcooL/githubv4 v0.0.0-20220520033151-0b4e3294ff00/go.mod h1:hAF0iLZy4td2EX+/8Tw+4nodhlMrwN3HupfaXj3zkGo=
-github.com/shurcooL/graphql v0.0.0-20220606043923-3cf50f8a0a29 h1:B1PEwpArrNp4dkQrfxh/abbBAOZBVp0ds+fBEOUOqOc=
-github.com/shurcooL/graphql v0.0.0-20220606043923-3cf50f8a0a29/go.mod h1:AuYgA5Kyo4c7HfUmvRGs/6rGlMMV/6B1bVnB9JxJEEg=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.1/go.mod h1:ni0Sbl8bgC9z8RoU9G6nDWqqs/fq4eDPysMBDgk/93Q=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
