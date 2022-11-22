@@ -1,4 +1,4 @@
-package gitleaks
+package sqs
 
 import (
 	"context"
@@ -8,19 +8,17 @@ import (
 	"github.com/ca-risken/go-sqs-poller/worker/v5"
 )
 
-type SqsConfig struct {
-	Debug string `default:"false"`
-
-	AWSRegion   string `envconfig:"aws_region"    default:"ap-northeast-1"`
-	SQSEndpoint string `envconfig:"sqs_endpoint"  default:"http://queue.middleware.svc.cluster.local:9324"`
-
+type SQSConfig struct {
+	Debug              string `default:"false"`
+	AWSRegion          string `envconfig:"aws_region"    default:"ap-northeast-1"`
+	SQSEndpoint        string `envconfig:"sqs_endpoint"  default:"http://queue.middleware.svc.cluster.local:9324"`
 	QueueName          string `split_words:"true" default:"code-gitleaks"`
 	QueueURL           string `split_words:"true" default:"http://queue.middleware.svc.cluster.local:9324/queue/code-gitleaks"`
 	MaxNumberOfMessage int32  `split_words:"true" default:"10"`
 	WaitTimeSecond     int32  `split_words:"true" default:"20"`
 }
 
-func NewSQSConsumer(ctx context.Context, conf *SqsConfig, l logging.Logger) (*worker.Worker, error) {
+func NewSQSConsumer(ctx context.Context, conf *SQSConfig, l logging.Logger) (*worker.Worker, error) {
 	if conf.Debug == "true" {
 		l.Level(logging.DebugLevel)
 	}

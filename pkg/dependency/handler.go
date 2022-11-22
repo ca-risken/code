@@ -9,6 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
@@ -203,7 +204,7 @@ func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSett
 	if data.GithubSetting.PersonalAccessToken == "" {
 		return data.GithubSetting, nil
 	}
-	token, err := decryptWithBase64(&s.cipherBlock, data.GithubSetting.PersonalAccessToken)
+	token, err := codecrypto.DecryptWithBase64(&s.cipherBlock, data.GithubSetting.PersonalAccessToken)
 	if err != nil {
 		return nil, err
 	}

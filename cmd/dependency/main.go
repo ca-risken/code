@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ca-risken/code/pkg/dependency"
+	"github.com/ca-risken/code/pkg/sqs"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/common/pkg/profiler"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
@@ -61,7 +62,7 @@ func main() {
 	tracer.Start(tc)
 	defer tracer.Stop()
 
-	sqsConf := &dependency.SqsConfig{
+	sqsConf := &sqs.SQSConfig{
 		Debug:              conf.Debug,
 		AWSRegion:          conf.AWSRegion,
 		SQSEndpoint:        conf.SQSEndpoint,
@@ -75,7 +76,7 @@ func main() {
 	if err != nil {
 		appLogger.Fatalf(ctx, "Failed to create Finalizer, err=%+v", err)
 	}
-	consumer, err := dependency.NewSQSConsumer(ctx, sqsConf, appLogger)
+	consumer, err := sqs.NewSQSConsumer(ctx, sqsConf, appLogger)
 	if err != nil {
 		appLogger.Fatalf(ctx, "Failed to create SQS consumer, err=%+v", err)
 	}

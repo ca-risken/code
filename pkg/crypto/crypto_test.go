@@ -1,4 +1,4 @@
-package dependency
+package crypto
 
 import (
 	"bytes"
@@ -58,7 +58,7 @@ func TestDecryptWithBase64(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to encrypt err: %v", err)
 			}
-			got, err := decryptWithBase64(&block, input)
+			got, err := DecryptWithBase64(&block, input)
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
