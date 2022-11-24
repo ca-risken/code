@@ -66,11 +66,18 @@ go-test:
 lint:
 	GO111MODULE=on GOFLAGS=-buildvcs=false golangci-lint --timeout 5m run
 
-.PHONY: gitleaks-enque
-gitleaks-enque:
+.PHONY: enqueue-gitleaks
+enqueue-gitleaks:
 	aws sqs send-message \
 		--endpoint-url http://localhost:9324 \
 		--queue-url http://localhost:9324/queue/code-gitleaks \
-		--message-body '{"gitleaks_id":1001, "project_id":1001}'
+		--message-body '{"github_setting_id":1001, "project_id":1001, "full_scan":"true", "scan_only":"true"}'
+
+.PHONY: enqueue-dependency
+enqueue-dependency:
+	aws sqs send-message \
+		--endpoint-url http://localhost:9324 \
+		--queue-url http://localhost:9324/queue/code-dependency \
+		--message-body '{"github_setting_id":1001, "project_id":1001, "scan_only":"true"}'
 
 FAKE:
