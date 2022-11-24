@@ -17,8 +17,6 @@ import (
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/google/go-github/v44/github"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type sqsHandler struct {
@@ -32,48 +30,34 @@ type sqsHandler struct {
 	logger                logging.Logger
 }
 
-func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
-	// gRPCクライアントの呼び出し回数が非常に多くトレーシング情報の送信がエラーになるため、トレースは無効にしておく
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		return nil, err
-	}
-	return conn, nil
-}
-
-func NewHandler(ctx context.Context, conf *AppConfig, l logging.Logger) (*sqsHandler, error) {
-	key := []byte(conf.CodeDataKey)
+func NewHandler(
+	ctx context.Context,
+	fc finding.FindingServiceClient,
+	ac alert.AlertServiceClient,
+	cc code.CodeServiceClient,
+	codeDataKey string,
+	githubDefaultToken string,
+	trivyPath string,
+	limitRepositorySizeKb int,
+	l logging.Logger,
+) (*sqsHandler, error) {
+	key := []byte(codeDataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new cipher, err=%w", err)
 	}
 	dependencyConf := &dependencyConfig{
-		githubDefaultToken: conf.GithubDefaultToken,
-		trivyPath:          conf.TrivyPath,
+		githubDefaultToken: githubDefaultToken,
+		trivyPath:          trivyPath,
 	}
-	fcc, err := getGRPCConn(ctx, conf.CoreSvcAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create finding grpc connection, err=%w", err)
-	}
-	acc, err := getGRPCConn(ctx, conf.CoreSvcAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create alert grpc connection, err=%w", err)
-	}
-	codecc, err := getGRPCConn(ctx, conf.DataSourceAPISvcAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create code grpc connection, err=%w", err)
-	}
-
 	return &sqsHandler{
 		cipherBlock:           block,
 		dependencyClient:      newDependencyClient(ctx, dependencyConf),
-		githubClient:          newGithubClient(dependencyConf.githubDefaultToken, l),
-		findingClient:         finding.NewFindingServiceClient(fcc),
-		alertClient:           alert.NewAlertServiceClient(acc),
-		codeClient:            code.NewCodeServiceClient(codecc),
-		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
+		githubClient:          newGithubClient(githubDefaultToken, l),
+		findingClient:         fc,
+		alertClient:           ac,
+		codeClient:            cc,
+		limitRepositorySizeKb: limitRepositorySizeKb,
 		logger:                l,
 	}, nil
 }

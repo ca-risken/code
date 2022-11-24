@@ -1,4 +1,4 @@
-package gitleaks
+package grpc
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func newFindingClient(ctx context.Context, svcAddr string) (finding.FindingServiceClient, error) {
+func NewFindingClient(ctx context.Context, svcAddr string) (finding.FindingServiceClient, error) {
 	conn, err := getGRPCConn(ctx, svcAddr)
 	if err != nil {
 		return nil, err
@@ -19,7 +19,7 @@ func newFindingClient(ctx context.Context, svcAddr string) (finding.FindingServi
 	return finding.NewFindingServiceClient(conn), nil
 }
 
-func newAlertClient(ctx context.Context, svcAddr string) (alert.AlertServiceClient, error) {
+func NewAlertClient(ctx context.Context, svcAddr string) (alert.AlertServiceClient, error) {
 	conn, err := getGRPCConn(ctx, svcAddr)
 	if err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func newAlertClient(ctx context.Context, svcAddr string) (alert.AlertServiceClie
 	return alert.NewAlertServiceClient(conn), nil
 }
 
-func newCodeClient(ctx context.Context, svcAddr string) (code.CodeServiceClient, error) {
+func NewCodeClient(ctx context.Context, svcAddr string) (code.CodeServiceClient, error) {
 	conn, err := getGRPCConn(ctx, svcAddr)
 	if err != nil {
 		return nil, err

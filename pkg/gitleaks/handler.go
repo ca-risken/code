@@ -25,17 +25,6 @@ import (
 	"github.com/google/go-github/v44/github"
 )
 
-type sqsHandler struct {
-	cipherBlock           cipher.Block
-	githubClient          githubServiceClient
-	gitleaksClient        gitleaksServiceClient
-	findingClient         finding.FindingServiceClient
-	alertClient           alert.AlertServiceClient
-	codeClient            code.CodeServiceClient
-	limitRepositorySizeKb int
-	logger                logging.Logger
-}
-
 type gitleaksFinding struct {
 	*RepositoryMetadata `json:"repository_metadata,omitempty"`
 	Result              *leakFinding `json:"results,omitempty"`
@@ -117,37 +106,47 @@ func (l *leakFinding) generateGitHubURL(repositoryURL string) string {
 	return url
 }
 
-func NewHandler(ctx context.Context, conf *AppConfig, l logging.Logger) (*sqsHandler, error) {
-	key := []byte(conf.CodeDataKey)
+type sqsHandler struct {
+	cipherBlock           cipher.Block
+	githubClient          githubServiceClient
+	gitleaksClient        gitleaksServiceClient
+	findingClient         finding.FindingServiceClient
+	alertClient           alert.AlertServiceClient
+	codeClient            code.CodeServiceClient
+	limitRepositorySizeKb int
+	logger                logging.Logger
+}
+
+func NewHandler(
+	ctx context.Context,
+	fc finding.FindingServiceClient,
+	ac alert.AlertServiceClient,
+	cc code.CodeServiceClient,
+	codeDataKey string,
+	githubDefaultToken string,
+	redact bool,
+	gitleaksConfigPath string,
+	limitRepositorySizeKb int,
+	l logging.Logger,
+) (*sqsHandler, error) {
+	key := []byte(codeDataKey)
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
 	}
 	gitleaksConf := &gitleaksConfig{
-		githubDefaultToken: conf.GithubDefaultToken,
-		redact:             conf.Redact,
-		configPath:         conf.GitleaksConfigPath,
-	}
-	findingClient, err := newFindingClient(ctx, conf.CoreSvcAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create finding client: %w", err)
-	}
-	alertClient, err := newAlertClient(ctx, conf.CoreSvcAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create alert client: %w", err)
-	}
-	codeClient, err := newCodeClient(ctx, conf.DataSourceAPISvcAddr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create code client: %w", err)
+		githubDefaultToken: githubDefaultToken,
+		redact:             redact,
+		configPath:         gitleaksConfigPath,
 	}
 	return &sqsHandler{
 		cipherBlock:           block,
-		githubClient:          newGithubClient(gitleaksConf.githubDefaultToken, l),
+		githubClient:          newGithubClient(githubDefaultToken, l),
 		gitleaksClient:        newGitleaksClient(ctx, gitleaksConf),
-		findingClient:         findingClient,
-		alertClient:           alertClient,
-		codeClient:            codeClient,
-		limitRepositorySizeKb: conf.LimitRepositorySizeKb,
+		findingClient:         fc,
+		alertClient:           ac,
+		codeClient:            cc,
+		limitRepositorySizeKb: limitRepositorySizeKb,
 		logger:                l,
 	}, nil
 }
