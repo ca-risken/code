@@ -21,7 +21,7 @@ all: build
 
 PHONY: build $(BUILD_TARGETS)
 build: $(BUILD_TARGETS)
-%.build: %.go-test
+%.build: go-test
 	TARGET=$(*) IMAGE_TAG=$(IMAGE_TAG) IMAGE_PREFIX=$(IMAGE_PREFIX) BUILD_OPT="$(BUILD_OPT)" . hack/docker-build.sh
 
 PHONY: build-ci $(BUILD_CI_TARGETS)
@@ -58,30 +58,26 @@ push-manifest: $(MANIFEST_PUSH_TARGETS)
 	docker manifest push $(IMAGE_REGISTRY)/$(IMAGE_PREFIX)/$(*):$(MANIFEST_TAG)
 	docker manifest inspect $(IMAGE_REGISTRY)/$(IMAGE_PREFIX)/$(*):$(MANIFEST_TAG)
 
-PHONY: go-test $(TEST_TARGETS)
-go-test: $(TEST_TARGETS)
-%.go-test:
-	cd src/$(*) && GO111MODULE=on go test ./...
-
-PHONY: go-mod-tidy $(GO_MOD_TIDY_TARGETS)
-go-mod-tidy: $(GO_MOD_TIDY_TARGETS)
-%.go-mod-tidy:
-	cd src/$(*) && go mod tidy
-
-PHONY: go-mod-update $(GO_MOD_UPDATE_TARGETS)
-go-mod-update: $(GO_MOD_UPDATE_TARGETS)
-%.go-mod-update:
-	cd src/$(*) \
-		&& go get github.com/ca-risken/core/... \
-		&& go get github.com/ca-risken/datasource-api/...
+PHONY: go-test
+go-test:
+	GO111MODULE=on go test ./...
 
 .PHONY: lint
-lint: $(LINT_TARGETS)
-%.lint: FAKE
-	sh hack/golinter.sh src/$(*)
+lint:
+	GO111MODULE=on GOFLAGS=-buildvcs=false golangci-lint --timeout 5m run
 
-.PHONY: workspace
-workspace:
-	go work use -r .
+.PHONY: enqueue-gitleaks
+enqueue-gitleaks:
+	aws sqs send-message \
+		--endpoint-url http://localhost:9324 \
+		--queue-url http://localhost:9324/queue/code-gitleaks \
+		--message-body '{"github_setting_id":1001, "project_id":1001, "full_scan":"true", "scan_only":"true"}'
+
+.PHONY: enqueue-dependency
+enqueue-dependency:
+	aws sqs send-message \
+		--endpoint-url http://localhost:9324 \
+		--queue-url http://localhost:9324/queue/code-dependency \
+		--message-body '{"github_setting_id":1001, "project_id":1001, "scan_only":"true"}'
 
 FAKE:
