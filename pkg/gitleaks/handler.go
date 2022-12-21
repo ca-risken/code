@@ -189,9 +189,11 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	}
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, gitHubSetting.GitleaksSetting.RepositoryPattern)
-
+	// Filtered By Visibility
+	repos = filterByVisibility(repos, gitHubSetting.GitleaksSetting.ScanPublic, gitHubSetting.GitleaksSetting.ScanInternal, gitHubSetting.GitleaksSetting.ScanPrivate)
 	// Filtered By Name
 	repos = filterByNamePattern(repos, gitHubSetting.GitleaksSetting.RepositoryPattern)
+
 	for _, r := range repos {
 		// Get LastScannedAt
 		var lastScannedAt *time.Time
@@ -596,6 +598,28 @@ func filterByNamePattern(repos []*github.Repository, pattern string) []*github.R
 		}
 	}
 
+	return filteredRepos
+}
+
+const (
+	githubVisibilityPublic   string = "public"
+	githubVisibilityInternal string = "internal"
+	githubVisibilityPrivate  string = "private"
+)
+
+func filterByVisibility(repos []*github.Repository, scanPublic, scanInternal, scanPrivate bool) []*github.Repository {
+	var filteredRepos []*github.Repository
+	for _, repo := range repos {
+		if scanPublic && *repo.Visibility == githubVisibilityPublic {
+			filteredRepos = append(filteredRepos, repo)
+		}
+		if scanInternal && *repo.Visibility == githubVisibilityInternal {
+			filteredRepos = append(filteredRepos, repo)
+		}
+		if scanPrivate && *repo.Visibility == githubVisibilityPrivate {
+			filteredRepos = append(filteredRepos, repo)
+		}
+	}
 	return filteredRepos
 }
 
