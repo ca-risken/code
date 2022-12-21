@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
+	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
@@ -21,7 +22,7 @@ import (
 
 type sqsHandler struct {
 	cipherBlock           cipher.Block
-	githubClient          githubServiceClient
+	githubClient          githubcli.GithubServiceClient
 	dependencyClient      dependencyServiceClient
 	findingClient         finding.FindingServiceClient
 	alertClient           alert.AlertServiceClient
@@ -53,7 +54,7 @@ func NewHandler(
 	return &sqsHandler{
 		cipherBlock:           block,
 		dependencyClient:      newDependencyClient(ctx, dependencyConf),
-		githubClient:          newGithubClient(githubDefaultToken, l),
+		githubClient:          githubcli.NewGithubClient(githubDefaultToken, l),
 		findingClient:         fc,
 		alertClient:           ac,
 		codeClient:            cc,
