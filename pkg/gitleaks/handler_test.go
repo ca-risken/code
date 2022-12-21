@@ -385,7 +385,7 @@ func TestFilterByVisibility(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := filterByVisibility(tt.args.repos, tt.args.scanPublic, tt.args.scanInternal, tt.args.scanPrivate); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("filterByNamePattern() = %v, want %v", got, tt.want)
+				t.Errorf("filterByRepository() = %v, want %v", got, tt.want)
 			}
 		})
 	}
