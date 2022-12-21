@@ -1,4 +1,4 @@
-package dependency
+package github
 
 import (
 	"context"
@@ -90,7 +90,7 @@ func Test_listRepositoryForUserWithOption(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.Background()
-			githubClient := newGithubClient("token", logging.NewLogger())
+			githubClient := NewGithubClient("token", logging.NewLogger())
 			got, err := githubClient.listRepositoryForUserWithOption(ctx, c.repository, c.login)
 			if c.wantError && err == nil {
 				t.Fatal("Unexpected no error")
@@ -147,7 +147,7 @@ func Test_listRepositoryForOrgWithOption(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.Background()
-			githubClient := newGithubClient("token", logging.NewLogger())
+			githubClient := NewGithubClient("token", logging.NewLogger())
 			got, err := githubClient.listRepositoryForUserWithOption(ctx, c.repository, c.login)
 			if c.wantError && err == nil {
 				t.Fatal("Unexpected no error")

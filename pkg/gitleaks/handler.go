@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
+	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
@@ -108,7 +109,7 @@ func (l *leakFinding) generateGitHubURL(repositoryURL string) string {
 
 type sqsHandler struct {
 	cipherBlock           cipher.Block
-	githubClient          githubServiceClient
+	githubClient          githubcli.GithubServiceClient
 	gitleaksClient        gitleaksServiceClient
 	findingClient         finding.FindingServiceClient
 	alertClient           alert.AlertServiceClient
@@ -141,7 +142,7 @@ func NewHandler(
 	}
 	return &sqsHandler{
 		cipherBlock:           block,
-		githubClient:          newGithubClient(githubDefaultToken, l),
+		githubClient:          githubcli.NewGithubClient(githubDefaultToken, l),
 		gitleaksClient:        newGitleaksClient(ctx, gitleaksConf),
 		findingClient:         fc,
 		alertClient:           ac,
@@ -180,7 +181,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	scanStatus := s.initScanStatus(gitHubSetting.GitleaksSetting)
 
 	// Get repositories
-	repos, err := s.githubClient.listRepository(ctx, gitHubSetting)
+	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateStatusToError(ctx, scanStatus, err)
@@ -264,7 +265,7 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 	defer os.RemoveAll(dir)
 
 	cloneDate := time.Now()
-	err = s.githubClient.clone(ctx, token, *r.CloneURL, dir)
+	err = s.githubClient.Clone(ctx, token, *r.CloneURL, dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to clone %s: %w", *r.FullName, err)
 	}

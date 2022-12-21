@@ -1,4 +1,4 @@
-package dependency
+package github
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type githubServiceClient interface {
+type GithubServiceClient interface {
 	ListRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error)
 	Clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 }
@@ -33,7 +33,7 @@ type riskenGitHubClient struct {
 	logger       logging.Logger
 }
 
-func newGithubClient(defaultToken string, logger logging.Logger) *riskenGitHubClient {
+func NewGithubClient(defaultToken string, logger logging.Logger) *riskenGitHubClient {
 	return &riskenGitHubClient{
 		defaultToken: defaultToken,
 		logger:       logger,
