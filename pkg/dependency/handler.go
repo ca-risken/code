@@ -71,6 +71,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		s.logger.Errorf(ctx, "Invalid message: msg=%+v, err=%+v", msg, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
+
+	beforeScanAt := time.Now()
 	requestID, err := s.logger.GenerateRequestID(fmt.Sprint(msg.ProjectID))
 	if err != nil {
 		s.logger.Warnf(ctx, "Failed to generate requestID: err=%+v", err)
@@ -116,19 +118,21 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
-		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
-			DataSource: message.DependencyDataSource,
-			ProjectId:  msg.ProjectID,
-			Tag:        []string{fmt.Sprintf("repository_id:%v", r.GetID())},
-		}); err != nil {
-			s.logger.Errorf(ctx, "Failed to clear finding score. repository: %v, error: %v", r.Name, err)
+		// Put findings
+		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
+			s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
 			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
-		// Put findings
-		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
-			s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
+		// Clear score for inactive findings
+		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
+			DataSource: message.DependencyDataSource,
+			ProjectId:  msg.ProjectID,
+			Tag:        []string{fmt.Sprintf("repository_id:%v", r.GetID())},
+			BeforeAt:   beforeScanAt.Unix(),
+		}); err != nil {
+			s.logger.Errorf(ctx, "Failed to clear finding score. repository: %v, error: %v", r.Name, err)
 			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
