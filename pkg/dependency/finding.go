@@ -17,6 +17,40 @@ type vulnerabililityIndex struct {
 	vulnID      string
 }
 
+func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resourceName string) error {
+	resp, err := s.findingClient.PutResource(ctx, &finding.PutResourceRequest{
+		ProjectId: projectID,
+		Resource: &finding.ResourceForUpsert{
+			ResourceName: resourceName,
+			ProjectId:    projectID,
+		},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to put resource: project_id=%d, resource_name=%s, err=%w", projectID, resourceName, err)
+	}
+	for _, t := range []string{tagCode, tagRipository} {
+		err = s.tagResource(ctx, t, resp.Resource.ResourceId, projectID)
+		if err != nil {
+			return err
+		}
+	}
+	s.logger.Debugf(ctx, "Success to PutResource, resource_id=%d", resp.Resource.ResourceId)
+	return nil
+}
+
+func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uint64, projectID uint32) error {
+	if _, err := s.findingClient.TagResource(ctx, &finding.TagResourceRequest{
+		ProjectId: projectID,
+		Tag: &finding.ResourceTagForUpsert{
+			ResourceId: resourceID,
+			ProjectId:  projectID,
+			Tag:        tag,
+		}}); err != nil {
+		return fmt.Errorf("failed to TagResource, resource_id=%d, tag=%s, error=%w", resourceID, tag, err)
+	}
+	return nil
+}
+
 func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report, repositoryID int64) ([]*finding.FindingBatchForUpsert, error) {
 	var findings []*finding.FindingBatchForUpsert
 	results := report.Results
@@ -85,6 +119,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 
 const (
 	tagCode       = "code"
+	tagRipository = "repository"
 	tagDependency = "dependency"
 )
 

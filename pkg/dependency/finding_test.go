@@ -1,14 +1,106 @@
 package dependency
 
 import (
+	"context"
+	"errors"
 	"reflect"
 	"testing"
 
 	dbtypes "github.com/aquasecurity/trivy-db/pkg/types"
 	"github.com/aquasecurity/trivy/pkg/types"
+	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/core/proto/finding"
+	findingmock "github.com/ca-risken/core/proto/finding/mocks"
 	"github.com/ca-risken/datasource-api/pkg/message"
 )
+
+func TestPutResource(t *testing.T) {
+	cases := []struct {
+		name                 string
+		projectID            uint32
+		resourceName         string
+		mockPutResource      *finding.PutResourceResponse
+		mockPutResourceError error
+		tags                 []string
+		mockTagResourceError error
+		wantErr              bool
+	}{
+		{
+			name:         "OK",
+			projectID:    1,
+			resourceName: "resource_name",
+			mockPutResource: &finding.PutResourceResponse{
+				Resource: &finding.Resource{
+					ResourceId:   1,
+					ResourceName: "resource_name",
+					ProjectId:    1,
+				},
+			},
+			mockPutResourceError: nil,
+			tags:                 []string{"code", "repository"},
+			mockTagResourceError: nil,
+			wantErr:              false,
+		},
+		{
+			name:                 "NG PutResource Error",
+			projectID:            1,
+			resourceName:         "resource_name",
+			mockPutResource:      nil,
+			mockPutResourceError: errors.New("something error"),
+			wantErr:              true,
+		},
+		{
+			name:         "NG TagResource Error",
+			projectID:    1,
+			resourceName: "resource_name",
+			mockPutResource: &finding.PutResourceResponse{
+				Resource: &finding.Resource{
+					ResourceId:   1,
+					ResourceName: "resource_name",
+					ProjectId:    1,
+				},
+			},
+			mockPutResourceError: nil,
+			tags:                 []string{"code"},
+			mockTagResourceError: errors.New("something error"),
+			wantErr:              true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := context.Background()
+			mockFinding := findingmock.FindingServiceClient{}
+			mockFinding.On("PutResource", ctx, &finding.PutResourceRequest{
+				ProjectId: c.projectID,
+				Resource: &finding.ResourceForUpsert{
+					ResourceName: c.resourceName,
+					ProjectId:    c.projectID,
+				},
+			}).Return(c.mockPutResource, c.mockPutResourceError)
+			for _, t := range c.tags {
+				mockFinding.On("TagResource", ctx, &finding.TagResourceRequest{
+					ProjectId: c.projectID,
+					Tag: &finding.ResourceTagForUpsert{
+						ResourceId: c.mockPutResource.Resource.ResourceId,
+						ProjectId:  c.projectID,
+						Tag:        t,
+					},
+				}).Return(&finding.TagResourceResponse{}, c.mockTagResourceError)
+			}
+			s := sqsHandler{
+				findingClient: &mockFinding,
+				logger:        logging.NewLogger(),
+			}
+			err := s.putResource(ctx, c.projectID, c.resourceName)
+			if c.wantErr && err == nil {
+				t.Fatal("Unexpected no error")
+			}
+			if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured, err=%+v", err)
+			}
+		})
+	}
+}
 
 func TestMakeFinding(t *testing.T) {
 	cases := []struct {
