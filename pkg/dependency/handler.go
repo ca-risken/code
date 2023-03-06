@@ -125,6 +125,13 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
+		// Put repository resource
+		if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
+			s.logger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
+		}
+
 		// Clear score for inactive findings
 		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
 			DataSource: message.DependencyDataSource,
