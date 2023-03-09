@@ -8,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/dependency cmd/dependency/main.go
 
-FROM public.ecr.aws/risken/code/dependency-base:v0.0.1
+FROM public.ecr.aws/risken/code/dependency-base:v0.0.2
 COPY --from=builder /go/bin/dependency /usr/local/dependency/bin/
 ENV DEBUG= \
     TRACE_EXPORTER= \
