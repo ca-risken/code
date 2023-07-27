@@ -21,7 +21,10 @@ const (
 	settingURL  = "https://docs.security-hub.jp/code/gitleaks_datasource/"
 )
 
-var appLogger = logging.NewLogger()
+var (
+	appLogger            = logging.NewLogger()
+	samplingRate float64 = 0.3000
+)
 
 func getFullServiceName() string {
 	return fmt.Sprintf("%s.%s", nameSpace, serviceName)
@@ -90,9 +93,10 @@ func main() {
 	defer pc.Stop()
 
 	tc := &tracer.Config{
-		ServiceName: getFullServiceName(),
-		Environment: conf.EnvName,
-		Debug:       conf.TraceDebug,
+		ServiceName:  getFullServiceName(),
+		Environment:  conf.EnvName,
+		Debug:        conf.TraceDebug,
+		SamplingRate: &samplingRate,
 	}
 	tracer.Start(tc)
 	defer tracer.Stop()
