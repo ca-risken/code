@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
+	"github.com/ca-risken/common/pkg/logging"
 	"k8s.io/utils/exec"
 	fakeexec "k8s.io/utils/exec/testing"
 )
@@ -169,7 +170,7 @@ func TestScan(t *testing.T) {
 			fakeCmd.Stderr = &stderr
 			fakeExec.CommandScript = append(fakeExec.CommandScript, cmdAction)
 
-			client := newTrivyClient("trivyPath", fakeExec)
+			client := newTrivyClient("trivyPath", fakeExec, logging.NewLogger())
 			err := client.scan(ctx, c.cloneURL, c.token, c.filePath)
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")

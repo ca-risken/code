@@ -53,7 +53,7 @@ func NewHandler(
 	}
 	return &sqsHandler{
 		cipherBlock:           block,
-		dependencyClient:      newDependencyClient(ctx, dependencyConf),
+		dependencyClient:      newDependencyClient(ctx, dependencyConf, l),
 		githubClient:          githubcli.NewGithubClient(githubDefaultToken, l),
 		findingClient:         fc,
 		alertClient:           ac,
