@@ -13,7 +13,7 @@ import (
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
 	"github.com/ca-risken/common/pkg/logging"
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v4"
 )
 
 const RETRY_NUM = 3
