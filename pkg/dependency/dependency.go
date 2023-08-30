@@ -12,7 +12,11 @@ import (
 	"k8s.io/utils/exec"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
+	"github.com/ca-risken/common/pkg/logging"
+	"github.com/cenkalti/backoff/v4"
 )
+
+const RETRY_NUM = 3
 
 type dependencyServiceClient interface {
 	getResult(ctx context.Context, cloneURL, token, outputPath string) (*trivytypes.Report, error)
@@ -35,19 +39,23 @@ type trivyScanner interface {
 type trivyClient struct {
 	trivyPath string
 	exec      exec.Interface
+	retryer   backoff.BackOff
+	logger    logging.Logger
 }
 
-func newTrivyClient(trivyPath string, exec exec.Interface) trivyScanner {
+func newTrivyClient(trivyPath string, exec exec.Interface, l logging.Logger) trivyScanner {
 	return &trivyClient{
 		trivyPath: trivyPath,
 		exec:      exec,
+		retryer:   backoff.WithMaxRetries(backoff.NewExponentialBackOff(), RETRY_NUM),
+		logger:    l,
 	}
 }
 
-func newDependencyClient(ctx context.Context, conf *dependencyConfig) dependencyServiceClient {
+func newDependencyClient(ctx context.Context, conf *dependencyConfig, l logging.Logger) dependencyServiceClient {
 	return &dependencyClient{
 		config: *conf,
-		trivy:  newTrivyClient(conf.trivyPath, exec.New()),
+		trivy:  newTrivyClient(conf.trivyPath, exec.New(), l),
 	}
 }
 
@@ -70,6 +78,13 @@ func (d *dependencyClient) getResult(ctx context.Context, cloneURL, token, outpu
 	return &dependency, nil
 }
 
+func (t *trivyClient) Scan(ctx context.Context, cloneURL, token string, outputPath string) error {
+	operation := func() error {
+		return t.scan(ctx, cloneURL, token, outputPath)
+	}
+	return backoff.RetryNotify(operation, t.retryer, t.newRetryLogger(ctx, "trivy scan"))
+}
+
 func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPath string) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
 	defer cancel()
@@ -84,4 +99,10 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)
 	}
 	return nil
+}
+
+func (t *trivyClient) newRetryLogger(ctx context.Context, funcName string) func(error, time.Duration) {
+	return func(err error, ti time.Duration) {
+		t.logger.Warnf(ctx, "[RetryLogger] %s error: duration=%+v, err=%+v", funcName, ti, err)
+	}
 }
