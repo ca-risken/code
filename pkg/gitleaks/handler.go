@@ -85,15 +85,29 @@ type recommend struct {
 	Recommendation string `json:"recommendation,omitempty"`
 }
 
-func getRecommend(rule string) *recommend {
+func getRecommend(rule, repoName, fileName, visibility, githubURL, author, authorEmail string) *recommend {
 	return &recommend{
 		Risk: fmt.Sprintf(`%s
+		- Secret key has been saved in the %s file in the %s repository (%s repository)
 		- If a key is leaked, a cyber attack is possible within the scope of the key's authority
-		- For example, they can break into the cloud platform, destroy critical resources, access or edit with sensitive data, and so on.`, rule),
-		Recommendation: `Take the following actions for leaked keys
+		- For example, they can break into the cloud platform, destroy critical resources, access or edit with sensitive data, and so on.`,
+			rule,
+			fileName,
+			repoName,
+			visibility,
+		),
+		Recommendation: fmt.Sprintf(`Take the following actions for leaked keys
+		- Check the GitHub link for the key that has been committed.
+			- GitHub URL: %s
+		- Check which environments the key has access to and what permissions it has (check with the Author of the commit if possible).
+			- Author: %s <%s>
 		- Make sure you can rotate the key that has leaked.(If it is possible, do it immediately)
 		- Reduce the number of roles associated with the leaked key or restrict the key's usage conditions
-		- ... Next if the key activity can be confirmed from audit logs, etc., we will conduct a damage assessment.`,
+		- Next if the key activity can be confirmed from audit logs, etc., we will conduct a damage assessment.`,
+			githubURL,
+			author,
+			authorEmail,
+		),
 	}
 }
 
@@ -467,7 +481,16 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 				}
 			}
 		}
-		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, f.Result.RuleDescription)
+		recommendContent := getRecommend(
+			f.Result.RuleDescription,
+			f.Result.Repo,
+			f.Result.File,
+			*f.RepositoryMetadata.Visibility,
+			f.Result.URL,
+			f.Result.Author,
+			f.Result.Email,
+		)
+		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, f.Result.RuleDescription, recommendContent)
 		if err != nil {
 			return err
 		}
@@ -550,8 +573,7 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
-func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string) error {
-	r := *getRecommend(rule)
+func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string, r *recommend) error {
 	if _, err := s.findingClient.PutRecommend(ctx, &finding.PutRecommendRequest{
 		ProjectId:      projectID,
 		FindingId:      findingID,
@@ -562,7 +584,6 @@ func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, finding
 	}); err != nil {
 		return fmt.Errorf("failed to PutRecommend, finding_id=%d, rule=%s, error=%w", findingID, rule, err)
 	}
-	s.logger.Debugf(ctx, "Success PutRecommend, finding_id=%d, reccomend=%+v", findingID, r)
 	return nil
 }
 
