@@ -223,28 +223,51 @@ func TestFilterByNamePattern(t *testing.T) {
 }
 
 func TestGetRecommend(t *testing.T) {
+	type args struct {
+		rule        string
+		repoName    string
+		fileName    string
+		visibility  string
+		githubURL   string
+		author      string
+		authorEmail string
+	}
+
 	cases := []struct {
 		name  string
-		input string
+		input *args
 		want  *recommend
 	}{
 		{
-			name:  "OK Blank",
-			input: "test",
+			name: "OK Blank",
+			input: &args{
+				rule:        "RULE",
+				repoName:    "REPO_NAME",
+				fileName:    "FILE_NAME",
+				visibility:  "VISIBILITY",
+				githubURL:   "https://github.com/ca-risken/",
+				author:      "ALICE",
+				authorEmail: "alice@example.com",
+			},
 			want: &recommend{
-				Risk: `test
+				Risk: `RULE
+		- Secret key has been saved in the FILE_NAME file in the REPO_NAME repository (VISIBILITY repository)
 		- If a key is leaked, a cyber attack is possible within the scope of the key's authority
 		- For example, they can break into the cloud platform, destroy critical resources, access or edit with sensitive data, and so on.`,
 				Recommendation: `Take the following actions for leaked keys
+		- Check the GitHub link for the key that has been committed.
+			- GitHub URL: https://github.com/ca-risken/
+		- Check which environments the key has access to and what permissions it has (check with the Author of the commit if possible).
+			- Author: ALICE <alice@example.com>
 		- Make sure you can rotate the key that has leaked.(If it is possible, do it immediately)
 		- Reduce the number of roles associated with the leaked key or restrict the key's usage conditions
-		- ... Next if the key activity can be confirmed from audit logs, etc., we will conduct a damage assessment.`,
+		- Next if the key activity can be confirmed from audit logs, etc., we will conduct a damage assessment.`,
 			},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := getRecommend(c.input)
+			got := getRecommend(c.input.rule, c.input.repoName, c.input.fileName, c.input.visibility, c.input.githubURL, c.input.author, c.input.authorEmail)
 			if !reflect.DeepEqual(c.want, got) {
 				t.Fatalf("Unexpected data match: want=%+v, got=%+v", c.want, got)
 			}
