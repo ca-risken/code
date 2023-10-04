@@ -446,13 +446,17 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 		if err != nil {
 			return fmt.Errorf("failed to marshal user data: project_id=%d, repository=%s, err=%w", projectID, *f.FullName, err)
 		}
+		lang := ""
+		if f.Language != nil {
+			lang = *f.Language
+		}
 		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{
 			Finding: &finding.FindingForUpsert{
 				Description: fmt.Sprintf(
 					"Detected a %s secret. (public=%t, lang=%s)",
 					f.Result.RuleDescription,
 					*f.Visibility == "public",
-					*f.Language,
+					lang,
 				),
 				DataSource:       message.GitleaksDataSource,
 				DataSourceId:     f.Result.DataSourceID,
