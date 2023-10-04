@@ -441,14 +441,14 @@ const (
 func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings []*gitleaksFinding) error {
 	// Exists leaks
 	for _, f := range findings {
+		if f == nil || f.Result == nil {
+			s.logger.Warnf(ctx, "Skip put finding because of invalid data, project_id=%d, finding=%+v", projectID, f)
+			continue
+		}
 		// finding
 		buf, err := json.Marshal(f)
 		if err != nil {
 			return fmt.Errorf("failed to marshal user data: project_id=%d, repository=%s, err=%w", projectID, *f.FullName, err)
-		}
-		lang := ""
-		if f.Language != nil {
-			lang = *f.Language
 		}
 		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{
 			Finding: &finding.FindingForUpsert{
@@ -456,7 +456,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 					"Detected a %s secret. (public=%t, lang=%s)",
 					f.Result.RuleDescription,
 					*f.Visibility == "public",
-					lang,
+					*f.Language,
 				),
 				DataSource:       message.GitleaksDataSource,
 				DataSourceId:     f.Result.DataSourceID,
