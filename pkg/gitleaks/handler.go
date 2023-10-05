@@ -441,6 +441,10 @@ const (
 func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings []*gitleaksFinding) error {
 	// Exists leaks
 	for _, f := range findings {
+		if f == nil || f.Result == nil {
+			s.logger.Warnf(ctx, "Skip put finding because of invalid data, project_id=%d, finding=%+v", projectID, f)
+			continue
+		}
 		// finding
 		buf, err := json.Marshal(f)
 		if err != nil {
