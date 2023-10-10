@@ -16,7 +16,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 )
 
-const RETRY_NUM = 3
+const RETRY_NUM uint64 = 3
 
 type dependencyServiceClient interface {
 	getResult(ctx context.Context, cloneURL, token, outputPath string) (*trivytypes.Report, error)
@@ -33,7 +33,7 @@ type dependencyClient struct {
 }
 
 type trivyScanner interface {
-	scan(ctx context.Context, cloneURL, token, outputPath string) error
+	Scan(ctx context.Context, cloneURL, token, outputPath string) error
 }
 
 type trivyClient struct {
@@ -43,11 +43,15 @@ type trivyClient struct {
 	logger    logging.Logger
 }
 
-func newTrivyClient(trivyPath string, exec exec.Interface, l logging.Logger) trivyScanner {
+func newTrivyClient(trivyPath string, exec exec.Interface, retryNum *uint64, l logging.Logger) trivyScanner {
+	retry := RETRY_NUM
+	if retryNum != nil {
+		retry = *retryNum
+	}
 	return &trivyClient{
 		trivyPath: trivyPath,
 		exec:      exec,
-		retryer:   backoff.WithMaxRetries(backoff.NewExponentialBackOff(), RETRY_NUM),
+		retryer:   backoff.WithMaxRetries(backoff.NewExponentialBackOff(), retry),
 		logger:    l,
 	}
 }
@@ -55,13 +59,13 @@ func newTrivyClient(trivyPath string, exec exec.Interface, l logging.Logger) tri
 func newDependencyClient(ctx context.Context, conf *dependencyConfig, l logging.Logger) dependencyServiceClient {
 	return &dependencyClient{
 		config: *conf,
-		trivy:  newTrivyClient(conf.trivyPath, exec.New(), l),
+		trivy:  newTrivyClient(conf.trivyPath, exec.New(), nil, l),
 	}
 }
 
 func (d *dependencyClient) getResult(ctx context.Context, cloneURL, token, outputPath string) (*trivytypes.Report, error) {
 	defer os.Remove(outputPath)
-	err := d.trivy.scan(ctx, cloneURL, token, outputPath)
+	err := d.trivy.Scan(ctx, cloneURL, token, outputPath)
 	if err != nil {
 		return nil, err
 	}
