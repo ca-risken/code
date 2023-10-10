@@ -18,7 +18,7 @@ type fakeTrivyClient struct {
 	err error
 }
 
-func (f *fakeTrivyClient) scan(ctx context.Context, cloneURL, token, filePath string) error {
+func (f *fakeTrivyClient) Scan(ctx context.Context, cloneURL, token, filePath string) error {
 	return f.err
 }
 
@@ -170,8 +170,9 @@ func TestScan(t *testing.T) {
 			fakeCmd.Stderr = &stderr
 			fakeExec.CommandScript = append(fakeExec.CommandScript, cmdAction)
 
-			client := newTrivyClient("trivyPath", fakeExec, logging.NewLogger())
-			err := client.scan(ctx, c.cloneURL, c.token, c.filePath)
+			retryNum := uint64(0)
+			client := newTrivyClient("trivyPath", fakeExec, &retryNum, logging.NewLogger())
+			err := client.Scan(ctx, c.cloneURL, c.token, c.filePath)
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
