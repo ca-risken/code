@@ -257,6 +257,14 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
+
+		// TODO: delete
+		// Semgrep scan
+		if err := s.semgrepRepository(ctx, msg.ProjectID, r, token); err != nil {
+			s.logger.Errorf(ctx, "failed to semgrep scan: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
+		}
 	}
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
 		return mimosasqs.WrapNonRetryable(err)

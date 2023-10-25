@@ -8,9 +8,29 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/gitleaks cmd/gitleaks/main.go
 
-FROM public.ecr.aws/risken/base/risken-base:v0.0.1
+FROM public.ecr.aws/risken/base/risken-base:v0.0.1 as riskenbase
+# COPY --from=builder /go/bin/gitleaks /usr/local/gitleaks/bin/
+# RUN apk add git
+
+# TODO delete
+FROM returntocorp/semgrep
 COPY --from=builder /go/bin/gitleaks /usr/local/gitleaks/bin/
+COPY --from=riskenbase /usr/local/bin/env-injector /usr/local/bin/
 RUN apk add git
+# RUN apk add --no-cache \
+#     python3 \
+#     python3-dev \
+#     py3-pip \
+#     gcc \
+#     musl-dev \
+#     linux-headers \
+#     build-base \
+#     libffi-dev
+# RUN pip3 install semgrep \
+#     && mkdir -p /.semgrep \
+#     && touch /.semgrep/semgrep.log \
+#     && chmod -R 766 /.semgrep
+
 ENV DEBUG= \
     TRACE_EXPORTER= \
     PROFILE_EXPORTER= \
