@@ -102,7 +102,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		}
 
 		// Scan source code
-		scanResult, err := s.scanForRepository(ctx, msg.ProjectID, r, token)
+		scanResult, err := s.scanForRepository(ctx, msg.ProjectID, r, token, gitHubSetting.BaseUrl)
 		if err != nil {
 			s.logger.Errorf(ctx, "failed to codeScan scan: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			s.updateStatusToError(ctx, scanStatus, err)

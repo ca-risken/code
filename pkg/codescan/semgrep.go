@@ -13,7 +13,7 @@ import (
 	"github.com/google/go-github/v44/github"
 )
 
-func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r *github.Repository, token string) ([]*semgrepFinding, error) {
+func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r *github.Repository, token, githubBaseURL string) ([]*semgrepFinding, error) {
 	// Clone repository
 	dir, err := createCloneDir(*r.Name)
 	if err != nil {
@@ -27,14 +27,14 @@ func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r 
 	}
 
 	// Scemgrep
-	findings, err := s.semgrepScan(ctx, dir, *r.FullName)
+	findings, err := s.semgrepScan(ctx, dir, *r.FullName, githubBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan: repo=%s  err=%w", *r.FullName, err)
 	}
 	return findings, nil
 }
 
-func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository string) ([]*semgrepFinding, error) {
+func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, githubBaseURL string) ([]*semgrepFinding, error) {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
 	defer cancel()
 
@@ -56,7 +56,7 @@ func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository stri
 		s.logger.Errorf(ctx, "Failed semgrep scan: repository=%s", repository)
 		return nil, fmt.Errorf("failed to execute semgrep: targetDir=%s, err=%w, stderr=%+v", targetDir, err, stderr.String())
 	}
-	findings, err := parseSemgrepResult(targetDir, stdout.String(), repository)
+	findings, err := parseSemgrepResult(targetDir, stdout.String(), repository, githubBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse semgrep: targetDir=%s, err=%w", targetDir, err)
 	}
@@ -64,7 +64,7 @@ func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository stri
 	return findings, nil
 }
 
-func parseSemgrepResult(dir, scanResult, repository string) ([]*semgrepFinding, error) {
+func parseSemgrepResult(dir, scanResult, repository, githubBaseURL string) ([]*semgrepFinding, error) {
 	var results semgrepResults
 	err := json.Unmarshal([]byte(scanResult), &results)
 	if err != nil {
@@ -74,6 +74,7 @@ func parseSemgrepResult(dir, scanResult, repository string) ([]*semgrepFinding, 
 	for _, r := range results.Results {
 		r.Repository = repository
 		r.Path = strings.ReplaceAll(r.Path, dir+"/", "") // remove dir prefix
+		r.GitHubURL = generateGitHubURL(githubBaseURL, r)
 		findings = append(findings, r)
 	}
 	return findings, nil
