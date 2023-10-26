@@ -6,10 +6,13 @@ COPY go.sum .
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/gitleaks cmd/gitleaks/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/codescan cmd/codescan/main.go
 
-FROM public.ecr.aws/risken/base/risken-base:v0.0.1
-COPY --from=builder /go/bin/gitleaks /usr/local/gitleaks/bin/
+FROM public.ecr.aws/risken/base/risken-base:v0.0.1 as riskenbase
+
+FROM returntocorp/semgrep:1.46.0
+COPY --from=builder /go/bin/codescan /usr/local/codescan/bin/
+COPY --from=riskenbase /usr/local/bin/env-injector /usr/local/bin/
 RUN apk add git
 ENV DEBUG= \
     TRACE_EXPORTER= \
@@ -20,8 +23,8 @@ ENV DEBUG= \
     AWS_SECRET_ACCESS_KEY= \
     AWS_SESSION_TOKEN= \
     SQS_ENDPOINT= \
-    GITLEAKS_QUEUE_NAME= \
-    GITLEAKS_QUEUE_URL= \
+    CODE_CODE_SCAN_QUEUE_NAME= \
+    CODE_CODE_SCAN_QUEUE_URL= \
     MAX_NUMBER_OF_MESSAGE= \
     WAIT_TIME_SECOND=20 \
     FINDING_SVC_ADDR= \
@@ -31,10 +34,7 @@ ENV DEBUG= \
     GITHUB_DEFAULT_TOKEN= \
     DATA_KEY= \
     LIMIT_REPOSITORY_SIZE_KB= \
-    SEPERATE_SCAN_DAYS= \
-    GITLEAKS_SCAN_THREADS= \
-    SCAN_ON_MEMORY= \
     TZ=Asia/Tokyo
-WORKDIR /usr/local/gitleaks
+WORKDIR /usr/local/codescan
 ENTRYPOINT ["/usr/local/bin/env-injector"]
-CMD ["bin/gitleaks"]
+CMD ["bin/codescan"]

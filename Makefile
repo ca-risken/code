@@ -1,4 +1,4 @@
-TARGETS = gitleaks dependency
+TARGETS = gitleaks dependency codescan
 BUILD_TARGETS = $(TARGETS:=.build)
 BUILD_CI_TARGETS = $(TARGETS:=.build-ci)
 IMAGE_PUSH_TARGETS = $(TARGETS:=.push-image)
@@ -78,6 +78,13 @@ enqueue-dependency:
 	aws sqs send-message \
 		--endpoint-url http://localhost:9324 \
 		--queue-url http://localhost:9324/queue/code-dependency \
+		--message-body '{"github_setting_id":1001, "project_id":1001, "scan_only":"true"}'
+
+.PHONY: enqueue-codescan
+enqueue-codescan:
+	aws sqs send-message \
+		--endpoint-url http://localhost:9324 \
+		--queue-url http://localhost:9324/queue/code-codescan \
 		--message-body '{"github_setting_id":1001, "project_id":1001, "scan_only":"true"}'
 
 FAKE:
