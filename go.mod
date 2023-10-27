@@ -8,14 +8,14 @@ replace github.com/go-git/go-git/v5 v5.4.3-0.20220529141257-bc1f419cebcf => gith
 require (
 	github.com/aquasecurity/trivy v0.30.4
 	github.com/aquasecurity/trivy-db v0.0.0-20220801073337-2c0339bb9085
-	github.com/aws/aws-sdk-go-v2 v1.18.0
+	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.8
 	github.com/ca-risken/common/pkg/logging v0.0.0-20221119073224-9db027bda6f8
 	github.com/ca-risken/common/pkg/profiler v0.0.0-20221119073224-9db027bda6f8
 	github.com/ca-risken/common/pkg/sqs v0.0.0-20221119073224-9db027bda6f8
 	github.com/ca-risken/common/pkg/tracer v0.0.0-20230727031236-b35703d5c59d
-	github.com/ca-risken/core v0.5.1-0.20230131022604-6ee078ff449c
-	github.com/ca-risken/datasource-api v0.4.2-0.20221121055843-3dc9a448cda2
+	github.com/ca-risken/core v0.8.1-0.20230802005225-c9bcfdb2579c
+	github.com/ca-risken/datasource-api v0.9.1-0.20231026022736-d2fe4767e553
 	github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/gassara-kys/envconfig v1.4.4
@@ -45,10 +45,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.18.21 // indirect
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.20 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.2 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.32 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.26 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.34 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.28 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.34 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.26 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.28 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.9 // indirect
