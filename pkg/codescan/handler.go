@@ -70,12 +70,12 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 
 	gitHubSetting, err := s.getGitHubSetting(ctx, msg.ProjectID, msg.GitHubSettingID)
 	if err != nil {
-		s.logger.Errorf(ctx, "Failed to get scan status: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+		s.logger.Errorf(ctx, "Failed to get scan setting: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	token, err := codecrypto.DecryptWithBase64(&s.cipherBlock, gitHubSetting.PersonalAccessToken)
 	if err != nil {
-		s.logger.Errorf(ctx, "Failed to decrypted personal access token: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+		s.logger.Errorf(ctx, "Failed to decrypt personal access token: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
