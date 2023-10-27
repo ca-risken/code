@@ -27,9 +27,9 @@ func getSemgrepRecommend(repoName, fileName, rule, semgrepMessage, githubURL, li
 - Check the source code.
 	- GitHub URL: %s
 	- Specific code line:
-------------------------------
+`+"```"+`
 %s
-------------------------------
+`+"```"+`
 - Fix the source code with the following message.
 	- %s`,
 			githubURL,

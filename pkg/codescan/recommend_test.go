@@ -38,9 +38,9 @@ func TestGetRecommend(t *testing.T) {
 - Check the source code.
 	- GitHub URL: https://github.com/ca-risken/
 	- Specific code line:
-------------------------------
+` + "```" + `
 LINE
-------------------------------
+` + "```" + `
 - Fix the source code with the following message.
 	- MESSAGE`,
 			},
