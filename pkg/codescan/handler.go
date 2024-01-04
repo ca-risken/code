@@ -95,7 +95,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	// Filtered By Name
 	repos = filterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
-	semgrepFindings := []*semgrepFinding{}
+	semgrepFindings := []*SemgrepFinding{}
 	for _, r := range repos {
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
 			continue

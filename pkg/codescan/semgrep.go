@@ -13,7 +13,7 @@ import (
 	"github.com/google/go-github/v44/github"
 )
 
-func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r *github.Repository, token, githubBaseURL string) ([]*semgrepFinding, error) {
+func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r *github.Repository, token, githubBaseURL string) ([]*SemgrepFinding, error) {
 	// Clone repository
 	dir, err := createCloneDir(*r.Name)
 	if err != nil {
@@ -34,7 +34,7 @@ func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r 
 	return findings, nil
 }
 
-func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, githubBaseURL string) ([]*semgrepFinding, error) {
+func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, githubBaseURL string) ([]*SemgrepFinding, error) {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
 	defer cancel()
 
@@ -56,7 +56,7 @@ func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, git
 		s.logger.Errorf(ctx, "Failed semgrep scan: repository=%s", repository)
 		return nil, fmt.Errorf("failed to execute semgrep: targetDir=%s, err=%w, stderr=%+v", targetDir, err, stderr.String())
 	}
-	findings, err := parseSemgrepResult(targetDir, stdout.String(), repository, githubBaseURL)
+	findings, err := ParseSemgrepResult(targetDir, stdout.String(), repository, githubBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse semgrep: targetDir=%s, err=%w", targetDir, err)
 	}
@@ -64,23 +64,23 @@ func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, git
 	return findings, nil
 }
 
-func parseSemgrepResult(dir, scanResult, repository, githubBaseURL string) ([]*semgrepFinding, error) {
-	var results semgrepResults
+func ParseSemgrepResult(dir, scanResult, repository, githubBaseURL string) ([]*SemgrepFinding, error) {
+	var results SemgrepResults
 	err := json.Unmarshal([]byte(scanResult), &results)
 	if err != nil {
 		return nil, err
 	}
-	findings := make([]*semgrepFinding, 0, len(results.Results))
+	findings := make([]*SemgrepFinding, 0, len(results.Results))
 	for _, r := range results.Results {
 		r.Repository = repository
 		r.Path = strings.ReplaceAll(r.Path, dir+"/", "") // remove dir prefix
-		r.GitHubURL = generateGitHubURL(githubBaseURL, r)
+		r.GitHubURL = GenerateGitHubURL(githubBaseURL, r)
 		findings = append(findings, r)
 	}
 	return findings, nil
 }
 
-func getScoreSemgrep(serverity string) float32 {
+func GetScoreSemgrep(serverity string) float32 {
 	switch serverity {
 	case "ERROR":
 		return 0.6
@@ -93,11 +93,11 @@ func getScoreSemgrep(serverity string) float32 {
 	}
 }
 
-func generateDataSourceIDForSemgrep(f *semgrepFinding) string {
+func GenerateDataSourceIDForSemgrep(f *SemgrepFinding) string {
 	return fmt.Sprintf("%s/%s/%s/start-%d-%d/end-%d-%d", f.Repository, f.Path, f.CheckID, f.Start.Line, f.Start.Column, f.End.Line, f.End.Column)
 }
 
-func generateGitHubURL(githubBaseURL string, f *semgrepFinding) string {
+func GenerateGitHubURL(githubBaseURL string, f *SemgrepFinding) string {
 	baseURL := "https://github.com/"
 	if githubBaseURL != "" {
 		baseURL = githubBaseURL
@@ -105,27 +105,27 @@ func generateGitHubURL(githubBaseURL string, f *semgrepFinding) string {
 	return fmt.Sprintf("%s%s/blob/master/%s#L%d-L%d", baseURL, f.Repository, f.Path, f.Start.Line, f.End.Line)
 }
 
-type semgrepResults struct {
-	Results []*semgrepFinding `json:"results,omitempty"`
+type SemgrepResults struct {
+	Results []*SemgrepFinding `json:"results,omitempty"`
 }
 
-type semgrepFinding struct {
+type SemgrepFinding struct {
 	Repository     string        `json:"repository,omitempty"`
 	RepoVisibility string        `json:"repo_visibility,omitempty"`
 	GitHubURL      string        `json:"github_url,omitempty"`
 	CheckID        string        `json:"check_id,omitempty"`
 	Path           string        `json:"path,omitempty"`
-	Start          *semgrepLine  `json:"start,omitempty"`
-	End            *semgrepLine  `json:"end,omitempty"`
-	Extra          *semgrepExtra `json:"extra,omitempty"`
+	Start          *SemgrepLine  `json:"start,omitempty"`
+	End            *SemgrepLine  `json:"end,omitempty"`
+	Extra          *SemgrepExtra `json:"extra,omitempty"`
 }
 
-type semgrepLine struct {
+type SemgrepLine struct {
 	Line   int `json:"line,omitempty"`
 	Column int `json:"col,omitempty"`
 	Offset int `json:"offset,omitempty"`
 }
-type semgrepExtra struct {
+type SemgrepExtra struct {
 	EngineKind    string      `json:"engine_kind,omitempty"`
 	Fingerprint   string      `json:"fingerprint,omitempty"`
 	IsIgnored     bool        `json:"is_ignored,omitempty"`

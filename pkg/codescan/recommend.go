@@ -13,7 +13,7 @@ type recommend struct {
 	Recommendation string `json:"recommendation,omitempty"`
 }
 
-func getSemgrepRecommend(repoName, fileName, rule, semgrepMessage, githubURL, line string) *recommend {
+func GetSemgrepRecommend(repoName, fileName, rule, semgrepMessage, githubURL, line string) *recommend {
 	return &recommend{
 		Risk: fmt.Sprintf(`A problem code detected in %s file in %s repository.
 - DetectedRule: %s

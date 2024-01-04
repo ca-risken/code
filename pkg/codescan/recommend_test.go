@@ -48,7 +48,7 @@ LINE
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := getSemgrepRecommend(c.input.repoName, c.input.fileName, c.input.rule, c.input.semgrepMessage, c.input.githubURL, c.input.line)
+			got := GetSemgrepRecommend(c.input.repoName, c.input.fileName, c.input.rule, c.input.semgrepMessage, c.input.githubURL, c.input.line)
 			if !reflect.DeepEqual(c.want, got) {
 				t.Fatalf("Unexpected data match: want=%+v, got=%+v", c.want, got)
 			}
