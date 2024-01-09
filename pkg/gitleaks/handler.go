@@ -4,9 +4,6 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -24,102 +21,8 @@ import (
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/google/go-github/v44/github"
+	"github.com/zricethezav/gitleaks/v8/report"
 )
-
-type gitleaksFinding struct {
-	*RepositoryMetadata `json:"repository_metadata,omitempty"`
-	Result              *leakFinding `json:"results,omitempty"`
-}
-
-type RepositoryMetadata struct {
-	ID                  *int64           `json:"id,omitempty"`
-	NodeID              *string          `json:"node_id,omitempty"`
-	Name                *string          `json:"name,omitempty"`
-	FullName            *string          `json:"full_name,omitempty"`
-	Description         *string          `json:"description,omitempty"`
-	Homepage            *string          `json:"homepage,omitempty"`
-	CloneURL            *string          `json:"clone_url,omitempty"`
-	GitURL              *string          `json:"git_url,omitempty"`
-	MirrorURL           *string          `json:"mirror_url,omitempty"`
-	SSHURL              *string          `json:"ssh_url,omitempty"`
-	Language            *string          `json:"language,omitempty"`
-	Fork                *bool            `json:"fork,omitempty"`
-	Size                *int             `json:"size,omitempty"`
-	DeleteBranchOnMerge *bool            `json:"delete_branch_on_merge,omitempty"`
-	Topics              []string         `json:"topics,omitempty"`
-	Archived            *bool            `json:"archived,omitempty"`
-	Disabled            *bool            `json:"disabled,omitempty"`
-	Permissions         *map[string]bool `json:"permissions,omitempty"`
-	Private             *bool            `json:"private,omitempty"`
-	TeamID              *int64           `json:"team_id,omitempty"`
-	Visibility          *string          `json:"visibility,omitempty"`
-
-	CreatedAt *github.Timestamp `json:"created_at,omitempty"`
-	PushedAt  *github.Timestamp `json:"pushed_at,omitempty"`
-	UpdatedAt *github.Timestamp `json:"updated_at,omitempty"`
-
-	LeakFindings []*leakFinding `json:"leak_findings,omitempty"`
-}
-
-type leakFinding struct {
-	DataSourceID string `json:"data_source_id"`
-
-	StartLine       int      `json:"startLine,omitempty"`
-	EndLine         int      `json:"endLine,omitempty"`
-	StartColumn     int      `json:"startColumn,omitempty"`
-	Secret          string   `json:"secret,omitempty"`
-	Commit          string   `json:"commit,omitempty"`
-	Repo            string   `json:"repo,omitempty"`
-	RuleDescription string   `json:"ruleDescription,omitempty"`
-	Message         string   `json:"commitMessage,omitempty"`
-	Author          string   `json:"author,omitempty"`
-	Email           string   `json:"email,omitempty"`
-	File            string   `json:"file,omitempty"`
-	Date            string   `json:"date,omitempty"`
-	Tags            []string `json:"tags,omitempty"`
-	URL             string   `json:"url,omitempty"`
-}
-
-type recommend struct {
-	Risk           string `json:"risk,omitempty"`
-	Recommendation string `json:"recommendation,omitempty"`
-}
-
-func getRecommend(rule, repoName, fileName, visibility, githubURL, author, authorEmail string) *recommend {
-	return &recommend{
-		Risk: fmt.Sprintf(`%s
-		- Secret key has been saved in the %s file in the %s repository (%s repository)
-		- If a key is leaked, a cyber attack is possible within the scope of the key's authority
-		- For example, they can break into the cloud platform, destroy critical resources, access or edit with sensitive data, and so on.`,
-			rule,
-			fileName,
-			repoName,
-			visibility,
-		),
-		Recommendation: fmt.Sprintf(`Take the following actions for leaked keys
-		- Check the GitHub link for the key that has been committed.
-			- GitHub URL: %s
-		- Check which environments the key has access to and what permissions it has (check with the Author of the commit if possible).
-			- Author: %s <%s>
-		- Make sure you can rotate the key that has leaked.(If it is possible, do it immediately)
-		- Reduce the number of roles associated with the leaked key or restrict the key's usage conditions
-		- Next if the key activity can be confirmed from audit logs, etc., we will conduct a damage assessment.`,
-			githubURL,
-			author,
-			authorEmail,
-		),
-	}
-}
-
-func (l *leakFinding) generateDataSourceID() string {
-	hash := sha256.Sum256([]byte(l.Repo + l.Commit + l.Secret + l.File + fmt.Sprint(l.StartLine) + fmt.Sprint(l.EndLine) + fmt.Sprint(l.StartColumn)))
-	return hex.EncodeToString(hash[:])
-}
-
-func (l *leakFinding) generateGitHubURL(repositoryURL string) string {
-	url := fmt.Sprintf("%s/blob/%s/%s#L%d-L%d", repositoryURL, l.Commit, l.File, l.StartLine, l.EndLine)
-	return url
-}
 
 type sqsHandler struct {
 	cipherBlock           cipher.Block
@@ -242,17 +145,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 			continue
 		}
 
-		m := genRepositoryMetadata(r)
-		var findings []*gitleaksFinding
-		for _, rs := range results {
-			findings = append(findings, &gitleaksFinding{
-				RepositoryMetadata: m,
-				Result:             rs,
-			})
-		}
-
 		// Put findings
-		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
+		if err := s.putFindings(ctx, msg.ProjectID, GenrateGitleaksFinding(r, results)); err != nil {
 			s.logger.Errorf(ctx, "failed to put findngs: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
@@ -272,7 +166,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	return nil
 }
 
-func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, msg *message.CodeQueueMessage) ([]*leakFinding, error) {
+func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, msg *message.CodeQueueMessage) ([]report.Finding, error) {
 	// Clone repository
 	dir, err := createCloneDir(*r.Name)
 	if err != nil {
@@ -297,28 +191,6 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 		return nil, fmt.Errorf("failed to scan %s: %w", *r.FullName, err)
 	}
 
-	var leaks []*leakFinding
-	for _, rs := range results {
-		l := leakFinding{
-			StartColumn:     rs.StartColumn,
-			StartLine:       rs.StartLine,
-			EndLine:         rs.EndLine,
-			Commit:          rs.Commit,
-			Secret:          rs.Secret,
-			Repo:            *r.FullName,
-			RuleDescription: rs.Description,
-			Message:         rs.Message,
-			Author:          rs.Author,
-			Email:           rs.Email,
-			File:            rs.File,
-			Date:            rs.Date,
-			Tags:            rs.Tags,
-		}
-		l.DataSourceID = l.generateDataSourceID()
-		l.URL = l.generateGitHubURL(*r.HTMLURL)
-		leaks = append(leaks, &l)
-	}
-
 	// Caching scanned time
 	if _, err := s.codeClient.PutGitleaksCache(ctx, &code.PutGitleaksCacheRequest{
 		ProjectId: msg.ProjectID,
@@ -330,7 +202,7 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 	}); err != nil {
 		return nil, fmt.Errorf("failed to cache time %s: %w", *r.FullName, err)
 	}
-	return leaks, nil
+	return results, nil
 }
 
 func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.Time, limitRepositorySize int) bool {
@@ -438,7 +310,7 @@ const (
 	defaultGitleaksScore = 0.8
 )
 
-func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings []*gitleaksFinding) error {
+func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings []*GitleaksFinding) error {
 	// Exists leaks
 	for _, f := range findings {
 		if f == nil || f.Result == nil {
@@ -446,27 +318,11 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 			continue
 		}
 		// finding
-		buf, err := json.Marshal(f)
+		req, err := GeneratePutFindingRequest(projectID, f)
 		if err != nil {
-			return fmt.Errorf("failed to marshal user data: project_id=%d, repository=%s, err=%w", projectID, *f.FullName, err)
+			return err
 		}
-		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{
-			Finding: &finding.FindingForUpsert{
-				Description: fmt.Sprintf(
-					"Detected a %s secret. (public=%t, lang=%s)",
-					f.Result.RuleDescription,
-					*f.Visibility == "public",
-					*f.Language,
-				),
-				DataSource:       message.GitleaksDataSource,
-				DataSourceId:     f.Result.DataSourceID,
-				ResourceName:     *f.FullName,
-				ProjectId:        projectID,
-				OriginalScore:    defaultGitleaksScore,
-				OriginalMaxScore: 1.0,
-				Data:             string(buf),
-			},
-		})
+		resp, err := s.findingClient.PutFinding(ctx, req)
 		if err != nil {
 			return err
 		}
@@ -485,7 +341,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 				}
 			}
 		}
-		recommendContent := getRecommend(
+		recommendContent := GetRecommend(
 			f.Result.RuleDescription,
 			f.Result.Repo,
 			f.Result.File,
@@ -577,7 +433,7 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
-func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string, r *recommend) error {
+func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string, r *Recommend) error {
 	if _, err := s.findingClient.PutRecommend(ctx, &finding.PutRecommendRequest{
 		ProjectId:      projectID,
 		FindingId:      findingID,
@@ -589,35 +445,6 @@ func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, finding
 		return fmt.Errorf("failed to PutRecommend, finding_id=%d, rule=%s, error=%w", findingID, rule, err)
 	}
 	return nil
-}
-
-func genRepositoryMetadata(repo *github.Repository) *RepositoryMetadata {
-	return &RepositoryMetadata{
-		ID:                  repo.ID,
-		NodeID:              repo.NodeID,
-		Name:                repo.Name,
-		FullName:            repo.FullName,
-		Description:         repo.Description,
-		Homepage:            repo.Homepage,
-		CloneURL:            repo.CloneURL,
-		GitURL:              repo.GitURL,
-		MirrorURL:           repo.MirrorURL,
-		SSHURL:              repo.SSHURL,
-		Language:            repo.Language,
-		Fork:                repo.Fork,
-		Size:                repo.Size,
-		DeleteBranchOnMerge: repo.DeleteBranchOnMerge,
-		Topics:              repo.Topics,
-		Archived:            repo.Archived,
-		Disabled:            repo.Disabled,
-		Private:             repo.Private,
-		TeamID:              repo.TeamID,
-		Visibility:          repo.Visibility,
-
-		CreatedAt: repo.CreatedAt,
-		PushedAt:  repo.PushedAt,
-		UpdatedAt: repo.UpdatedAt,
-	}
 }
 
 func filterByNamePattern(repos []*github.Repository, pattern string) []*github.Repository {

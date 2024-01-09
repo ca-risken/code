@@ -15,25 +15,14 @@ const (
 	tagCodeScan   = "codescan"
 )
 
-func (s *sqsHandler) putSemgrepFindings(ctx context.Context, projectID uint32, findings []*semgrepFinding) error {
+func (s *sqsHandler) putSemgrepFindings(ctx context.Context, projectID uint32, findings []*SemgrepFinding) error {
 	for _, f := range findings {
 		// finding
-		buf, err := json.Marshal(f)
+		req, err := GeneratePutFindingRequest(projectID, f)
 		if err != nil {
-			return fmt.Errorf("failed to marshal data: project_id=%d, repository=%s, err=%w", projectID, f.Repository, err)
+			return err
 		}
-		resp, err := s.findingClient.PutFinding(ctx, &finding.PutFindingRequest{
-			Finding: &finding.FindingForUpsert{
-				Description:      fmt.Sprintf("Detect source code finding (%s)", f.CheckID),
-				DataSource:       message.CodeScanDataSource,
-				DataSourceId:     generateDataSourceIDForSemgrep(f),
-				ResourceName:     f.Repository,
-				ProjectId:        projectID,
-				OriginalScore:    getScoreSemgrep(f.Extra.Severity),
-				OriginalMaxScore: 1.0,
-				Data:             string(buf),
-			},
-		})
+		resp, err := s.findingClient.PutFinding(ctx, req)
 		if err != nil {
 			return err
 		}
@@ -47,7 +36,7 @@ func (s *sqsHandler) putSemgrepFindings(ctx context.Context, projectID uint32, f
 		}
 
 		// recommendation
-		recommendContent := getSemgrepRecommend(
+		recommendContent := GetSemgrepRecommend(
 			f.Repository,
 			f.Path,
 			f.CheckID,
@@ -55,7 +44,7 @@ func (s *sqsHandler) putSemgrepFindings(ctx context.Context, projectID uint32, f
 			f.GitHubURL,
 			f.Extra.Lines,
 		)
-		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, generateDataSourceIDForSemgrep(f), recommendContent)
+		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, GenerateDataSourceIDForSemgrep(f), recommendContent)
 		if err != nil {
 			return err
 		}
@@ -75,4 +64,24 @@ func (s *sqsHandler) tagFinding(ctx context.Context, tag string, findingID uint6
 		return fmt.Errorf("failed to TagFinding, finding_id=%d, tag=%s, error=%w", findingID, tag, err)
 	}
 	return nil
+}
+
+func GeneratePutFindingRequest(projectID uint32, f *SemgrepFinding) (*finding.PutFindingRequest, error) {
+	buf, err := json.Marshal(f)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal data: project_id=%d, repository=%s, err=%w", projectID, f.Repository, err)
+	}
+	return &finding.PutFindingRequest{
+		ProjectId: projectID,
+		Finding: &finding.FindingForUpsert{
+			Description:      fmt.Sprintf("Detect source code finding (%s)", f.CheckID),
+			DataSource:       message.CodeScanDataSource,
+			DataSourceId:     GenerateDataSourceIDForSemgrep(f),
+			ResourceName:     f.Repository,
+			ProjectId:        projectID,
+			OriginalScore:    GetScoreSemgrep(f.Extra.Severity),
+			OriginalMaxScore: 1.0,
+			Data:             string(buf),
+		},
+	}, nil
 }
