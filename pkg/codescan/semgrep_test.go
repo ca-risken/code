@@ -8,8 +8,9 @@ import (
 
 func TestGenerateGitHubURL(t *testing.T) {
 	type args struct {
-		baseURL string
-		finding *SemgrepFinding
+		baseURL      string
+		masterBranch string
+		finding      *SemgrepFinding
 	}
 
 	cases := []struct {
@@ -20,7 +21,8 @@ func TestGenerateGitHubURL(t *testing.T) {
 		{
 			name: "OK GitHub URL",
 			input: &args{
-				baseURL: "",
+				baseURL:      "",
+				masterBranch: "main",
 				finding: &SemgrepFinding{
 					Repository: "org/repo",
 					Path:       "aaa.go",
@@ -32,13 +34,14 @@ func TestGenerateGitHubURL(t *testing.T) {
 					},
 				},
 			},
-			want: "https://github.com/org/repo/blob/master/aaa.go#L1-L2",
+			want: "https://github.com/org/repo/blob/main/aaa.go#L1-L2",
 		},
 
 		{
 			name: "OK Custom URL",
 			input: &args{
-				baseURL: "https://hostname/api/v3/",
+				baseURL:      "https://hostname/api/v3/",
+				masterBranch: "master",
 				finding: &SemgrepFinding{
 					Repository: "org/repo",
 					Path:       "aaa.go",
@@ -55,7 +58,7 @@ func TestGenerateGitHubURL(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := GenerateGitHubURL(c.input.baseURL, c.input.finding)
+			got := GenerateGitHubURL(c.input.baseURL, c.input.masterBranch, c.input.finding)
 			if got != c.want {
 				t.Fatalf("Unexpected data match: want=%s, got=%s", c.want, got)
 			}
@@ -155,6 +158,7 @@ func TestParseSemgrepResult(t *testing.T) {
 		dir           string
 		scanResult    string
 		repository    string
+		masterBranch  string
 		githubBaseURL string
 	}
 	cases := []struct {
@@ -165,14 +169,15 @@ func TestParseSemgrepResult(t *testing.T) {
 		{
 			name: "OK",
 			input: &args{
-				dir:        "/tmp",
-				scanResult: `{"results":[{"repository": "org/repo", "path": "/tmp/aaa.go", "check_id": "check_id", "start": {"line": 1, "col": 2}, "end": {"line": 3, "col": 4}, "extra": {"lines": "lines", "message": "message", "severity": "severity", "metadata": "metadata"}}]}`,
-				repository: "org/repo",
+				dir:          "/tmp",
+				scanResult:   `{"results":[{"repository": "org/repo", "path": "/tmp/aaa.go", "check_id": "check_id", "start": {"line": 1, "col": 2}, "end": {"line": 3, "col": 4}, "extra": {"lines": "lines", "message": "message", "severity": "severity", "metadata": "metadata"}}]}`,
+				masterBranch: "main",
+				repository:   "org/repo",
 			},
 			want: []*SemgrepFinding{
 				{
 					Repository: "org/repo",
-					GitHubURL:  "https://github.com/org/repo/blob/master/aaa.go#L1-L3",
+					GitHubURL:  "https://github.com/org/repo/blob/main/aaa.go#L1-L3",
 					Path:       "aaa.go",
 					CheckID:    "check_id",
 					Start: &SemgrepLine{
@@ -195,7 +200,7 @@ func TestParseSemgrepResult(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := ParseSemgrepResult(c.input.dir, c.input.scanResult, c.input.repository, c.input.githubBaseURL)
+			got, err := ParseSemgrepResult(c.input.dir, c.input.scanResult, c.input.repository, c.input.masterBranch, c.input.githubBaseURL)
 			if err != nil {
 				t.Fatalf("Unexpected error: %s", err)
 			}

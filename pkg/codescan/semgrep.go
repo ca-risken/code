@@ -27,14 +27,14 @@ func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r 
 	}
 
 	// Scemgrep
-	findings, err := s.semgrepScan(ctx, dir, *r.FullName, githubBaseURL)
+	findings, err := s.semgrepScan(ctx, dir, *r.FullName, *r.MasterBranch, githubBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan: repo=%s  err=%w", *r.FullName, err)
 	}
 	return findings, nil
 }
 
-func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, githubBaseURL string) ([]*SemgrepFinding, error) {
+func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, masterBranch, githubBaseURL string) ([]*SemgrepFinding, error) {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
 	defer cancel()
 
@@ -56,7 +56,7 @@ func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, git
 		s.logger.Errorf(ctx, "Failed semgrep scan: repository=%s", repository)
 		return nil, fmt.Errorf("failed to execute semgrep: targetDir=%s, err=%w, stderr=%+v", targetDir, err, stderr.String())
 	}
-	findings, err := ParseSemgrepResult(targetDir, stdout.String(), repository, githubBaseURL)
+	findings, err := ParseSemgrepResult(targetDir, stdout.String(), repository, masterBranch, githubBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse semgrep: targetDir=%s, err=%w", targetDir, err)
 	}
@@ -64,7 +64,7 @@ func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, git
 	return findings, nil
 }
 
-func ParseSemgrepResult(dir, scanResult, repository, githubBaseURL string) ([]*SemgrepFinding, error) {
+func ParseSemgrepResult(dir, scanResult, repository, masterBranch, githubBaseURL string) ([]*SemgrepFinding, error) {
 	var results SemgrepResults
 	err := json.Unmarshal([]byte(scanResult), &results)
 	if err != nil {
@@ -74,7 +74,7 @@ func ParseSemgrepResult(dir, scanResult, repository, githubBaseURL string) ([]*S
 	for _, r := range results.Results {
 		r.Repository = repository
 		r.Path = strings.ReplaceAll(r.Path, dir+"/", "") // remove dir prefix
-		r.GitHubURL = GenerateGitHubURL(githubBaseURL, r)
+		r.GitHubURL = GenerateGitHubURL(githubBaseURL, masterBranch, r)
 		findings = append(findings, r)
 	}
 	return findings, nil
@@ -97,12 +97,12 @@ func GenerateDataSourceIDForSemgrep(f *SemgrepFinding) string {
 	return fmt.Sprintf("%s/%s/%s/start-%d-%d/end-%d-%d", f.Repository, f.Path, f.CheckID, f.Start.Line, f.Start.Column, f.End.Line, f.End.Column)
 }
 
-func GenerateGitHubURL(githubBaseURL string, f *SemgrepFinding) string {
+func GenerateGitHubURL(githubBaseURL, masterBranch string, f *SemgrepFinding) string {
 	baseURL := "https://github.com/"
 	if githubBaseURL != "" {
 		baseURL = githubBaseURL
 	}
-	return fmt.Sprintf("%s%s/blob/master/%s#L%d-L%d", baseURL, f.Repository, f.Path, f.Start.Line, f.End.Line)
+	return fmt.Sprintf("%s%s/blob/%s/%s#L%d-L%d", baseURL, f.Repository, masterBranch, f.Path, f.Start.Line, f.End.Line)
 }
 
 type SemgrepResults struct {
