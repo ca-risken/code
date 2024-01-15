@@ -27,14 +27,14 @@ func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r 
 	}
 
 	// Scemgrep
-	findings, err := s.semgrepScan(ctx, dir, *r.FullName, *r.MasterBranch, githubBaseURL)
+	findings, err := s.semgrepScan(ctx, dir, *r.FullName, *r.DefaultBranch, githubBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan: repo=%s  err=%w", *r.FullName, err)
 	}
 	return findings, nil
 }
 
-func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, masterBranch, githubBaseURL string) ([]*SemgrepFinding, error) {
+func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, defaultBranch, githubBaseURL string) ([]*SemgrepFinding, error) {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
 	defer cancel()
 
@@ -56,7 +56,7 @@ func (s *sqsHandler) semgrepScan(ctx context.Context, targetDir, repository, mas
 		s.logger.Errorf(ctx, "Failed semgrep scan: repository=%s", repository)
 		return nil, fmt.Errorf("failed to execute semgrep: targetDir=%s, err=%w, stderr=%+v", targetDir, err, stderr.String())
 	}
-	findings, err := ParseSemgrepResult(targetDir, stdout.String(), repository, masterBranch, githubBaseURL)
+	findings, err := ParseSemgrepResult(targetDir, stdout.String(), repository, defaultBranch, githubBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse semgrep: targetDir=%s, err=%w", targetDir, err)
 	}
