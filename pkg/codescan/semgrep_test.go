@@ -140,7 +140,7 @@ func TestGenerateDataSourceIDForSemgrep(t *testing.T) {
 					},
 				},
 			},
-			want: "org/repo/aaa.go/check_id/start-1-2/end-3-4",
+			want: "244abeb5568f762c28a022722f6f18efc405c5f59231245bb22eb843ac446dd2",
 		},
 	}
 	for _, c := range cases {

@@ -47,7 +47,7 @@ func TestGeneratePutFindingRequest(t *testing.T) {
 				Finding: &finding.FindingForUpsert{
 					Description:      "Detect source code finding (check_id)",
 					DataSource:       "code:codescan",
-					DataSourceId:     "org/repo/path/to/file/check_id/start-1-1/end-1-1",
+					DataSourceId:     "cbacc7040b1472f1f31f7feb238ba1c08c1589bee069f995ac8db0504713e101",
 					ResourceName:     "org/repo",
 					ProjectId:        1,
 					OriginalScore:    0,
