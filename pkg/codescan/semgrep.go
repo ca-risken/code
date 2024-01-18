@@ -3,6 +3,8 @@ package codescan
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -94,7 +96,8 @@ func GetScoreSemgrep(serverity string) float32 {
 }
 
 func GenerateDataSourceIDForSemgrep(f *SemgrepFinding) string {
-	return fmt.Sprintf("%s/%s/%s/start-%d-%d/end-%d-%d", f.Repository, f.Path, f.CheckID, f.Start.Line, f.Start.Column, f.End.Line, f.End.Column)
+	hash := sha256.Sum256([]byte(fmt.Sprintf("%s/%s/%s/start-%d-%d/end-%d-%d", f.Repository, f.Path, f.CheckID, f.Start.Line, f.Start.Column, f.End.Line, f.End.Column)))
+	return hex.EncodeToString(hash[:])
 }
 
 func GenerateGitHubURL(githubBaseURL, masterBranch string, f *SemgrepFinding) string {
