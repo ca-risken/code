@@ -25,7 +25,7 @@ type gitleaksClient struct {
 	config gitleaksConfig
 }
 
-func newGitleaksClient(ctx context.Context, conf *gitleaksConfig) gitleaksServiceClient {
+func newGitleaksClient(conf *gitleaksConfig) gitleaksServiceClient {
 	return &gitleaksClient{
 		config: *conf,
 	}
