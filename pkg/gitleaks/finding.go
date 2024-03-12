@@ -77,7 +77,7 @@ func (l *LeakFinding) GenerateGitHubURL(repositoryURL string) string {
 func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.PutFindingRequest, error) {
 	buf, err := json.Marshal(f)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal user data: project_id=%d, repository=%s, err=%w", projectID, *f.FullName, err)
+		return nil, fmt.Errorf("failed to marshal user data: project_id=%d, repository=%s, err=%w", projectID, toString(f.FullName), err)
 	}
 	return &finding.PutFindingRequest{
 		ProjectId: projectID,
@@ -85,12 +85,12 @@ func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.P
 			Description: fmt.Sprintf(
 				"Detected a %s secret. (public=%t, lang=%s)",
 				f.Result.RuleDescription,
-				*f.Visibility == "public",
-				*f.Language,
+				toString(f.Visibility) == "public",
+				toString(f.Language),
 			),
 			DataSource:       message.GitleaksDataSource,
 			DataSourceId:     f.Result.DataSourceID,
-			ResourceName:     *f.FullName,
+			ResourceName:     toString(f.FullName),
 			ProjectId:        projectID,
 			OriginalScore:    defaultGitleaksScore,
 			OriginalMaxScore: 1.0,
@@ -182,4 +182,11 @@ func GetRecommend(rule, repoName, fileName, visibility, githubURL, author, autho
 			authorEmail,
 		),
 	}
+}
+
+func toString(str *string) string {
+	if str == nil {
+		return ""
+	}
+	return *str
 }
