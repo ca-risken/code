@@ -322,6 +322,10 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 		if err != nil {
 			return err
 		}
+		if req == nil {
+			s.logger.Warnf(ctx, "Skip put finding because of invalid finding data, project_id=%d", projectID)
+			continue
+		}
 		resp, err := s.findingClient.PutFinding(ctx, req)
 		if err != nil {
 			return err
