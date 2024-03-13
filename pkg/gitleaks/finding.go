@@ -75,6 +75,9 @@ func (l *LeakFinding) GenerateGitHubURL(repositoryURL string) string {
 }
 
 func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.PutFindingRequest, error) {
+	if f == nil {
+		return nil, nil
+	}
 	buf, err := json.Marshal(f)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal user data: project_id=%d, repository=%s, err=%w", projectID, *f.FullName, err)
