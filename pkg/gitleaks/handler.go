@@ -60,7 +60,7 @@ func NewHandler(
 	return &sqsHandler{
 		cipherBlock:           block,
 		githubClient:          githubcli.NewGithubClient(githubDefaultToken, l),
-		gitleaksClient:        newGitleaksClient(ctx, gitleaksConf),
+		gitleaksClient:        newGitleaksClient(gitleaksConf),
 		findingClient:         fc,
 		alertClient:           ac,
 		codeClient:            cc,
