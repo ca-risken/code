@@ -289,9 +289,7 @@ func TestGetRecommend(t *testing.T) {
 - For example, they can break into the cloud platform, destroy critical resources, access or edit with sensitive data, and so on.`,
 				Recommendation: `Take the following actions for leaked keys
 - Check the GitHub link for the key that has been committed.
-	- GitHub URL: https://github.com/ca-risken/
 - Check which environments the key has access to and what permissions it has (check with the Author of the commit if possible).
-	- Author: ALICE <alice@example.com>
 - Make sure you can rotate the key that has leaked.(If it is possible, do it immediately)
 - Reduce the number of roles associated with the leaked key or restrict the key's usage conditions
 - Next if the key activity can be confirmed from audit logs, etc., we will conduct a damage assessment.`,
