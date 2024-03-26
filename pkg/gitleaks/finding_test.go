@@ -284,7 +284,7 @@ func TestGetRecommend(t *testing.T) {
 			},
 			want: &Recommend{
 				Risk: `RULE
-- Secret key has been saved in the FILE_NAME file in the REPO_NAME repository (VISIBILITY repository)
+- Secret key has been saved in the file in the repository (VISIBILITY repository)
 - If a key is leaked, a cyber attack is possible within the scope of the key's authority
 - For example, they can break into the cloud platform, destroy critical resources, access or edit with sensitive data, and so on.`,
 				Recommendation: `Take the following actions for leaked keys
