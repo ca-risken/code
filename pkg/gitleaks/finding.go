@@ -167,12 +167,18 @@ func GetRecommend(rule, repoName, fileName, visibility, githubURL, author, autho
 			rule,
 			visibility,
 		),
-		Recommendation: `Take the following actions for leaked keys
+		Recommendation: fmt.Sprintf(`Take the following actions for leaked keys
 - Check the GitHub link for the key that has been committed.
+	- GitHub URL: %s
 - Check which environments the key has access to and what permissions it has (check with the Author of the commit if possible).
+	- Author: %s <%s>
 - Make sure you can rotate the key that has leaked.(If it is possible, do it immediately)
 - Reduce the number of roles associated with the leaked key or restrict the key's usage conditions
 - Next if the key activity can be confirmed from audit logs, etc., we will conduct a damage assessment.`,
+			githubURL,
+			author,
+			authorEmail,
+		),
 	}
 }
 
