@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -350,7 +352,12 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 			f.Result.Author,
 			f.Result.Email,
 		)
-		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, f.Result.RuleDescription, recommendContent)
+
+		recommendTypeStr := fmt.Sprintf("%s-%s-%s-%s-%d-%d-%d", f.Result.RuleDescription, f.Result.Repo, f.Result.Commit, f.Result.File, f.Result.StartLine, f.Result.EndLine, f.Result.StartColumn)
+		recommendType := sha256.Sum256([]byte(recommendTypeStr))
+		hashInHex := hex.EncodeToString(recommendType[:])
+
+		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, hashInHex, recommendContent)
 		if err != nil {
 			return err
 		}
