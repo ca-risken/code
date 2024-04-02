@@ -154,6 +154,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 			return mimosasqs.WrapNonRetryable(err)
 		}
 	}
+	s.logger.Errorf(ctx, "Hoge %d", msg.GitHubSettingID)
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
 		return mimosasqs.WrapNonRetryable(err)
 	}
@@ -352,12 +353,10 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 			f.Result.Author,
 			f.Result.Email,
 		)
-
 		recommendTypeStr := fmt.Sprintf("%s-%s-%s-%s-%d-%d-%d", f.Result.RuleDescription, f.Result.Repo, f.Result.Commit, f.Result.File, f.Result.StartLine, f.Result.EndLine, f.Result.StartColumn)
-		recommendType := sha256.Sum256([]byte(recommendTypeStr))
-		hashInHex := hex.EncodeToString(recommendType[:])
-
-		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, hashInHex, recommendContent)
+		recommendTypeBytes := sha256.Sum256([]byte(recommendTypeStr))
+		recommendType := hex.EncodeToString(recommendTypeBytes[:])
+		err = s.putRecommend(ctx, resp.Finding.ProjectId, resp.Finding.FindingId, recommendType, recommendContent)
 		if err != nil {
 			return err
 		}
