@@ -161,18 +161,26 @@ type Recommend struct {
 func GetRecommend(rule, repoName, fileName, visibility, githubURL, author, authorEmail string) *Recommend {
 	return &Recommend{
 		Risk: fmt.Sprintf(`%s
-- Secret key has been saved in the file in the repository (%s repository)
+- Secret key has been saved in the %s file in the %s repository (%s repository)
 - If a key is leaked, a cyber attack is possible within the scope of the key's authority
 - For example, they can break into the cloud platform, destroy critical resources, access or edit with sensitive data, and so on.`,
 			rule,
+			fileName,
+			repoName,
 			visibility,
 		),
-		Recommendation: `Take the following actions for leaked keys
+		Recommendation: fmt.Sprintf(`Take the following actions for leaked keys
 - Check the GitHub link for the key that has been committed.
+	- GitHub URL: %s
 - Check which environments the key has access to and what permissions it has (check with the Author of the commit if possible).
+	- Author: %s <%s>
 - Make sure you can rotate the key that has leaked.(If it is possible, do it immediately)
 - Reduce the number of roles associated with the leaked key or restrict the key's usage conditions
 - Next if the key activity can be confirmed from audit logs, etc., we will conduct a damage assessment.`,
+			githubURL,
+			author,
+			authorEmail,
+		),
 	}
 }
 
