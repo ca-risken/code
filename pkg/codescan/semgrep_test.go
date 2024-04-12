@@ -68,7 +68,9 @@ func TestGenerateGitHubURL(t *testing.T) {
 
 func TestGetScoreSemgrep(t *testing.T) {
 	type args struct {
-		serverity string
+		serverity  string
+		likelihood string
+		impact     string
 	}
 	cases := []struct {
 		name  string
@@ -76,11 +78,85 @@ func TestGetScoreSemgrep(t *testing.T) {
 		want  float32
 	}{
 		{
-			name: "ERROR",
+			name: "ERROR(likelihood: HIGH, impact: HIGH)",
 			input: &args{
-				serverity: "ERROR",
+				serverity:  "ERROR",
+				likelihood: "HIGH",
+				impact:     "HIGH",
+			},
+			want: 0.7,
+		},
+		{
+			name: "ERROR(likelihood: HIGH, impact: MEDIUM)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "HIGH",
+				impact:     "MEDIUM",
 			},
 			want: 0.6,
+		},
+		{
+			name: "ERROR(likelihood: HIGH, impact: LOW)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "HIGH",
+				impact:     "LOW",
+			},
+			want: 0.5,
+		},
+		{
+			name: "ERROR(likelihood: MEDIUM, impact: HIGH)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "MEDIUM",
+				impact:     "HIGH",
+			},
+			want: 0.6,
+		},
+		{
+			name: "ERROR(likelihood: MEDIUM, impact: MEDIUM)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "MEDIUM",
+				impact:     "MEDIUM",
+			},
+			want: 0.5,
+		},
+		{
+			name: "ERROR(likelihood: MEDIUM, impact: LOW)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "MEDIUM",
+				impact:     "LOW",
+			},
+			want: 0.4,
+		},
+		{
+			name: "ERROR(likelihood: LOW, impact: HIGH)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "LOW",
+				impact:     "HIGH",
+			},
+			want: 0.5,
+		},
+		{
+			name: "ERROR(likelihood: LOW, impact: MEDIUM)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "LOW",
+				impact:     "MEDIUM",
+			},
+			want: 0.4,
+		},
+		{
+			name: "ERROR(likelihood: LOW, impact: LOW)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "LOW",
+				impact:     "LOW",
+			},
+			want: 0.3,
 		},
 		{
 			name: "WARNING",
@@ -106,7 +182,7 @@ func TestGetScoreSemgrep(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := GetScoreSemgrep(c.input.serverity)
+			got := GetScoreSemgrep(c.input.serverity, c.input.likelihood, c.input.impact)
 			if got != c.want {
 				t.Fatalf("Unexpected data match: want=%f, got=%f", c.want, got)
 			}
@@ -207,6 +283,46 @@ func TestParseSemgrepResult(t *testing.T) {
 			if len(got) != len(c.want) {
 				t.Fatalf("Unexpected data length: want=%d, got=%d", len(c.want), len(got))
 			}
+			if diff := cmp.Diff(got, c.want); diff != "" {
+				t.Errorf("Unexpected value, diff=%s", diff)
+			}
+		})
+	}
+}
+
+func TestExtractSemgrepMetadata(t *testing.T) {
+	type args struct {
+		metadata interface{}
+	}
+	cases := []struct {
+		name  string
+		input *args
+		want  *SemgrepMetadata
+	}{
+		{
+			name: "OK",
+			input: &args{
+				metadata: interface{}(map[string]interface{}{
+					"likelihood": "HIGH",
+					"impact":     "HIGH",
+				}),
+			},
+			want: &SemgrepMetadata{
+				Likelihood: "HIGH",
+				Impact:     "HIGH",
+			},
+		},
+		{
+			name: "Empty",
+			input: &args{
+				metadata: ``,
+			},
+			want: &SemgrepMetadata{},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := extractSemgrepMetadata(c.input.metadata)
 			if diff := cmp.Diff(got, c.want); diff != "" {
 				t.Errorf("Unexpected value, diff=%s", diff)
 			}
