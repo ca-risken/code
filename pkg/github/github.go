@@ -4,14 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/datasource-api/proto/code"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/google/go-github/v44/github"
 	"golang.org/x/oauth2"
 )
+
+const RETRY_NUM uint64 = 3
 
 type GithubServiceClient interface {
 	ListRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error)
@@ -30,12 +34,15 @@ type GitHubV3Client struct {
 
 type riskenGitHubClient struct {
 	defaultToken string
+	retryer      backoff.BackOff
 	logger       logging.Logger
 }
 
 func NewGithubClient(defaultToken string, logger logging.Logger) *riskenGitHubClient {
+	retry := RETRY_NUM
 	return &riskenGitHubClient{
 		defaultToken: defaultToken,
+		retryer:      backoff.WithMaxRetries(backoff.NewExponentialBackOff(), retry),
 		logger:       logger,
 	}
 }
@@ -63,15 +70,18 @@ func getToken(token, defaultToken string) string {
 }
 
 func (g *riskenGitHubClient) Clone(ctx context.Context, token string, cloneURL string, dstDir string) error {
-	_, err := git.PlainClone(dstDir, false, &git.CloneOptions{
-		URL: cloneURL,
-		Auth: &http.BasicAuth{
-			Username: "dummy", // anything except an empty string
-			Password: getToken(token, g.defaultToken),
-		},
-	})
+	operation := func() error {
+		_, err := git.PlainClone(dstDir, false, &git.CloneOptions{
+			URL: cloneURL,
+			Auth: &http.BasicAuth{
+				Username: "dummy", // anything except an empty string
+				Password: getToken(token, g.defaultToken),
+			},
+		})
+		return err
+	}
 
-	if err != nil {
+	if err := backoff.RetryNotify(operation, g.retryer, g.newRetryLogger(ctx, "github clone")); err != nil {
 		return fmt.Errorf("failed to clone %s to %s: %w", cloneURL, dstDir, err)
 	}
 
@@ -167,4 +177,10 @@ func (g *riskenGitHubClient) listRepositoryForOrgWithOption(ctx context.Context,
 		opt.Page = resp.NextPage
 	}
 	return allRepo, nil
+}
+
+func (t *riskenGitHubClient) newRetryLogger(ctx context.Context, funcName string) func(error, time.Duration) {
+	return func(err error, ti time.Duration) {
+		t.logger.Warnf(ctx, "[RetryLogger] %s error: duration=%+v, err=%+v", funcName, ti, err)
+	}
 }
