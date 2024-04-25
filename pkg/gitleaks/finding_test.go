@@ -118,7 +118,7 @@ func TestGeneratePutFindingRequest(t *testing.T) {
 					DataSourceId:     "93527870b4fd88037267c21cdd91173d6961b9e1465d329304fa3955be4f50e9",
 					ResourceName:     "owner/repo_name",
 					ProjectId:        1,
-					OriginalScore:    0.8,
+					OriginalScore:    1.0,
 					OriginalMaxScore: 1.0,
 					Data:             `{"repository_metadata":{"id":1,"name":"repo_name","full_name":"owner/repo_name","language":"go","visibility":"public"},"results":{"data_source_id":"93527870b4fd88037267c21cdd91173d6961b9e1465d329304fa3955be4f50e9","repo":"owner/repo_name","ruleDescription":"rule_description","url":"html_url/blob/commit/file#L1-L1"}}`,
 				},
