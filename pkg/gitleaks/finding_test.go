@@ -307,3 +307,43 @@ func TestGetRecommend(t *testing.T) {
 		})
 	}
 }
+
+func TestGetGitleaksScore(t *testing.T) {
+	type args struct {
+		visibility string
+	}
+	tests := []struct {
+		name string
+		args args
+		want float32
+	}{
+		{
+			name: "OK public",
+			args: args{
+				visibility: "public",
+			},
+			want: 1.0,
+		},
+		{
+			name: "OK internal",
+			args: args{
+				visibility: "internal",
+			},
+			want: 0.8,
+		},
+		{
+			name: "OK private",
+			args: args{
+				visibility: "private",
+			},
+			want: 0.8,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getGitleaksScore(tt.args.visibility); got != tt.want {
+				t.Errorf("getGitleaksScore() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
