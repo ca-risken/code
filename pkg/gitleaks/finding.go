@@ -12,6 +12,10 @@ import (
 	"github.com/zricethezav/gitleaks/v8/report"
 )
 
+const (
+	defaultGitleaksScore = 0.8
+)
+
 type GitleaksFinding struct {
 	*RepositoryMetadata `json:"repository_metadata,omitempty"`
 	Result              *LeakFinding `json:"results,omitempty"`
@@ -92,7 +96,7 @@ func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.P
 			DataSourceId:     f.Result.DataSourceID,
 			ResourceName:     toString(f.FullName),
 			ProjectId:        projectID,
-			OriginalScore:    defaultGitleaksScore,
+			OriginalScore:    getGitleaksScore(toString(f.Visibility)),
 			OriginalMaxScore: 1.0,
 			Data:             string(buf),
 		},
@@ -189,4 +193,11 @@ func toString(str *string) string {
 		return ""
 	}
 	return *str
+}
+
+func getGitleaksScore(visibility string) float32 {
+	if visibility == "public" {
+		return 1.0
+	}
+	return defaultGitleaksScore
 }

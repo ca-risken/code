@@ -308,10 +308,6 @@ func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resource
 	return nil
 }
 
-const (
-	defaultGitleaksScore = 0.8
-)
-
 func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings []*GitleaksFinding) error {
 	// Exists leaks
 	for _, f := range findings {
