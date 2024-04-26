@@ -121,7 +121,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	for _, r := range repos {
 		repo := r.GetFullName()
 		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
-			DataSource: message.GoogleCloudSploitDataSource,
+			DataSource: message.CodeScanDataSource,
 			ProjectId:  msg.ProjectID,
 			Tag:        []string{tagCodeScan, repo},
 			BeforeAt:   beforeScanAt.Unix(),

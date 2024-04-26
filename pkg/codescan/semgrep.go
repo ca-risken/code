@@ -110,9 +110,6 @@ func GetScoreSemgrep(serverity, likelihood, impact string) float32 {
 	}
 
 	// severity "ERROR"
-	if impact == "" && likelihood == "" {
-		return 0.6 // Simple ERROR score (not security finding)
-	}
 
 	// Fine-grained scoring
 	// TODO: comment in
@@ -126,7 +123,7 @@ func GetScoreSemgrep(serverity, likelihood, impact string) float32 {
 	} else if impact == "LOW" {
 		return 0.4
 	}
-	return 0.0
+	return 0.6 // default ERROR score
 }
 
 func GenerateDataSourceIDForSemgrep(f *SemgrepFinding) string {
