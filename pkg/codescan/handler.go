@@ -68,7 +68,6 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		return mimosasqs.WrapNonRetryable(err)
 	}
 
-	beforeScanAt := time.Now()
 	gitHubSetting, err := s.getGitHubSetting(ctx, msg.ProjectID, msg.GitHubSettingID)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to get scan setting: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
@@ -96,6 +95,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	// Filtered By Name
 	repos = filterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
+	beforeScanAt := time.Now()
 	semgrepFindings := []*SemgrepFinding{}
 	for _, r := range repos {
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
