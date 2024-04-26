@@ -29,8 +29,9 @@ func TestGeneratePutFindingRequest(t *testing.T) {
 					Path:       "path/to/file",
 					CheckID:    "check_id",
 					Extra: &SemgrepExtra{
-						Message: "message",
-						Lines:   "lines",
+						Message:  "message",
+						Lines:    "lines",
+						Metadata: `{"key":"value"}`,
 					},
 					Start: &SemgrepLine{
 						Line:   1,
@@ -52,7 +53,7 @@ func TestGeneratePutFindingRequest(t *testing.T) {
 					ProjectId:        1,
 					OriginalScore:    0,
 					OriginalMaxScore: 1.0,
-					Data:             `{"repository":"org/repo","check_id":"check_id","path":"path/to/file","start":{"line":1,"col":1},"end":{"line":1,"col":1},"extra":{"lines":"lines","message":"message"}}`,
+					Data:             `{"repository":"org/repo","check_id":"check_id","path":"path/to/file","start":{"line":1,"col":1},"end":{"line":1,"col":1},"extra":{"lines":"lines","message":"message","metadata":"{\"key\":\"value\"}"}}`,
 				},
 			},
 			wantErr: false,

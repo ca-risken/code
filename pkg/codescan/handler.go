@@ -95,6 +95,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	// Filtered By Name
 	repos = filterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
+	beforeScanAt := time.Now()
 	semgrepFindings := []*SemgrepFinding{}
 	for _, r := range repos {
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
@@ -102,7 +103,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		}
 
 		// Scan source code
-		scanResult, err := s.scanForRepository(ctx, msg.ProjectID, r, token, gitHubSetting.BaseUrl)
+		scanResult, err := s.scanForRepository(ctx, r, token, gitHubSetting.BaseUrl)
 		if err != nil {
 			s.logger.Errorf(ctx, "failed to codeScan scan: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			s.updateStatusToError(ctx, scanStatus, err)
@@ -114,6 +115,21 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateStatusToError(ctx, scanStatus, err)
 		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	// Clear score for inactive findings
+	for _, r := range repos {
+		repo := r.GetFullName()
+		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
+			DataSource: message.CodeScanDataSource,
+			ProjectId:  msg.ProjectID,
+			Tag:        []string{tagCodeScan, repo},
+			BeforeAt:   beforeScanAt.Unix(),
+		}); err != nil {
+			s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repo, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
+		}
 	}
 
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {

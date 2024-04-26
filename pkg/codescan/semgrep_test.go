@@ -68,19 +68,51 @@ func TestGenerateGitHubURL(t *testing.T) {
 
 func TestGetScoreSemgrep(t *testing.T) {
 	type args struct {
-		serverity string
+		serverity  string
+		likelihood string
+		impact     string
 	}
 	cases := []struct {
 		name  string
 		input *args
 		want  float32
 	}{
+		// TODO: comment in
+		// {
+		// 	name: "ERROR(impact: HIGH, likelihood: HIGH)",
+		// 	input: &args{
+		// 		serverity:  "ERROR",
+		// 		likelihood: "HIGH",
+		// 		impact:     "HIGH",
+		// 	},
+		// 	want: 0.8,
+		// },
 		{
-			name: "ERROR",
+			name: "ERROR(impact: HIGN, likelihood: not HIGH)",
 			input: &args{
-				serverity: "ERROR",
+				serverity:  "ERROR",
+				impact:     "HIGH",
+				likelihood: "LOW",
 			},
 			want: 0.6,
+		},
+		{
+			name: "ERROR(impact: MEDIUM, likelihood: not HIGH)",
+			input: &args{
+				serverity:  "ERROR",
+				impact:     "MEDIUM",
+				likelihood: "LOW",
+			},
+			want: 0.5,
+		},
+		{
+			name: "ERROR(impact: LOW, likelihood: not HIGH)",
+			input: &args{
+				serverity:  "ERROR",
+				impact:     "LOW",
+				likelihood: "LOW",
+			},
+			want: 0.4,
 		},
 		{
 			name: "WARNING",
@@ -106,7 +138,7 @@ func TestGetScoreSemgrep(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got := GetScoreSemgrep(c.input.serverity)
+			got := GetScoreSemgrep(c.input.serverity, c.input.likelihood, c.input.impact)
 			if got != c.want {
 				t.Fatalf("Unexpected data match: want=%f, got=%f", c.want, got)
 			}
@@ -207,6 +239,46 @@ func TestParseSemgrepResult(t *testing.T) {
 			if len(got) != len(c.want) {
 				t.Fatalf("Unexpected data length: want=%d, got=%d", len(c.want), len(got))
 			}
+			if diff := cmp.Diff(got, c.want); diff != "" {
+				t.Errorf("Unexpected value, diff=%s", diff)
+			}
+		})
+	}
+}
+
+func TestExtractSemgrepMetadata(t *testing.T) {
+	type args struct {
+		metadata interface{}
+	}
+	cases := []struct {
+		name  string
+		input *args
+		want  *SemgrepMetadata
+	}{
+		{
+			name: "OK",
+			input: &args{
+				metadata: interface{}(map[string]interface{}{
+					"likelihood": "HIGH",
+					"impact":     "HIGH",
+				}),
+			},
+			want: &SemgrepMetadata{
+				Likelihood: "HIGH",
+				Impact:     "HIGH",
+			},
+		},
+		{
+			name: "Empty",
+			input: &args{
+				metadata: ``,
+			},
+			want: &SemgrepMetadata{},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := extractSemgrepMetadata(c.input.metadata)
 			if diff := cmp.Diff(got, c.want); diff != "" {
 				t.Errorf("Unexpected value, diff=%s", diff)
 			}

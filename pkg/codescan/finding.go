@@ -71,6 +71,7 @@ func GeneratePutFindingRequest(projectID uint32, f *SemgrepFinding) (*finding.Pu
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal data: project_id=%d, repository=%s, err=%w", projectID, f.Repository, err)
 	}
+	meta := extractSemgrepMetadata(f.Extra.Metadata)
 	return &finding.PutFindingRequest{
 		ProjectId: projectID,
 		Finding: &finding.FindingForUpsert{
@@ -79,7 +80,7 @@ func GeneratePutFindingRequest(projectID uint32, f *SemgrepFinding) (*finding.Pu
 			DataSourceId:     GenerateDataSourceIDForSemgrep(f),
 			ResourceName:     f.Repository,
 			ProjectId:        projectID,
-			OriginalScore:    GetScoreSemgrep(f.Extra.Severity),
+			OriginalScore:    GetScoreSemgrep(f.Extra.Severity, meta.Likelihood, meta.Impact),
 			OriginalMaxScore: 1.0,
 			Data:             string(buf),
 		},

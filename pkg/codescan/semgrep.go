@@ -15,7 +15,7 @@ import (
 	"github.com/google/go-github/v44/github"
 )
 
-func (s *sqsHandler) scanForRepository(ctx context.Context, projectID uint32, r *github.Repository, token, githubBaseURL string) ([]*SemgrepFinding, error) {
+func (s *sqsHandler) scanForRepository(ctx context.Context, r *github.Repository, token, githubBaseURL string) ([]*SemgrepFinding, error) {
 	// Clone repository
 	dir, err := createCloneDir(*r.Name)
 	if err != nil {
@@ -82,17 +82,48 @@ func ParseSemgrepResult(dir, scanResult, repository, masterBranch, githubBaseURL
 	return findings, nil
 }
 
-func GetScoreSemgrep(serverity string) float32 {
+func extractSemgrepMetadata(metadata any) *SemgrepMetadata {
+	meta, ok := metadata.(map[string]interface{})
+	if !ok {
+		return &SemgrepMetadata{}
+	}
+
+	var m SemgrepMetadata
+	if v, ok := meta["likelihood"]; ok {
+		m.Likelihood = fmt.Sprintf("%v", v)
+	}
+	if v, ok := meta["impact"]; ok {
+		m.Impact = fmt.Sprintf("%v", v)
+	}
+	return &m
+}
+
+func GetScoreSemgrep(serverity, likelihood, impact string) float32 {
 	switch serverity {
-	case "ERROR":
-		return 0.6
 	case "WARNING":
 		return 0.3
 	case "INFO":
 		return 0.1
-	default:
+	}
+	if serverity != "ERROR" {
 		return 0.0
 	}
+
+	// severity "ERROR"
+
+	// Fine-grained scoring
+	// TODO: comment in
+	// if impact == "HIGH" && likelihood == "HIGH" {
+	// 	return 0.8
+	// }
+	if impact == "HIGH" {
+		return 0.6
+	} else if impact == "MEDIUM" {
+		return 0.5
+	} else if impact == "LOW" {
+		return 0.4
+	}
+	return 0.6 // default ERROR score
 }
 
 func GenerateDataSourceIDForSemgrep(f *SemgrepFinding) string {
@@ -137,4 +168,12 @@ type SemgrepExtra struct {
 	Severity      string      `json:"severity,omitempty"`
 	ValidateState string      `json:"validate_state,omitempty"`
 	Metadata      interface{} `json:"metadata,omitempty"`
+}
+
+// SemgrepMetadata is a struct for semgrep metadata.
+// If `security` category, a metadata has `likelihood` and `impact` fields(required fields).
+// refs: https://semgrep.dev/docs/contributing/contributing-to-semgrep-rules-repository/#including-fields-required-by-security-category
+type SemgrepMetadata struct {
+	Likelihood string `json:"likelihood,omitempty"`
+	Impact     string `json:"impact,omitempty"`
 }
