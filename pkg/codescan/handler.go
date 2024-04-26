@@ -68,6 +68,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		return mimosasqs.WrapNonRetryable(err)
 	}
 
+	beforeScanAt := time.Now()
 	gitHubSetting, err := s.getGitHubSetting(ctx, msg.ProjectID, msg.GitHubSettingID)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to get scan setting: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
@@ -114,6 +115,21 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateStatusToError(ctx, scanStatus, err)
 		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	// Clear score for inactive findings
+	for _, r := range repos {
+		repo := r.GetFullName()
+		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
+			DataSource: message.GoogleCloudSploitDataSource,
+			ProjectId:  msg.ProjectID,
+			Tag:        []string{tagCodeScan, repo},
+			BeforeAt:   beforeScanAt.Unix(),
+		}); err != nil {
+			s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repo, err)
+			s.updateStatusToError(ctx, scanStatus, err)
+			return mimosasqs.WrapNonRetryable(err)
+		}
 	}
 
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
