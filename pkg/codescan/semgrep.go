@@ -99,35 +99,34 @@ func extractSemgrepMetadata(metadata any) *SemgrepMetadata {
 }
 
 func GetScoreSemgrep(serverity, likelihood, impact string) float32 {
-	var score float32
 	switch serverity {
-	case "ERROR":
-		score = 0.3 // base score
 	case "WARNING":
 		return 0.3
 	case "INFO":
 		return 0.1
-	default:
+	}
+	if serverity != "ERROR" {
 		return 0.0
 	}
-	if likelihood == "" && impact == "" {
+
+	// severity "ERROR"
+	if impact == "" && likelihood == "" {
 		return 0.6 // Simple ERROR score (not security finding)
 	}
 
 	// Fine-grained scoring
-	switch likelihood {
-	case "HIGH":
-		score += 0.2
-	case "MEDIUM":
-		score += 0.1
+	// TODO: comment in
+	// if impact == "HIGH" && likelihood == "HIGH" {
+	// 	return 0.8
+	// }
+	if impact == "HIGH" {
+		return 0.6
+	} else if impact == "MEDIUM" {
+		return 0.5
+	} else if impact == "LOW" {
+		return 0.4
 	}
-	switch impact {
-	case "HIGH":
-		score += 0.2
-	case "MEDIUM":
-		score += 0.1
-	}
-	return score
+	return 0.0
 }
 
 func GenerateDataSourceIDForSemgrep(f *SemgrepFinding) string {

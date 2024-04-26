@@ -77,86 +77,42 @@ func TestGetScoreSemgrep(t *testing.T) {
 		input *args
 		want  float32
 	}{
+		// TODO: comment in
+		// {
+		// 	name: "ERROR(impact: HIGH, likelihood: HIGH)",
+		// 	input: &args{
+		// 		serverity:  "ERROR",
+		// 		likelihood: "HIGH",
+		// 		impact:     "HIGH",
+		// 	},
+		// 	want: 0.8,
+		// },
 		{
-			name: "ERROR(likelihood: HIGH, impact: HIGH)",
+			name: "ERROR(impact: HIGN, likelihood: not HIGH)",
 			input: &args{
 				serverity:  "ERROR",
-				likelihood: "HIGH",
 				impact:     "HIGH",
-			},
-			want: 0.7,
-		},
-		{
-			name: "ERROR(likelihood: HIGH, impact: MEDIUM)",
-			input: &args{
-				serverity:  "ERROR",
-				likelihood: "HIGH",
-				impact:     "MEDIUM",
+				likelihood: "LOW",
 			},
 			want: 0.6,
 		},
 		{
-			name: "ERROR(likelihood: HIGH, impact: LOW)",
+			name: "ERROR(impact: MEDIUM, likelihood: not HIGH)",
 			input: &args{
 				serverity:  "ERROR",
-				likelihood: "HIGH",
-				impact:     "LOW",
-			},
-			want: 0.5,
-		},
-		{
-			name: "ERROR(likelihood: MEDIUM, impact: HIGH)",
-			input: &args{
-				serverity:  "ERROR",
-				likelihood: "MEDIUM",
-				impact:     "HIGH",
-			},
-			want: 0.6,
-		},
-		{
-			name: "ERROR(likelihood: MEDIUM, impact: MEDIUM)",
-			input: &args{
-				serverity:  "ERROR",
-				likelihood: "MEDIUM",
 				impact:     "MEDIUM",
+				likelihood: "LOW",
 			},
 			want: 0.5,
 		},
 		{
-			name: "ERROR(likelihood: MEDIUM, impact: LOW)",
+			name: "ERROR(impact: LOW, likelihood: not HIGH)",
 			input: &args{
 				serverity:  "ERROR",
-				likelihood: "MEDIUM",
 				impact:     "LOW",
+				likelihood: "LOW",
 			},
 			want: 0.4,
-		},
-		{
-			name: "ERROR(likelihood: LOW, impact: HIGH)",
-			input: &args{
-				serverity:  "ERROR",
-				likelihood: "LOW",
-				impact:     "HIGH",
-			},
-			want: 0.5,
-		},
-		{
-			name: "ERROR(likelihood: LOW, impact: MEDIUM)",
-			input: &args{
-				serverity:  "ERROR",
-				likelihood: "LOW",
-				impact:     "MEDIUM",
-			},
-			want: 0.4,
-		},
-		{
-			name: "ERROR(likelihood: LOW, impact: LOW)",
-			input: &args{
-				serverity:  "ERROR",
-				likelihood: "LOW",
-				impact:     "LOW",
-			},
-			want: 0.3,
 		},
 		{
 			name: "WARNING",
