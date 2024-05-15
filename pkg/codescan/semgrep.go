@@ -110,13 +110,10 @@ func GetScoreSemgrep(serverity, likelihood, impact string) float32 {
 	}
 
 	// severity "ERROR"
-
 	// Fine-grained scoring
-	// TODO: comment in
-	// if impact == "HIGH" && likelihood == "HIGH" {
-	// 	return 0.8
-	// }
-	if impact == "HIGH" {
+	if impact == "HIGH" && likelihood == "HIGH" {
+		return 0.8
+	} else if impact == "HIGH" {
 		return 0.6
 	} else if impact == "MEDIUM" {
 		return 0.5
