@@ -77,16 +77,15 @@ func TestGetScoreSemgrep(t *testing.T) {
 		input *args
 		want  float32
 	}{
-		// TODO: comment in
-		// {
-		// 	name: "ERROR(impact: HIGH, likelihood: HIGH)",
-		// 	input: &args{
-		// 		serverity:  "ERROR",
-		// 		likelihood: "HIGH",
-		// 		impact:     "HIGH",
-		// 	},
-		// 	want: 0.8,
-		// },
+		{
+			name: "ERROR(impact: HIGH, likelihood: HIGH)",
+			input: &args{
+				serverity:  "ERROR",
+				likelihood: "HIGH",
+				impact:     "HIGH",
+			},
+			want: 0.8,
+		},
 		{
 			name: "ERROR(impact: HIGN, likelihood: not HIGH)",
 			input: &args{
