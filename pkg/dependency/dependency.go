@@ -56,7 +56,7 @@ func newTrivyClient(trivyPath string, exec exec.Interface, retryNum *uint64, l l
 	}
 }
 
-func newDependencyClient(ctx context.Context, conf *dependencyConfig, l logging.Logger) dependencyServiceClient {
+func newDependencyClient(conf *dependencyConfig, l logging.Logger) dependencyServiceClient {
 	return &dependencyClient{
 		config: *conf,
 		trivy:  newTrivyClient(conf.trivyPath, exec.New(), nil, l),
