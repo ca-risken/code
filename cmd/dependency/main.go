@@ -11,6 +11,7 @@ import (
 	"github.com/ca-risken/common/pkg/profiler"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/common/pkg/tracer"
+	vulnsdk "github.com/ca-risken/vulnerability/pkg/sdk"
 	"github.com/gassara-kys/envconfig"
 )
 
@@ -60,6 +61,10 @@ type AppConfig struct {
 
 	// handler
 	CodeDataKey string `split_words:"true" required:"true"`
+
+	// vulnerability
+	VulnerabilityApiURL string `envconfig:"VULNERABILITY_API_URL" default:""`
+	VulnerabilityAPIKey string `envconfig:"VULNERABILITY_API_KEY" default:""`
 }
 
 func main() {
@@ -111,11 +116,19 @@ func main() {
 	if err != nil {
 		appLogger.Fatalf(ctx, "failed to create alert client, err=%+v", err)
 	}
+	var vc *vulnsdk.Client
+	if conf.VulnerabilityApiURL != "" {
+		vc = vulnsdk.NewClient(conf.VulnerabilityApiURL, vulnsdk.WithApiKey(conf.VulnerabilityAPIKey))
+	} else {
+		appLogger.Warn(ctx, "Vulnerability API URL is not set")
+	}
+
 	handler, err := dependency.NewHandler(
 		ctx,
 		fc,
 		ac,
 		cc,
+		vc,
 		conf.CodeDataKey,
 		conf.GithubDefaultToken,
 		conf.TrivyPath,

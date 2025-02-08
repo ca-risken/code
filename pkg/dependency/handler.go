@@ -17,6 +17,7 @@ import (
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
+	vulnsdk "github.com/ca-risken/vulnerability/pkg/sdk"
 	"github.com/google/go-github/v44/github"
 )
 
@@ -27,6 +28,7 @@ type sqsHandler struct {
 	findingClient         finding.FindingServiceClient
 	alertClient           alert.AlertServiceClient
 	codeClient            code.CodeServiceClient
+	vulnClient            *vulnsdk.Client
 	limitRepositorySizeKb int
 	logger                logging.Logger
 }
@@ -36,6 +38,7 @@ func NewHandler(
 	fc finding.FindingServiceClient,
 	ac alert.AlertServiceClient,
 	cc code.CodeServiceClient,
+	vulnClient *vulnsdk.Client,
 	codeDataKey string,
 	githubDefaultToken string,
 	trivyPath string,
@@ -58,6 +61,7 @@ func NewHandler(
 		findingClient:         fc,
 		alertClient:           ac,
 		codeClient:            cc,
+		vulnClient:            vulnClient,
 		limitRepositorySizeKb: limitRepositorySizeKb,
 		logger:                l,
 	}, nil
@@ -111,7 +115,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
-		findings, err := makeFindings(msg, result, r.GetID())
+		findings, err := s.makeFindings(ctx, msg, result, r.GetID())
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to make findings: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
 			s.updateStatusToError(ctx, scanStatus, err)
