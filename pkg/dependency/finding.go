@@ -99,7 +99,8 @@ func (s *sqsHandler) makeFindings(ctx context.Context, msg *message.CodeQueueMes
 			if err != nil {
 				return nil, err
 			}
-			score, err := getScore(&vul)
+			canTriage := vulnFinding.RiskenTriage != nil
+			score, err := getScore(&vul, canTriage)
 			if err != nil {
 				return nil, err
 			}
@@ -177,13 +178,23 @@ const (
 	SEVERITY_MEDIUM   = "MEDIUM"
 	SEVERITY_LOW      = "LOW"
 	SEVERITY_UNKNOWN  = "UNKNOWN"
-	SCORE_CRITICAL    = float32(0.6)
-	SCORE_HIGH        = float32(0.5)
-	SCORE_MEDIUM      = float32(0.3)
-	SCORE_LOW         = float32(0.1)
-	SCORE_UNKNOWN     = float32(0.1)
+
+	// Default Score
+	SCORE_CRITICAL = float32(0.6)
+	SCORE_HIGH     = float32(0.5)
+	SCORE_MEDIUM   = float32(0.3)
+	SCORE_LOW      = float32(0.1)
+	SCORE_UNKNOWN  = float32(0.1)
+
+	// CVE Score
+	SCORE_CVE_CRITICAL = float32(0.8)
+	SCORE_CVE_HIGH     = float32(0.6)
+	SCORE_CVE_MEDIUM   = float32(0.4)
+	SCORE_CVE_LOW      = float32(0.1)
+	SCORE_CVE_UNKNOWN  = float32(0.1)
 )
 
+// Severity Score
 var mapSeverityScore = map[string]float32{
 	SEVERITY_CRITICAL: SCORE_CRITICAL,
 	SEVERITY_HIGH:     SCORE_HIGH,
@@ -192,10 +203,37 @@ var mapSeverityScore = map[string]float32{
 	SEVERITY_UNKNOWN:  SCORE_UNKNOWN,
 }
 
-func getScore(vuln *trivytypes.DetectedVulnerability) (float32, error) {
+// Triageable Severity Score
+// Vulnerabilities that can be automatically triaged (e.g. CVE) have higher scores
+// because they contain more information and can be processed systematically
+var mapTriageableScore = map[string]float32{
+	SEVERITY_CRITICAL: SCORE_CVE_CRITICAL,
+	SEVERITY_HIGH:     SCORE_CVE_HIGH,
+	SEVERITY_MEDIUM:   SCORE_CVE_MEDIUM,
+	SEVERITY_LOW:      SCORE_CVE_LOW,
+	SEVERITY_UNKNOWN:  SCORE_CVE_UNKNOWN,
+}
+
+func getScore(vuln *trivytypes.DetectedVulnerability, canTriage bool) (float32, error) {
 	if vuln == nil {
 		return SCORE_LOW, nil
 	}
+	if canTriage {
+		return getTriageableScore(vuln)
+	} else {
+		return getDefaultScore(vuln)
+	}
+}
+
+func getTriageableScore(vuln *trivytypes.DetectedVulnerability) (float32, error) {
+	score, ok := mapTriageableScore[vuln.Vulnerability.Severity]
+	if !ok {
+		return 0, fmt.Errorf("unknown severity: %s", vuln.Vulnerability.Severity)
+	}
+	return score, nil
+}
+
+func getDefaultScore(vuln *trivytypes.DetectedVulnerability) (float32, error) {
 	score, ok := mapSeverityScore[vuln.Vulnerability.Severity]
 	if !ok {
 		return 0, fmt.Errorf("unknown severity: %s", vuln.Vulnerability.Severity)
