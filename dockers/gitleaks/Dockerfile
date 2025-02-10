@@ -1,10 +1,8 @@
-FROM golang:1.18.2 as builder
+FROM golang:1.21.3 AS builder
 WORKDIR /go/src/github.com/ca-risken/code/
-
 COPY go.mod .
 COPY go.sum .
 RUN go mod download
-
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/gitleaks cmd/gitleaks/main.go
 

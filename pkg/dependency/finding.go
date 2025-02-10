@@ -8,8 +8,11 @@ import (
 	"fmt"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
+	triage "github.com/ca-risken/core/pkg/server/finding"
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/pkg/message"
+	vulnmodel "github.com/ca-risken/vulnerability/pkg/model"
+	vulnsdk "github.com/ca-risken/vulnerability/pkg/sdk"
 )
 
 type vulnerabililityIndex struct {
@@ -51,7 +54,20 @@ func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uin
 	return nil
 }
 
-func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report, repositoryID int64) ([]*finding.FindingBatchForUpsert, error) {
+type TargetInfo struct {
+	RepositoryURL string `json:"repositoryURL"`
+	Target        string `json:"target"`
+	PackageName   string `json:"packageName"`
+}
+
+type VulnFinding struct {
+	Target          TargetInfo                         `json:"target"`
+	Vulnerabilities []trivytypes.DetectedVulnerability `json:"vulnerabilities,omitempty"`
+	VulnDetail      *vulnmodel.Vulnerability           `json:"vuln_detail,omitempty"`
+	RiskenTriage    *triage.RiskenTriage               `json:"risken_triage,omitempty"`
+}
+
+func (s *sqsHandler) makeFindings(ctx context.Context, msg *message.CodeQueueMessage, report *trivytypes.Report, repositoryID int64) ([]*finding.FindingBatchForUpsert, error) {
 	var findings []*finding.FindingBatchForUpsert
 	results := report.Results
 	for _, result := range results {
@@ -62,16 +78,31 @@ func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report, repo
 			mapVulnerabilities[vi] = append(mapVulnerabilities[vi], vulnerability)
 		}
 		for vi, vuls := range mapVulnerabilities {
-			targetInfo := map[string]string{
-				"repositoryURL": report.ArtifactName,
-				"target":        result.Target,
-				"packageName":   vi.packageName,
+			targetInfo := TargetInfo{
+				RepositoryURL: report.ArtifactName,
+				Target:        result.Target,
+				PackageName:   vi.packageName,
 			}
-			data, err := json.Marshal(map[string]interface{}{"target": targetInfo, "vulnerabilities": vuls})
+			// Get the highest score vulnerability
+			highestVuln, err := getHighScoreVuln(vuls)
 			if err != nil {
 				return nil, err
 			}
-			score, err := getScore(vuls)
+			vulnDetail, err := s.getVulnerability(ctx, vi.vulnID)
+			if err != nil {
+				return nil, err
+			}
+			vulnFinding := VulnFinding{
+				Target:          targetInfo,
+				Vulnerabilities: vuls,
+				VulnDetail:      vulnDetail,
+				RiskenTriage:    vulnsdk.EvaluateVulnerability(vulnDetail),
+			}
+			data, err := json.Marshal(vulnFinding)
+			if err != nil {
+				return nil, err
+			}
+			score, err := getScore(highestVuln)
 			if err != nil {
 				return nil, err
 			}
@@ -91,8 +122,8 @@ func makeFindings(msg *message.CodeQueueMessage, report *trivytypes.Report, repo
 				Tag: []*finding.FindingTagForBatch{
 					{Tag: tagCode},
 					{Tag: tagDependency},
-					// ex) gomod,pip
-					{Tag: result.Type},
+					{Tag: result.Type}, // ex) gomod,pip
+					{Tag: vi.vulnID},   // ex) CVE-2025-12345
 					{Tag: fmt.Sprintf("repository_id:%v", repositoryID)},
 				},
 			})
@@ -143,28 +174,6 @@ func getDescription(vulnerabilityID, target, repository string) string {
 	return fmt.Sprintf("Vulnerability %s found in %s. Repository: %s", vulnerabilityID, target, repository)
 }
 
-func getScore(vulnerabilities []trivytypes.DetectedVulnerability) (float32, error) {
-	mapSeverityScore := map[string]float32{
-		SEVERITY_CRITICAL: SCORE_CRITICAL,
-		SEVERITY_HIGH:     SCORE_HIGH,
-		SEVERITY_MEDIUM:   SCORE_MEDIUM,
-		SEVERITY_LOW:      SCORE_LOW,
-		SEVERITY_UNKNOWN:  SCORE_UNKNOWN,
-	}
-	score := SCORE_LOW
-	// 各パッケージごとに一番Severityの高い脆弱性にスコアを合わせる
-	for _, vuls := range vulnerabilities {
-		s, ok := mapSeverityScore[vuls.Severity]
-		if !ok {
-			return 0, fmt.Errorf("unknown severity: %s", vuls.Severity)
-		}
-		if s > score {
-			score = s
-		}
-	}
-	return score, nil
-}
-
 const (
 	SEVERITY_CRITICAL = "CRITICAL"
 	SEVERITY_HIGH     = "HIGH"
@@ -177,3 +186,46 @@ const (
 	SCORE_LOW         = float32(0.1)
 	SCORE_UNKNOWN     = float32(0.1)
 )
+
+var mapSeverityScore = map[string]float32{
+	SEVERITY_CRITICAL: SCORE_CRITICAL,
+	SEVERITY_HIGH:     SCORE_HIGH,
+	SEVERITY_MEDIUM:   SCORE_MEDIUM,
+	SEVERITY_LOW:      SCORE_LOW,
+	SEVERITY_UNKNOWN:  SCORE_UNKNOWN,
+}
+
+func getHighScoreVuln(vulnerabilities []trivytypes.DetectedVulnerability) (*trivytypes.DetectedVulnerability, error) {
+	if len(vulnerabilities) == 0 {
+		return nil, nil
+	}
+
+	highestVuln := &vulnerabilities[0]
+	highestScore, ok := mapSeverityScore[highestVuln.Vulnerability.Severity]
+	if !ok {
+		return nil, fmt.Errorf("unknown severity: %s", highestVuln.Vulnerability.Severity)
+	}
+
+	for _, vuln := range vulnerabilities[1:] {
+		score, ok := mapSeverityScore[vuln.Vulnerability.Severity]
+		if !ok {
+			return nil, fmt.Errorf("unknown severity: %s", vuln.Vulnerability.Severity)
+		}
+		if score > highestScore {
+			highestScore = score
+			highestVuln = &vuln
+		}
+	}
+	return highestVuln, nil
+}
+
+func getScore(vuln *trivytypes.DetectedVulnerability) (float32, error) {
+	if vuln == nil {
+		return SCORE_LOW, nil
+	}
+	score, ok := mapSeverityScore[vuln.Vulnerability.Severity]
+	if !ok {
+		return 0, fmt.Errorf("unknown severity: %s", vuln.Vulnerability.Severity)
+	}
+	return score, nil
+}

@@ -303,7 +303,9 @@ func TestMakeFinding(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := makeFindings(c.msg, c.report, c.repositoryID)
+			ctx := context.Background()
+			s := sqsHandler{}
+			got, err := s.makeFindings(ctx, c.msg, c.report, c.repositoryID)
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
@@ -380,15 +382,26 @@ func TestGetScore(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := getScore(c.vulnerabilities)
+			highestVuln, err := getHighScoreVuln(c.vulnerabilities)
 			if c.wantErr && err == nil {
-				t.Fatal("Unexpected no error")
+				t.Fatal("[getHighScoreVuln] Unexpected no error")
 			}
 			if !c.wantErr && err != nil {
-				t.Fatalf("Unexpected error occured, err=%+v", err)
+				t.Fatalf("[getHighScoreVuln] Unexpected error occured, err=%+v", err)
+			}
+			if highestVuln == nil {
+				return
+			}
+
+			got, err := getScore(highestVuln)
+			if c.wantErr && err == nil {
+				t.Fatal("[getScore] Unexpected no error")
+			}
+			if !c.wantErr && err != nil {
+				t.Fatalf("[getScore] Unexpected error occured, err=%+v", err)
 			}
 			if !reflect.DeepEqual(c.want, got) {
-				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, got)
+				t.Fatalf("[getScore] Unexpected not matching: want=%+v, got=%+v", c.want, got)
 			}
 		})
 	}
