@@ -321,60 +321,89 @@ func TestMakeFinding(t *testing.T) {
 
 func TestGetScore(t *testing.T) {
 	cases := []struct {
-		name            string
-		vulnerabilities []types.DetectedVulnerability
-		want            float32
-		wantErr         bool
+		name      string
+		canTriage bool
+		want      float32
+		wantErr   bool
+	}{
+		{
+			name:      "Triageable",
+			canTriage: true,
+			want:      0.8,
+		},
+		{
+			name:      "Default",
+			canTriage: false,
+			want:      0.6,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fixedVulnerability := types.DetectedVulnerability{
+				VulnerabilityID: "CVE-9999-9999",
+				Vulnerability:   dbtypes.Vulnerability{Severity: "CRITICAL"},
+			}
+
+			got, err := getScore(&fixedVulnerability, c.canTriage)
+			if c.wantErr && err == nil {
+				t.Fatal("Unexpected no error")
+			}
+			if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured, err=%+v", err)
+			}
+			if !reflect.DeepEqual(c.want, got) {
+				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, got)
+			}
+		})
+	}
+}
+
+func TestGetDefaultScore(t *testing.T) {
+	cases := []struct {
+		name          string
+		vulnerability types.DetectedVulnerability
+		want          float32
+		wantErr       bool
 	}{
 		{
 			name: "OK Critical",
-			vulnerabilities: []types.DetectedVulnerability{
-				{Vulnerability: dbtypes.Vulnerability{Severity: "CRITICAL"}},
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "CRITICAL"},
 			},
 			want: 0.6,
 		},
 		{
 			name: "OK High",
-			vulnerabilities: []types.DetectedVulnerability{
-				{Vulnerability: dbtypes.Vulnerability{Severity: "HIGH"}},
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "HIGH"},
 			},
 			want: 0.5,
 		},
 		{
 			name: "OK Medium",
-			vulnerabilities: []types.DetectedVulnerability{
-				{Vulnerability: dbtypes.Vulnerability{Severity: "MEDIUM"}},
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "MEDIUM"},
 			},
 			want: 0.3,
 		},
 		{
 			name: "OK Low",
-			vulnerabilities: []types.DetectedVulnerability{
-				{Vulnerability: dbtypes.Vulnerability{Severity: "LOW"}},
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "LOW"},
 			},
 			want: 0.1,
 		},
 		{
 			name: "OK Unknown",
-			vulnerabilities: []types.DetectedVulnerability{
-				{Vulnerability: dbtypes.Vulnerability{Severity: "UNKNOWN"}},
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "UNKNOWN"},
 			},
 			want: 0.1,
 		},
 		{
-			name: "OK Multiple",
-			vulnerabilities: []types.DetectedVulnerability{
-				{Vulnerability: dbtypes.Vulnerability{Severity: "LOW"}},
-				{Vulnerability: dbtypes.Vulnerability{Severity: "MEDIUM"}},
-				{Vulnerability: dbtypes.Vulnerability{Severity: "HIGH"}},
-				{Vulnerability: dbtypes.Vulnerability{Severity: "CRITICAL"}},
-			},
-			want: 0.6,
-		},
-		{
 			name: "NG Undefined Severity",
-			vulnerabilities: []types.DetectedVulnerability{
-				{Vulnerability: dbtypes.Vulnerability{Severity: "UNDEFINED"}},
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "UNDEFINED"},
 			},
 			want:    0.0,
 			wantErr: true,
@@ -382,26 +411,82 @@ func TestGetScore(t *testing.T) {
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			highestVuln, err := getHighScoreVuln(c.vulnerabilities)
+			got, err := getDefaultScore(&c.vulnerability)
 			if c.wantErr && err == nil {
-				t.Fatal("[getHighScoreVuln] Unexpected no error")
+				t.Fatal("Unexpected no error")
 			}
 			if !c.wantErr && err != nil {
-				t.Fatalf("[getHighScoreVuln] Unexpected error occured, err=%+v", err)
-			}
-			if highestVuln == nil {
-				return
-			}
-
-			got, err := getScore(highestVuln)
-			if c.wantErr && err == nil {
-				t.Fatal("[getScore] Unexpected no error")
-			}
-			if !c.wantErr && err != nil {
-				t.Fatalf("[getScore] Unexpected error occured, err=%+v", err)
+				t.Fatalf("Unexpected error occured, err=%+v", err)
 			}
 			if !reflect.DeepEqual(c.want, got) {
-				t.Fatalf("[getScore] Unexpected not matching: want=%+v, got=%+v", c.want, got)
+				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, got)
+			}
+		})
+	}
+}
+
+func TestGetCVEScore(t *testing.T) {
+	cases := []struct {
+		name          string
+		vulnerability types.DetectedVulnerability
+		want          float32
+		wantErr       bool
+	}{
+		{
+			name: "OK Critical",
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "CRITICAL"},
+			},
+			want: 0.8,
+		},
+		{
+			name: "OK High",
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "HIGH"},
+			},
+			want: 0.6,
+		},
+		{
+			name: "OK Medium",
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "MEDIUM"},
+			},
+			want: 0.4,
+		},
+		{
+			name: "OK Low",
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "LOW"},
+			},
+			want: 0.1,
+		},
+		{
+			name: "OK Unknown",
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "UNKNOWN"},
+			},
+			want: 0.1,
+		},
+		{
+			name: "NG Undefined Severity",
+			vulnerability: types.DetectedVulnerability{
+				Vulnerability: dbtypes.Vulnerability{Severity: "UNDEFINED"},
+			},
+			want:    0.0,
+			wantErr: true,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := getTriageableScore(&c.vulnerability)
+			if c.wantErr && err == nil {
+				t.Fatal("Unexpected no error")
+			}
+			if !c.wantErr && err != nil {
+				t.Fatalf("Unexpected error occured, err=%+v", err)
+			}
+			if !reflect.DeepEqual(c.want, got) {
+				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, got)
 			}
 		})
 	}
