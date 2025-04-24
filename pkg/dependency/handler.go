@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -99,6 +100,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	}
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
+	// Filtered By Name
+	repos = filterByNamePattern(repos, gitHubSetting.RepositoryPattern)
 
 	for _, r := range repos {
 		isSkip := s.skipScan(ctx, r, s.limitRepositorySizeKb)
@@ -260,4 +263,15 @@ func cutString(input string, cut int) string {
 		return input[:cut] + " ..." // cut long text
 	}
 	return input
+}
+
+func filterByNamePattern(repos []*github.Repository, pattern string) []*github.Repository {
+	var filteredRepos []*github.Repository
+	for _, repo := range repos {
+		if strings.Contains(*repo.Name, pattern) {
+			filteredRepos = append(filteredRepos, repo)
+		}
+	}
+
+	return filteredRepos
 }
