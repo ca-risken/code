@@ -101,7 +101,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 	// Filtered By Name
-	repos = filterByNamePattern(repos, gitHubSetting.RepositoryPattern)
+	repos = filterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
 
 	for _, r := range repos {
 		isSkip := s.skipScan(ctx, r, s.limitRepositorySizeKb)
