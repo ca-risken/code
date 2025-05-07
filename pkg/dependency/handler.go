@@ -219,12 +219,13 @@ func (s *sqsHandler) initScanStatus(g *code.DependencySetting) *code.PutDependen
 	return &code.PutDependencySettingRequest{
 		ProjectId: g.ProjectId,
 		DependencySetting: &code.DependencySettingForUpsert{
-			GithubSettingId:  g.GithubSettingId,
-			CodeDataSourceId: g.CodeDataSourceId,
-			ProjectId:        g.ProjectId,
-			ScanAt:           time.Now().Unix(),
-			Status:           code.Status_UNKNOWN, // After scan, will be updated
-			StatusDetail:     "",
+			GithubSettingId:   g.GithubSettingId,
+			CodeDataSourceId:  g.CodeDataSourceId,
+			ProjectId:         g.ProjectId,
+			RepositoryPattern: g.RepositoryPattern,
+			ScanAt:            time.Now().Unix(),
+			Status:            code.Status_UNKNOWN, // After scan, will be updated
+			StatusDetail:      "",
 		},
 	}
 }
