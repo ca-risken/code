@@ -15,7 +15,7 @@ require (
 	github.com/ca-risken/common/pkg/sqs v0.0.0-20221119073224-9db027bda6f8
 	github.com/ca-risken/common/pkg/tracer v0.0.0-20230727031236-b35703d5c59d
 	github.com/ca-risken/core v0.14.0
-	github.com/ca-risken/datasource-api v0.9.1-0.20231026022736-d2fe4767e553
+	github.com/ca-risken/datasource-api v0.14.1-0.20250507090244-76e8ac1b1c07
 	github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee
 	github.com/ca-risken/vulnerability v0.0.0-20250207144506-e2bcae88c3dc
 	github.com/cenkalti/backoff/v4 v4.2.0
@@ -78,7 +78,7 @@ require (
 	github.com/google/go-containerregistry v0.12.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/pprof v0.0.0-20230509042627-b1315fad0c5a // indirect
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.6.0 // indirect
 	github.com/h2non/filetype v1.1.3 // indirect
 	github.com/hashicorp/go-version v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
@@ -97,6 +97,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20221107223329-32cfee06a052 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/rs/zerolog v1.26.1 // indirect
 	github.com/sashabaranov/go-openai v1.5.8 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.6.0 // indirect
@@ -116,14 +117,14 @@ require (
 	go.uber.org/atomic v1.10.0 // indirect
 	go4.org/intern v0.0.0-20220617035311-6925f38cc365 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20220617031537-928513b29760 // indirect
-	golang.org/x/crypto v0.23.0 // indirect
-	golang.org/x/mod v0.12.0 // indirect
-	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/sync v0.3.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
-	golang.org/x/text v0.15.0 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
+	golang.org/x/mod v0.17.0 // indirect
+	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	golang.org/x/tools v0.13.0 // indirect
+	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230410155749-daa745c078e1 // indirect
