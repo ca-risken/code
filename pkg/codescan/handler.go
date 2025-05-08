@@ -4,14 +4,12 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"errors"
 	"fmt"
-	"os"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/ca-risken/code/pkg/common"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
@@ -91,9 +89,9 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 	// Filtered By Visibility
-	repos = filterByVisibility(repos, gitHubSetting.CodeScanSetting.ScanPublic, gitHubSetting.CodeScanSetting.ScanInternal, gitHubSetting.CodeScanSetting.ScanPrivate)
+	repos = common.FilterByVisibility(repos, gitHubSetting.CodeScanSetting.ScanPublic, gitHubSetting.CodeScanSetting.ScanInternal, gitHubSetting.CodeScanSetting.ScanPrivate)
 	// Filtered By Name
-	repos = filterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
+	repos = common.FilterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
 	beforeScanAt := time.Now()
 	semgrepFindings := []*SemgrepFinding{}
@@ -220,7 +218,7 @@ func (s *sqsHandler) initScanStatus(g *code.CodeScanSetting) *code.PutCodeScanSe
 
 func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutCodeScanSettingRequest, statusDetail string) error {
 	putData.CodeScanSetting.Status = code.Status_ERROR
-	statusDetail = cutString(statusDetail, 200)
+	statusDetail = common.CutString(statusDetail, 200)
 	putData.CodeScanSetting.StatusDetail = statusDetail
 	return s.updateScanStatus(ctx, putData)
 }
@@ -245,56 +243,4 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 		ProjectId: projectID,
 	})
 	return err
-}
-
-func filterByNamePattern(repos []*github.Repository, pattern string) []*github.Repository {
-	var filteredRepos []*github.Repository
-	for _, repo := range repos {
-		if strings.Contains(*repo.Name, pattern) {
-			filteredRepos = append(filteredRepos, repo)
-		}
-	}
-
-	return filteredRepos
-}
-
-const (
-	githubVisibilityPublic   string = "public"
-	githubVisibilityInternal string = "internal"
-	githubVisibilityPrivate  string = "private"
-)
-
-func filterByVisibility(repos []*github.Repository, scanPublic, scanInternal, scanPrivate bool) []*github.Repository {
-	var filteredRepos []*github.Repository
-	for _, repo := range repos {
-		if scanPublic && *repo.Visibility == githubVisibilityPublic {
-			filteredRepos = append(filteredRepos, repo)
-		}
-		if scanInternal && *repo.Visibility == githubVisibilityInternal {
-			filteredRepos = append(filteredRepos, repo)
-		}
-		if scanPrivate && *repo.Visibility == githubVisibilityPrivate {
-			filteredRepos = append(filteredRepos, repo)
-		}
-	}
-	return filteredRepos
-}
-
-func cutString(input string, cut int) string {
-	if len(input) > cut {
-		return input[:cut] + " ..." // cut long text
-	}
-	return input
-}
-
-func createCloneDir(repoName string) (string, error) {
-	if repoName == "" {
-		return "", errors.New("invalid value: repoName is not empty")
-	}
-
-	dir, err := os.MkdirTemp("", repoName)
-	if err != nil {
-		return "", fmt.Errorf("failed to create directory: %w", err)
-	}
-	return dir, nil
 }
