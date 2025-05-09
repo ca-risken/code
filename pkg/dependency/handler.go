@@ -5,11 +5,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/ca-risken/code/pkg/common"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
@@ -101,7 +101,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 	// Filtered By Name
-	repos = filterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
+	repos = common.FilterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
 
 	for _, r := range repos {
 		isSkip := s.skipScan(ctx, r, s.limitRepositorySizeKb)
@@ -232,7 +232,7 @@ func (s *sqsHandler) initScanStatus(g *code.DependencySetting) *code.PutDependen
 
 func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutDependencySettingRequest, statusDetail string) error {
 	putData.DependencySetting.Status = code.Status_ERROR
-	statusDetail = cutString(statusDetail, 200)
+	statusDetail = common.CutString(statusDetail, 200)
 	putData.DependencySetting.StatusDetail = statusDetail
 	return s.updateScanStatus(ctx, putData)
 }
@@ -257,22 +257,4 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 		ProjectId: projectID,
 	})
 	return err
-}
-
-func cutString(input string, cut int) string {
-	if len(input) > cut {
-		return input[:cut] + " ..." // cut long text
-	}
-	return input
-}
-
-func filterByNamePattern(repos []*github.Repository, pattern string) []*github.Repository {
-	var filteredRepos []*github.Repository
-	for _, repo := range repos {
-		if strings.Contains(*repo.Name, pattern) {
-			filteredRepos = append(filteredRepos, repo)
-		}
-	}
-
-	return filteredRepos
 }

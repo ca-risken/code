@@ -12,12 +12,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/google/go-github/v44/github"
 )
 
 func (s *sqsHandler) scanForRepository(ctx context.Context, r *github.Repository, token, githubBaseURL string) ([]*SemgrepFinding, error) {
 	// Clone repository
-	dir, err := createCloneDir(*r.Name)
+	dir, err := common.CreateCloneDir(*r.Name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create directory to clone: repo=%s err=%w", *r.FullName, err)
 	}
