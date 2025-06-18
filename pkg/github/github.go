@@ -132,16 +132,13 @@ func (g *riskenGitHubClient) listRepositoryForUserWithOption(ctx context.Context
 		Type:        githubVisibilityAll,
 	}
 	for {
-		repos, resp, err := repository.List(ctx, "", opt) // user: Passing the empty string will list repositories for the authenticated user.
+		repos, resp, err := repository.List(ctx, login, opt)
 		if err != nil {
 			return nil, err
 		}
 		g.logger.Infof(ctx, "Success GitHub API for user repos, %s,login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
-		for _, r := range repos {
-			if *r.Owner.Login == login {
-				allRepo = append(allRepo, r)
-			}
-		}
+		allRepo = append(allRepo, repos...)
+
 		if resp.NextPage == 0 {
 			break
 		}
