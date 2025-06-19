@@ -70,7 +70,7 @@ func Test_listRepositoryForUserWithOption(t *testing.T) {
 			want: []*github.Repository{
 				{
 					Name:  PointerString("repo"),
-					Owner: &github.User{Login: PointerString("onwer")},
+					Owner: &github.User{Login: PointerString("owner")},
 				},
 			},
 		},
@@ -121,19 +121,13 @@ func Test_listRepositoryForOrgWithOption(t *testing.T) {
 			want: []*github.Repository{
 				{
 					Name:  PointerString("repo"),
-					Owner: &github.User{Login: PointerString("onwer")},
+					Owner: &github.User{Login: PointerString("owner")},
 				},
 			},
 		},
 		{
 			name:       "OK empty",
 			repository: newfakeGitHubRepoService(true, "", "", nil),
-			want:       []*github.Repository{},
-		},
-		{
-			name:       "OK empty(owner mismatch)",
-			login:      "fakeuser",
-			repository: newfakeGitHubRepoService(false, "repo", "owner", nil),
 			want:       []*github.Repository{},
 		},
 		{
@@ -148,7 +142,7 @@ func Test_listRepositoryForOrgWithOption(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.Background()
 			githubClient := NewGithubClient("token", logging.NewLogger())
-			got, err := githubClient.listRepositoryForUserWithOption(ctx, c.repository, c.login)
+			got, err := githubClient.listRepositoryForOrgWithOption(ctx, c.repository, c.login)
 			if c.wantError && err == nil {
 				t.Fatal("Unexpected no error")
 			}
