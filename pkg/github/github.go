@@ -137,7 +137,12 @@ func (g *riskenGitHubClient) listRepositoryForUserWithOption(ctx context.Context
 			return nil, err
 		}
 		g.logger.Infof(ctx, "Success GitHub API for user repos, %s,login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
-		allRepo = append(allRepo, repos...)
+		for _, r := range repos {
+			// Filter repositories by user owner
+			if r.Owner != nil && r.Owner.Login != nil && *r.Owner.Login == login {
+				allRepo = append(allRepo, r)
+			}
+		}
 
 		if resp.NextPage == 0 {
 			break
