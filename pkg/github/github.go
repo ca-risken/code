@@ -59,7 +59,10 @@ func (g *riskenGitHubClient) newV3Client(ctx context.Context, token, baseURL str
 		}
 		client.BaseURL = u
 	}
-	return &GitHubV3Client{Repositories: client.Repositories}, nil
+	return &GitHubV3Client{
+		Repositories: client.Repositories,
+		Client:       client,
+	}, nil
 }
 
 func getToken(token, defaultToken string) string {
@@ -103,7 +106,7 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 		}
 	case code.Type_USER:
 		// Check target user(targetResource) == authenticated user(PAT user)
-		user, _, err := client.Users.Get(ctx, "")
+		user, _, err := client.Client.Users.Get(ctx, "")
 		if err != nil {
 			return nil, err
 		}
