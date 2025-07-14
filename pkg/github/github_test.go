@@ -58,13 +58,17 @@ func (f *fakeGitHubRepoService) ListByOrg(ctx context.Context, org string, opts 
 func Test_listRepositoryForUserWithOption(t *testing.T) {
 	cases := []struct {
 		name       string
+		repository GitHubRepoService
 		login      string
+		isAuthUser bool
 		want       []*github.Repository
 		wantError  bool
 	}{
 		{
-			name:  "OK",
-			login: "owner",
+			name:       "OK",
+			login:      "owner",
+			isAuthUser: true,
+			repository: newfakeGitHubRepoService(false, "repo", "owner", nil),
 			want: []*github.Repository{
 				{
 					Name:  PointerString("repo"),
@@ -73,26 +77,27 @@ func Test_listRepositoryForUserWithOption(t *testing.T) {
 			},
 		},
 		{
-			name:  "OK empty",
-			login: "owner",
-			want:  []*github.Repository{},
+			name:       "OK empty",
+			login:      "owner",
+			isAuthUser: true,
+			repository: newfakeGitHubRepoService(true, "", "", nil),
+			want:       []*github.Repository{},
+		},
+		{
+			name:       "NG List Error",
+			login:      "owner",
+			isAuthUser: true,
+			repository: newfakeGitHubRepoService(false, "", "", errors.New("something error")),
+			want:       []*github.Repository{},
+			wantError:  true,
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.Background()
 			githubClient := NewGithubClient("token", logging.NewLogger())
-			
-			// Create mock client with fake services
-			fakeRepo := newfakeGitHubRepoService(len(c.want) == 0, "repo", "owner", nil)
-			client := &GitHubV3Client{
-				Repositories: fakeRepo,
-			}
-			
-			// Add mock Users service to avoid nil pointer
-			client.Client = github.NewClient(nil)
 
-			got, err := githubClient.listRepositoryForUserWithOption(ctx, client, c.login)
+			got, err := githubClient.listRepositoryForUserWithOption(ctx, c.repository, c.login, c.isAuthUser)
 			if c.wantError && err == nil {
 				t.Fatal("Unexpected no error")
 			}
@@ -105,7 +110,6 @@ func Test_listRepositoryForUserWithOption(t *testing.T) {
 		})
 	}
 }
-
 
 func Test_listRepositoryForOrgWithOption(t *testing.T) {
 	cases := []struct {
