@@ -59,7 +59,7 @@ func (g *riskenGitHubClient) newV3Client(ctx context.Context, token, baseURL str
 		}
 		client.BaseURL = u
 	}
-	return &GitHubV3Client{Repositories: client.Repositories}, nil
+	return &GitHubV3Client{Repositories: client.Repositories, Client: client}, nil
 }
 
 func getToken(token, defaultToken string) string {
@@ -102,7 +102,7 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 			return repos, err
 		}
 	case code.Type_USER:
-		repos, err = g.listRepositoryForUser(ctx, client.Repositories, config)
+		repos, err = g.listRepositoryForUser(ctx, client, config)
 		if err != nil {
 			return repos, err
 		}
@@ -117,26 +117,49 @@ const (
 	githubVisibilityAll string = "all"
 )
 
-func (g *riskenGitHubClient) listRepositoryForUser(ctx context.Context, repository GitHubRepoService, config *code.GitHubSetting) ([]*github.Repository, error) {
-	repos, err := g.listRepositoryForUserWithOption(ctx, repository, config.TargetResource)
+func (g *riskenGitHubClient) listRepositoryForUser(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting) ([]*github.Repository, error) {
+	repos, err := g.listRepositoryForUserWithOption(ctx, client, config.TargetResource)
 	if err != nil {
 		return nil, err
 	}
 	return repos, nil
 }
 
-func (g *riskenGitHubClient) listRepositoryForUserWithOption(ctx context.Context, repository GitHubRepoService, login string) ([]*github.Repository, error) {
+func (g *riskenGitHubClient) listRepositoryForUserWithOption(ctx context.Context, client *GitHubV3Client, login string) ([]*github.Repository, error) {
 	var allRepo []*github.Repository
 	opt := &github.RepositoryListOptions{
 		ListOptions: github.ListOptions{PerPage: 100},
 		Type:        githubVisibilityAll,
 	}
+
+	// Check if the target user is the authenticated user
+	var isAuthUser bool
+	user, _, err := client.Users.Get(ctx, "")
+	if err != nil {
+		g.logger.Warnf(ctx, "Failed to check authenticated user, using public API: err=%+v", err)
+		isAuthUser = false
+	} else {
+		isAuthUser = user.Login != nil && *user.Login == login
+	}
+
 	for {
-		repos, resp, err := repository.List(ctx, login, opt)
+		var repos []*github.Repository
+		var resp *github.Response
+		var err error
+
+		if isAuthUser {
+			// Use authenticated user endpoint to access private repositories
+			repos, resp, err = client.Repositories.List(ctx, "", opt)
+		} else {
+			// Use public user endpoint for other users
+			repos, resp, err = client.Repositories.List(ctx, login, opt)
+		}
+
 		if err != nil {
 			return nil, err
 		}
-		g.logger.Infof(ctx, "Success GitHub API for user repos, %s,login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
+		g.logger.Infof(ctx, "Success GitHub API for user repos, login:%s, authenticated:%t, repo_count: %d", login, isAuthUser, len(repos))
+
 		for _, r := range repos {
 			// Filter repositories by user owner
 			if r.Owner != nil && r.Owner.Login != nil && *r.Owner.Login == login {

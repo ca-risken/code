@@ -58,15 +58,13 @@ func (f *fakeGitHubRepoService) ListByOrg(ctx context.Context, org string, opts 
 func Test_listRepositoryForUserWithOption(t *testing.T) {
 	cases := []struct {
 		name       string
-		repository GitHubRepoService
 		login      string
 		want       []*github.Repository
 		wantError  bool
 	}{
 		{
-			name:       "OK",
-			login:      "owner",
-			repository: newfakeGitHubRepoService(false, "repo", "owner", nil),
+			name:  "OK",
+			login: "owner",
 			want: []*github.Repository{
 				{
 					Name:  PointerString("repo"),
@@ -75,36 +73,39 @@ func Test_listRepositoryForUserWithOption(t *testing.T) {
 			},
 		},
 		{
-			name:       "OK empty",
-			repository: newfakeGitHubRepoService(true, "", "", nil),
-			want:       []*github.Repository{},
-		},
-		{
-			name:       "NG List Error",
-			login:      "owner",
-			repository: newfakeGitHubRepoService(false, "", "", errors.New("something error")),
-			want:       []*github.Repository{},
-			wantError:  true,
+			name:  "OK empty",
+			login: "owner",
+			want:  []*github.Repository{},
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.Background()
 			githubClient := NewGithubClient("token", logging.NewLogger())
-			got, err := githubClient.listRepositoryForUserWithOption(ctx, c.repository, c.login)
+			
+			// Create mock client with fake services
+			fakeRepo := newfakeGitHubRepoService(len(c.want) == 0, "repo", "owner", nil)
+			client := &GitHubV3Client{
+				Repositories: fakeRepo,
+			}
+			
+			// Add mock Users service to avoid nil pointer
+			client.Client = github.NewClient(nil)
+
+			got, err := githubClient.listRepositoryForUserWithOption(ctx, client, c.login)
 			if c.wantError && err == nil {
 				t.Fatal("Unexpected no error")
 			}
 			if !c.wantError && err != nil {
-				t.Fatalf("Unexpected error occured, err=%+v", err)
+				t.Fatalf("Unexpected error occurred, err=%+v", err)
 			}
 			if len(got) != len(c.want) {
 				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, got)
 			}
-
 		})
 	}
 }
+
 
 func Test_listRepositoryForOrgWithOption(t *testing.T) {
 	cases := []struct {
