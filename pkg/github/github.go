@@ -102,6 +102,7 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 			return repos, err
 		}
 	case code.Type_USER:
+		// Check target user(targetResource) == authenticated user(PAT user)
 		user, _, err := client.Users.Get(ctx, "")
 		if err != nil {
 			return nil, err
@@ -153,6 +154,7 @@ func (g *riskenGitHubClient) listRepositoryForUserWithOption(ctx context.Context
 		if err != nil {
 			return nil, err
 		}
+		g.logger.Infof(ctx, "Success GitHub API for user repos, %s,login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
 
 		for _, r := range repos {
 			// Filter repositories by user owner
