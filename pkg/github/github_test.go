@@ -60,12 +60,14 @@ func Test_listRepositoryForUserWithOption(t *testing.T) {
 		name       string
 		repository GitHubRepoService
 		login      string
+		isAuthUser bool
 		want       []*github.Repository
 		wantError  bool
 	}{
 		{
 			name:       "OK",
 			login:      "owner",
+			isAuthUser: true,
 			repository: newfakeGitHubRepoService(false, "repo", "owner", nil),
 			want: []*github.Repository{
 				{
@@ -76,12 +78,15 @@ func Test_listRepositoryForUserWithOption(t *testing.T) {
 		},
 		{
 			name:       "OK empty",
+			login:      "owner",
+			isAuthUser: true,
 			repository: newfakeGitHubRepoService(true, "", "", nil),
 			want:       []*github.Repository{},
 		},
 		{
 			name:       "NG List Error",
 			login:      "owner",
+			isAuthUser: true,
 			repository: newfakeGitHubRepoService(false, "", "", errors.New("something error")),
 			want:       []*github.Repository{},
 			wantError:  true,
@@ -91,17 +96,17 @@ func Test_listRepositoryForUserWithOption(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := context.Background()
 			githubClient := NewGithubClient("token", logging.NewLogger())
-			got, err := githubClient.listRepositoryForUserWithOption(ctx, c.repository, c.login)
+
+			got, err := githubClient.listRepositoryForUserWithOption(ctx, c.repository, c.login, c.isAuthUser)
 			if c.wantError && err == nil {
 				t.Fatal("Unexpected no error")
 			}
 			if !c.wantError && err != nil {
-				t.Fatalf("Unexpected error occured, err=%+v", err)
+				t.Fatalf("Unexpected error occurred, err=%+v", err)
 			}
 			if len(got) != len(c.want) {
 				t.Fatalf("Unexpected not matching: want=%+v, got=%+v", c.want, got)
 			}
-
 		})
 	}
 }
