@@ -18,4 +18,3 @@ jobs:
     secrets:
       DOCKER_USER: ${{ secrets.DOCKER_USER }}
       DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
-      DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
