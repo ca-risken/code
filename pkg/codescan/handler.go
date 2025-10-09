@@ -6,7 +6,6 @@ import (
 	"crypto/cipher"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -451,20 +450,20 @@ func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, msg interf
 }
 
 // getRepositoryID gets repository ID from GitHub API using repository name
-func (s *sqsHandler) getRepositoryID(ctx context.Context, repositoryName string, gitHubSetting *code.GitHubSetting) (uint32, error) {
-	// Parse repository name to get owner and repo name
-	// repositoryName format: "owner/repo" or "org/repo"
-	parts := strings.Split(repositoryName, "/")
-	if len(parts) != 2 {
-		return 0, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repositoryName)
-	}
+// func (s *sqsHandler) getRepositoryID(ctx context.Context, repositoryName string, gitHubSetting *code.GitHubSetting) (uint32, error) {
+// 	// Parse repository name to get owner and repo name
+// 	// repositoryName format: "owner/repo" or "org/repo"
+// 	parts := strings.Split(repositoryName, "/")
+// 	if len(parts) != 2 {
+// 		return 0, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repositoryName)
+// 	}
 
-	// Get repository information from GitHub API
-	repo, err := s.githubClient.GetSingleRepository(ctx, gitHubSetting, repositoryName)
-	if err != nil {
-		return 0, fmt.Errorf("failed to get repository %s: %w", repositoryName, err)
-	}
+// 	// Get repository information from GitHub API
+// 	repo, err := s.githubClient.GetSingleRepository(ctx, gitHubSetting, repositoryName)
+// 	if err != nil {
+// 		return 0, fmt.Errorf("failed to get repository %s: %w", repositoryName, err)
+// 	}
 
-	// Return repository ID as uint32
-	return uint32(repo.GetID()), nil
-}
+// 	// Return repository ID as uint32
+// 	return uint32(repo.GetID()), nil
+// }
