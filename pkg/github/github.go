@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/ca-risken/common/pkg/logging"
@@ -19,12 +20,14 @@ const RETRY_NUM uint64 = 3
 
 type GithubServiceClient interface {
 	ListRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error)
+	GetSingleRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) (*github.Repository, error)
 	Clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 }
 
 type GitHubRepoService interface {
 	List(ctx context.Context, user string, opts *github.RepositoryListOptions) ([]*github.Repository, *github.Response, error)
 	ListByOrg(ctx context.Context, org string, opts *github.RepositoryListByOrgOptions) ([]*github.Repository, *github.Response, error)
+	Get(ctx context.Context, owner, repo string) (*github.Repository, *github.Response, error)
 }
 
 type GitHubV3Client struct {
@@ -201,6 +204,29 @@ func (g *riskenGitHubClient) listRepositoryForOrgWithOption(ctx context.Context,
 		opt.Page = resp.NextPage
 	}
 	return allRepo, nil
+}
+
+// GetSingleRepository gets a specific repository by name
+func (g *riskenGitHubClient) GetSingleRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) (*github.Repository, error) {
+	client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
+	if err != nil {
+		return nil, fmt.Errorf("create github-v3 client: %w", err)
+	}
+
+	// Parse repository name to get owner and repo name
+	// repositoryName format: "owner/repo" or "org/repo"
+	parts := strings.Split(repositoryName, "/")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repositoryName)
+	}
+	owner, repoName := parts[0], parts[1]
+
+	repo, _, err := client.Repositories.Get(ctx, owner, repoName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository %s: %w", repositoryName, err)
+	}
+
+	return repo, nil
 }
 
 func (t *riskenGitHubClient) newRetryLogger(ctx context.Context, funcName string) func(error, time.Duration) {

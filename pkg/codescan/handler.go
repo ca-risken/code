@@ -5,6 +5,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"fmt"
+	"reflect"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -77,6 +79,15 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
+
+	// Check if this is a repository-level scan
+	// Use reflection to safely access RepositoryName field if it exists
+	repositoryName := getRepositoryNameFromMessage(msg)
+	if repositoryName != "" {
+		return s.handleRepositoryScan(ctx, msg, gitHubSetting, token, repositoryName)
+	}
+
+	// Original organization-level scan logic
 	scanStatus := s.initScanStatus((gitHubSetting.CodeScanSetting))
 
 	// Get repositories
@@ -141,6 +152,123 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	return nil
+}
+
+// getRepositoryNameFromMessage safely extracts RepositoryName from message using reflection
+func getRepositoryNameFromMessage(msg interface{}) string {
+	if msg == nil {
+		return ""
+	}
+
+	v := reflect.ValueOf(msg)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return ""
+		}
+		v = v.Elem()
+	}
+
+	// Only process struct types
+	if v.Kind() != reflect.Struct {
+		return ""
+	}
+
+	// Try to get RepositoryName field
+	if field := v.FieldByName("RepositoryName"); field.IsValid() && field.CanInterface() {
+		if str, ok := field.Interface().(string); ok {
+			return str
+		}
+	}
+
+	return ""
+}
+
+// handleRepositoryScan handles scanning for a specific repository
+func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg interface{}, gitHubSetting *code.GitHubSetting, token, repositoryName string) error {
+	s.logger.Infof(ctx, "Starting repository-level scan for: %s", repositoryName)
+
+	// Get specific repository information
+	repo, err := s.githubClient.GetSingleRepository(ctx, gitHubSetting, repositoryName)
+	if err != nil {
+		s.logger.Errorf(ctx, "Failed to get repository: repository_name=%s, err=%+v", repositoryName, err)
+		return s.updateRepositoryStatusError(ctx, msg, repositoryName, err.Error(), gitHubSetting)
+	}
+
+	// Check if repository should be skipped
+	if s.skipScan(ctx, repo, s.limitRepositorySizeKb) {
+		s.logger.Infof(ctx, "Skipping scan for repository: %s", repositoryName)
+		return s.updateRepositoryStatusSuccess(ctx, msg, repositoryName, gitHubSetting)
+	}
+
+	// Update repository status to IN_PROGRESS
+	if err := s.updateRepositoryStatusInProgress(ctx, msg, repositoryName, gitHubSetting); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: err=%+v", err)
+	}
+
+	beforeScanAt := time.Now()
+
+	// Scan source code for the specific repository
+	scanResult, err := s.scanForRepository(ctx, repo, token, gitHubSetting.BaseUrl)
+	if err != nil {
+		s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", repositoryName, err)
+		return s.updateRepositoryStatusError(ctx, msg, repositoryName, err.Error(), gitHubSetting)
+	}
+
+	// Put findings
+	projectID := getProjectIDFromMessage(msg)
+	if err := s.putSemgrepFindings(ctx, projectID, scanResult); err != nil {
+		s.logger.Errorf(ctx, "failed to put findings: repository_name=%s, err=%+v", repositoryName, err)
+		return s.updateRepositoryStatusError(ctx, msg, repositoryName, err.Error(), gitHubSetting)
+	}
+
+	// Clear score for inactive findings
+	repoName := repo.GetFullName()
+	if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
+		DataSource: message.CodeScanDataSource,
+		ProjectId:  projectID,
+		Tag:        []string{tagCodeScan, repoName},
+		BeforeAt:   beforeScanAt.Unix(),
+	}); err != nil {
+		s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", projectID, repoName, err)
+		return s.updateRepositoryStatusError(ctx, msg, repositoryName, err.Error(), gitHubSetting)
+	}
+
+	// Update repository status to success
+	if err := s.updateRepositoryStatusSuccess(ctx, msg, repositoryName, gitHubSetting); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status to success: err=%+v", err)
+	}
+
+	s.logger.Infof(ctx, "Successfully completed repository-level scan for: %s", repositoryName)
+	return nil
+}
+
+// getProjectIDFromMessage safely extracts ProjectID from message using reflection
+func getProjectIDFromMessage(msg interface{}) uint32 {
+	if msg == nil {
+		return 0
+	}
+
+	v := reflect.ValueOf(msg)
+	if v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return 0
+		}
+		v = v.Elem()
+	}
+
+	// Only process struct types
+	if v.Kind() != reflect.Struct {
+		return 0
+	}
+
+	// Try to get ProjectID field
+	if field := v.FieldByName("ProjectID"); field.IsValid() && field.CanInterface() {
+		if projectID, ok := field.Interface().(uint32); ok {
+			return projectID
+		}
+	}
+
+	return 0
 }
 
 func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, limitRepositorySize int) bool {
@@ -243,4 +371,100 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 		ProjectId: projectID,
 	})
 	return err
+}
+
+// Repository status management methods
+
+// updateRepositoryStatusInProgress updates repository status to IN_PROGRESS
+func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, msg interface{}, repositoryName string, gitHubSetting *code.GitHubSetting) error {
+	// TODO: Implement UpdateCodescanRepositoryStatus API call
+	// Get repository ID from GitHub API
+	// repositoryID, err := s.getRepositoryID(ctx, repositoryName, gitHubSetting)
+	// if err != nil {
+	// 	s.logger.Errorf(ctx, "Failed to get repository ID for %s: err=%+v", repositoryName, err)
+	// 	return err
+	// }
+
+	// Call datasource-api gRPC service
+	// _, err = s.codeClient.UpdateCodescanRepositoryStatus(ctx, &code.UpdateCodescanRepositoryStatusRequest{
+	// 	RepositoryId: repositoryID,
+	// 	Status:       "IN_PROGRESS",
+	// 	Message:      "",
+	// })
+	// if err != nil {
+	// 	s.logger.Errorf(ctx, "Failed to update repository status to IN_PROGRESS for %s: err=%+v", repositoryName, err)
+	// 	return err
+	// }
+
+	s.logger.Infof(ctx, "Updating repository status to IN_PROGRESS for: %s", repositoryName)
+	return nil
+}
+
+// updateRepositoryStatusSuccess updates repository status to OK and checks parent status
+func (s *sqsHandler) updateRepositoryStatusSuccess(ctx context.Context, msg interface{}, repositoryName string, gitHubSetting *code.GitHubSetting) error {
+	// TODO: Implement UpdateCodescanRepositoryStatus API call
+	// Get repository ID from GitHub API
+	// repositoryID, err := s.getRepositoryID(ctx, repositoryName, gitHubSetting)
+	// if err != nil {
+	// 	s.logger.Errorf(ctx, "Failed to get repository ID for %s: err=%+v", repositoryName, err)
+	// 	return err
+	// }
+
+	// Call datasource-api gRPC service
+	// _, err = s.codeClient.UpdateCodescanRepositoryStatus(ctx, &code.UpdateCodescanRepositoryStatusRequest{
+	// 	RepositoryId: repositoryID,
+	// 	Status:       "OK",
+	// 	Message:      "",
+	// })
+	// if err != nil {
+	// 	s.logger.Errorf(ctx, "Failed to update repository status to OK for %s: err=%+v", repositoryName, err)
+	// 	return err
+	// }
+
+	s.logger.Infof(ctx, "Updating repository status to OK for: %s", repositoryName)
+	return nil
+}
+
+// updateRepositoryStatusError updates repository status to ERROR and checks parent status
+func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, msg interface{}, repositoryName, errorMessage string, gitHubSetting *code.GitHubSetting) error {
+	// TODO: Implement UpdateCodescanRepositoryStatus API call
+	// Get repository ID from GitHub API
+	// repositoryID, err := s.getRepositoryID(ctx, repositoryName, gitHubSetting)
+	// if err != nil {
+	// 	s.logger.Errorf(ctx, "Failed to get repository ID for %s: err=%+v", repositoryName, err)
+	// 	return err
+	// }
+
+	// Call datasource-api gRPC service
+	// _, err = s.codeClient.UpdateCodescanRepositoryStatus(ctx, &code.UpdateCodescanRepositoryStatusRequest{
+	// 	RepositoryId: repositoryID,
+	// 	Status:       "ERROR",
+	// 	Message:      errorMessage,
+	// })
+	// if err != nil {
+	// 	s.logger.Errorf(ctx, "Failed to update repository status to ERROR for %s: err=%+v", repositoryName, err)
+	// 	return err
+	// }
+
+	s.logger.Errorf(ctx, "Updating repository status to ERROR for: %s, error: %s", repositoryName, errorMessage)
+	return nil
+}
+
+// getRepositoryID gets repository ID from GitHub API using repository name
+func (s *sqsHandler) getRepositoryID(ctx context.Context, repositoryName string, gitHubSetting *code.GitHubSetting) (uint32, error) {
+	// Parse repository name to get owner and repo name
+	// repositoryName format: "owner/repo" or "org/repo"
+	parts := strings.Split(repositoryName, "/")
+	if len(parts) != 2 {
+		return 0, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repositoryName)
+	}
+
+	// Get repository information from GitHub API
+	repo, err := s.githubClient.GetSingleRepository(ctx, gitHubSetting, repositoryName)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get repository %s: %w", repositoryName, err)
+	}
+
+	// Return repository ID as uint32
+	return uint32(repo.GetID()), nil
 }

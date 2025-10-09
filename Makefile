@@ -87,4 +87,11 @@ enqueue-codescan:
 		--queue-url http://localhost:9324/queue/code-codescan \
 		--message-body '{"github_setting_id":1001, "project_id":1001, "scan_only":"true"}'
 
+.PHONY: enqueue-codescan-repo
+enqueue-codescan-repo:
+	aws sqs send-message \
+		--endpoint-url http://localhost:9324 \
+		--queue-url http://localhost:9324/queue/code-codescan \
+		--message-body '{"github_setting_id":1001, "project_id":1001, "scan_only":"true", "repository_name":"owner/repo-name"}'
+
 FAKE:

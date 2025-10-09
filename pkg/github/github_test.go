@@ -55,6 +55,13 @@ func (f *fakeGitHubRepoService) ListByOrg(ctx context.Context, org string, opts 
 	return f.repos, f.resp, f.err
 }
 
+func (f *fakeGitHubRepoService) Get(ctx context.Context, owner, repo string) (*github.Repository, *github.Response, error) {
+	if len(f.repos) > 0 {
+		return f.repos[0], f.resp, f.err
+	}
+	return nil, f.resp, f.err
+}
+
 func Test_listRepositoryForUserWithOption(t *testing.T) {
 	cases := []struct {
 		name       string
