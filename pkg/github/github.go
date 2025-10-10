@@ -19,7 +19,7 @@ import (
 const RETRY_NUM uint64 = 3
 
 type GithubServiceClient interface {
-	ListRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error)
+	ListRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) ([]*github.Repository, error)
 	GetSingleRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) (*github.Repository, error)
 	Clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 }
@@ -94,7 +94,17 @@ func (g *riskenGitHubClient) Clone(ctx context.Context, token string, cloneURL s
 	return nil
 }
 
-func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.GitHubSetting) ([]*github.Repository, error) {
+func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) ([]*github.Repository, error) {
+	// If repositoryName is specified, return only that repository
+	if repositoryName != "" {
+		repo, err := g.GetSingleRepository(ctx, config, repositoryName)
+		if err != nil {
+			return nil, err
+		}
+		return []*github.Repository{repo}, nil
+	}
+
+	// Original logic for listing all repositories
 	var repos []*github.Repository
 	var err error
 	client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
