@@ -20,7 +20,6 @@ const RETRY_NUM uint64 = 3
 
 type GithubServiceClient interface {
 	ListRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) ([]*github.Repository, error)
-	GetSingleRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) (*github.Repository, error)
 	Clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 }
 
@@ -97,9 +96,22 @@ func (g *riskenGitHubClient) Clone(ctx context.Context, token string, cloneURL s
 func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) ([]*github.Repository, error) {
 	// If repositoryName is specified, return only that repository
 	if repositoryName != "" {
-		repo, err := g.GetSingleRepository(ctx, config, repositoryName)
+		client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("create github-v3 client: %w", err)
+		}
+
+		// Parse repository name to get owner and repo name
+		// repositoryName format: "owner/repo" or "org/repo"
+		parts := strings.Split(repositoryName, "/")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repositoryName)
+		}
+		owner, repoName := parts[0], parts[1]
+
+		repo, _, err := client.Repositories.Get(ctx, owner, repoName)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get repository %s: %w", repositoryName, err)
 		}
 		return []*github.Repository{repo}, nil
 	}
@@ -214,29 +226,6 @@ func (g *riskenGitHubClient) listRepositoryForOrgWithOption(ctx context.Context,
 		opt.Page = resp.NextPage
 	}
 	return allRepo, nil
-}
-
-// GetSingleRepository gets a specific repository by name
-func (g *riskenGitHubClient) GetSingleRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) (*github.Repository, error) {
-	client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
-	if err != nil {
-		return nil, fmt.Errorf("create github-v3 client: %w", err)
-	}
-
-	// Parse repository name to get owner and repo name
-	// repositoryName format: "owner/repo" or "org/repo"
-	parts := strings.Split(repositoryName, "/")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repositoryName)
-	}
-	owner, repoName := parts[0], parts[1]
-
-	repo, _, err := client.Repositories.Get(ctx, owner, repoName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get repository %s: %w", repositoryName, err)
-	}
-
-	return repo, nil
 }
 
 func (t *riskenGitHubClient) newRetryLogger(ctx context.Context, funcName string) func(error, time.Duration) {
