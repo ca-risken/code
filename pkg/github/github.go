@@ -152,8 +152,7 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 		} else {
 			// User scan - get all repositories
 			// Check if target user is the authenticated user
-			var user *github.User
-			user, _, err = client.Client.Users.Get(ctx, "")
+			user, _, err := client.Client.Users.Get(ctx, "")
 			if err != nil {
 				return nil, err
 			}
