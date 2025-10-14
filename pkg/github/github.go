@@ -104,6 +104,15 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 
 	switch config.Type {
 	case code.Type_ORGANIZATION:
+		// Validate organization access first
+		org, _, err := client.Client.Organizations.Get(ctx, config.TargetResource)
+		if err != nil {
+			return nil, fmt.Errorf("failed to access organization %s: %w", config.TargetResource, err)
+		}
+		if org == nil || org.Login == nil {
+			return nil, fmt.Errorf("organization %s not found", config.TargetResource)
+		}
+
 		if repoName != "" {
 			// Single repository scan for organization
 			parts := strings.Split(repoName, "/")
@@ -131,6 +140,13 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 		}
 
 	case code.Type_USER:
+		// Check if target user is the authenticated user
+		user, _, err := client.Client.Users.Get(ctx, "")
+		if err != nil {
+			return nil, err
+		}
+		isAuthUser := user.Login != nil && *user.Login == config.TargetResource
+
 		if repoName != "" {
 			// Single repository scan for user
 			parts := strings.Split(repoName, "/")
@@ -148,15 +164,15 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 			if err != nil {
 				return nil, fmt.Errorf("failed to get repository %s: %w", repoName, err)
 			}
+
+			// For non-authenticated users, check if repository is public
+			if !isAuthUser && repository.Private != nil && *repository.Private {
+				return nil, fmt.Errorf("repository %s is private and cannot be accessed by non-authenticated user", repoName)
+			}
+
 			repos = []*github.Repository{repository}
 		} else {
 			// User scan - get all repositories
-			// Check if target user is the authenticated user
-			user, _, err := client.Client.Users.Get(ctx, "")
-			if err != nil {
-				return nil, err
-			}
-			isAuthUser := user.Login != nil && *user.Login == config.TargetResource
 			repos, err = g.listRepositoryForUser(ctx, client.Repositories, config, isAuthUser)
 			if err != nil {
 				return repos, err
