@@ -19,7 +19,7 @@ import (
 const RETRY_NUM uint64 = 3
 
 type GithubServiceClient interface {
-	ListRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) ([]*github.Repository, error)
+	ListRepository(ctx context.Context, config *code.GitHubSetting, repoName string) ([]*github.Repository, error)
 	Clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 }
 
@@ -93,55 +93,79 @@ func (g *riskenGitHubClient) Clone(ctx context.Context, token string, cloneURL s
 	return nil
 }
 
-func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.GitHubSetting, repositoryName string) ([]*github.Repository, error) {
-	// If repositoryName is specified, return only that repository
-	if repositoryName != "" {
-		client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
-		if err != nil {
-			return nil, fmt.Errorf("create github-v3 client: %w", err)
-		}
-
-		// Parse repository name to get owner and repo name
-		// repositoryName format: "owner/repo" or "org/repo"
-		parts := strings.Split(repositoryName, "/")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repositoryName)
-		}
-		owner, repoName := parts[0], parts[1]
-
-		repo, _, err := client.Repositories.Get(ctx, owner, repoName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get repository %s: %w", repositoryName, err)
-		}
-		return []*github.Repository{repo}, nil
-	}
-
-	// Original logic for listing all repositories
-	var repos []*github.Repository
-	var err error
+func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.GitHubSetting, repoName string) ([]*github.Repository, error) {
 	client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("create github-v3 client: %w", err)
 	}
+
+	// Common logic: Process based on config.Type first, then handle repoName
+	var repos []*github.Repository
+
 	switch config.Type {
 	case code.Type_ORGANIZATION:
-		repos, err = g.listRepositoryForOrg(ctx, client.Repositories, config)
-		if err != nil {
-			return repos, err
+		if repoName != "" {
+			// Single repository scan for organization
+			parts := strings.Split(repoName, "/")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repoName)
+			}
+			owner, repo := parts[0], parts[1]
+
+			// Validate that the repository belongs to the organization
+			if owner != config.TargetResource {
+				return nil, fmt.Errorf("repository %s does not belong to organization %s", repoName, config.TargetResource)
+			}
+
+			repository, _, err := client.Repositories.Get(ctx, owner, repo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get repository %s: %w", repoName, err)
+			}
+			repos = []*github.Repository{repository}
+		} else {
+			// Organization scan - get all repositories
+			repos, err = g.listRepositoryForOrg(ctx, client.Repositories, config)
+			if err != nil {
+				return repos, err
+			}
 		}
+
 	case code.Type_USER:
-		// Check target user(targetResource) == authenticated user(PAT user)
-		user, _, err := client.Client.Users.Get(ctx, "")
-		if err != nil {
-			return nil, err
+		if repoName != "" {
+			// Single repository scan for user
+			parts := strings.Split(repoName, "/")
+			if len(parts) != 2 {
+				return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repoName)
+			}
+			owner, repo := parts[0], parts[1]
+
+			// Validate that the repository belongs to the user
+			if owner != config.TargetResource {
+				return nil, fmt.Errorf("repository %s does not belong to user %s", repoName, config.TargetResource)
+			}
+
+			repository, _, err := client.Repositories.Get(ctx, owner, repo)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get repository %s: %w", repoName, err)
+			}
+			repos = []*github.Repository{repository}
+		} else {
+			// User scan - get all repositories
+			// Check if target user is the authenticated user
+			var user *github.User
+			user, _, err = client.Client.Users.Get(ctx, "")
+			if err != nil {
+				return nil, err
+			}
+			isAuthUser := user.Login != nil && *user.Login == config.TargetResource
+			repos, err = g.listRepositoryForUser(ctx, client.Repositories, config, isAuthUser)
+			if err != nil {
+				return repos, err
+			}
 		}
-		isAuthUser := user.Login != nil && *user.Login == config.TargetResource
-		repos, err = g.listRepositoryForUser(ctx, client.Repositories, config, isAuthUser)
-		if err != nil {
-			return repos, err
-		}
+
 	default:
-		return repos, fmt.Errorf("unknown github type: type=%s", config.Type.String())
+		return nil, fmt.Errorf("unknown github type: type=%s", config.Type.String())
 	}
 
 	return repos, nil
