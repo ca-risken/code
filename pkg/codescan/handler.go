@@ -93,8 +93,8 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 		s.updateStatusToError(ctx, scanStatus, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
+	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
+		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, msg.RepositoryName)
 
 	// Filtered By Visibility
 	repos = common.FilterByVisibility(repos, gitHubSetting.CodeScanSetting.ScanPublic, gitHubSetting.CodeScanSetting.ScanInternal, gitHubSetting.CodeScanSetting.ScanPrivate)
@@ -119,9 +119,7 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 		scanResult, err := s.scanForRepository(ctx, r, token, gitHubSetting.BaseUrl)
 		if err != nil {
 			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", r.GetFullName(), err)
-			if scanStatus != nil {
-				s.updateStatusToError(ctx, scanStatus, err)
-			}
+			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
 		semgrepFindings = append(semgrepFindings, scanResult...)
@@ -129,9 +127,7 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 
 	if err := s.putSemgrepFindings(ctx, msg.ProjectID, semgrepFindings); err != nil {
 		s.logger.Errorf(ctx, "failed to put findings: err=%+v", err)
-		if scanStatus != nil {
-			s.updateStatusToError(ctx, scanStatus, err)
-		}
+		s.updateStatusToError(ctx, scanStatus, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 
@@ -145,28 +141,21 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 			BeforeAt:   beforeScanAt.Unix(),
 		}); err != nil {
 			s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repo, err)
-			if scanStatus != nil {
-				s.updateStatusToError(ctx, scanStatus, err)
-			}
+			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
 	}
 
 	// Update status based on scan type
-	if scanStatus != nil {
-		// Organization scan - update global status
-		if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
+	// Organization scan - update global status
+	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
+		return mimosasqs.WrapNonRetryable(err)
+	}
+	if !msg.ScanOnly {
+		if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
+			s.logger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
-		if !msg.ScanOnly {
-			if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
-				s.logger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
-				return mimosasqs.WrapNonRetryable(err)
-			}
-		}
-	} else {
-		// Repository scan - log completion
-		s.logger.Infof(ctx, "Successfully completed repository-level scan for: %s", msg.RepositoryName)
 	}
 
 	return nil
