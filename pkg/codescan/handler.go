@@ -151,11 +151,12 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	if !msg.ScanOnly {
-		if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
-			s.logger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
-			return mimosasqs.WrapNonRetryable(err)
-		}
+	if msg.ScanOnly {
+		return nil
+	}
+	if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
+		s.logger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
+		return mimosasqs.WrapNonRetryable(err)
 	}
 
 	return nil
