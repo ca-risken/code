@@ -113,13 +113,19 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 
 	switch config.Type {
 	case code.Type_ORGANIZATION:
-		repos, err = g.listRepositoryForOrg(ctx, client, config)
+		repos, err = g.listRepositoryForOrg(ctx, client.Repositories, config)
 		if err != nil {
 			return repos, err
 		}
 
 	case code.Type_USER:
-		repos, err = g.listRepositoryForUser(ctx, client, config)
+		// Check target user(targetResource) == authenticated user(PAT user)
+		user, _, err := client.Client.Users.Get(ctx, "")
+		if err != nil {
+			return nil, err
+		}
+		isAuthUser := user.Login != nil && *user.Login == config.TargetResource
+		repos, err = g.listRepositoryForUser(ctx, client.Repositories, config, isAuthUser)
 		if err != nil {
 			return repos, err
 		}
@@ -135,16 +141,8 @@ const (
 	githubVisibilityAll string = "all"
 )
 
-func (g *riskenGitHubClient) listRepositoryForUser(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting) ([]*github.Repository, error) {
-	// Check if target user is the authenticated user
-	user, _, err := client.Client.Users.Get(ctx, "")
-	if err != nil {
-		return nil, err
-	}
-	isAuthUser := user.Login != nil && *user.Login == config.TargetResource
-
-	// User scan - get all repositories
-	repos, err := g.listRepositoryForUserWithOption(ctx, client.Repositories, config.TargetResource, isAuthUser)
+func (g *riskenGitHubClient) listRepositoryForUser(ctx context.Context, repository GitHubRepoService, config *code.GitHubSetting, isAuthUser bool) ([]*github.Repository, error) {
+	repos, err := g.listRepositoryForUserWithOption(ctx, repository, config.TargetResource, isAuthUser)
 	if err != nil {
 		return nil, err
 	}
@@ -191,18 +189,8 @@ func (g *riskenGitHubClient) listRepositoryForUserWithOption(ctx context.Context
 	return allRepo, nil
 }
 
-func (g *riskenGitHubClient) listRepositoryForOrg(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting) ([]*github.Repository, error) {
-	// Validate organization access first
-	org, _, err := client.Client.Organizations.Get(ctx, config.TargetResource)
-	if err != nil {
-		return nil, fmt.Errorf("failed to access organization %s: %w", config.TargetResource, err)
-	}
-	if org == nil || org.Login == nil {
-		return nil, fmt.Errorf("organization %s not found", config.TargetResource)
-	}
-
-	// Organization scan - get all repositories
-	repos, err := g.listRepositoryForOrgWithOption(ctx, client.Repositories, config.TargetResource)
+func (g *riskenGitHubClient) listRepositoryForOrg(ctx context.Context, repository GitHubRepoService, config *code.GitHubSetting) ([]*github.Repository, error) {
+	repos, err := g.listRepositoryForOrgWithOption(ctx, repository, config.TargetResource)
 	if err != nil {
 		return nil, err
 	}
