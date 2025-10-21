@@ -100,7 +100,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	scanStatus := s.initScanStatus(gitHubSetting.GitleaksSetting)
 
 	// Get repositories
-	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting)
+	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, "")
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateStatusToError(ctx, scanStatus, err)

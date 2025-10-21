@@ -77,24 +77,39 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
-	scanStatus := s.initScanStatus((gitHubSetting.CodeScanSetting))
 
-	// Get repositories
-	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting)
+	// Use unified scan logic (handles both organization and repository scans)
+	return s.handleRepositoryScan(ctx, msg, gitHubSetting, token)
+}
+
+// handleRepositoryScan handles scanning for repositories (all or single based on RepositoryName)
+func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string) error {
+	scanStatus := s.initScanStatus(gitHubSetting.CodeScanSetting)
+
+	// Get repositories (will return all repos or single repo based on RepositoryName)
+	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateStatusToError(ctx, scanStatus, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
+	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
+		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, msg.RepositoryName)
+
 	// Filtered By Visibility
 	repos = common.FilterByVisibility(repos, gitHubSetting.CodeScanSetting.ScanPublic, gitHubSetting.CodeScanSetting.ScanInternal, gitHubSetting.CodeScanSetting.ScanPrivate)
 	// Filtered By Name
 	repos = common.FilterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
+	// Scan repositories using common logic
+	return s.scanRepositories(ctx, msg, gitHubSetting, token, repos, scanStatus)
+}
+
+// scanRepositories is the common scanning logic for both organization and repository scans
+func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository, scanStatus *code.PutCodeScanSettingRequest) error {
 	beforeScanAt := time.Now()
 	semgrepFindings := []*SemgrepFinding{}
+
 	for _, r := range repos {
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
 			continue
@@ -103,14 +118,15 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		// Scan source code
 		scanResult, err := s.scanForRepository(ctx, r, token, gitHubSetting.BaseUrl)
 		if err != nil {
-			s.logger.Errorf(ctx, "failed to codeScan scan: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", r.GetFullName(), err)
 			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
 		semgrepFindings = append(semgrepFindings, scanResult...)
 	}
+
 	if err := s.putSemgrepFindings(ctx, msg.ProjectID, semgrepFindings); err != nil {
-		s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+		s.logger.Errorf(ctx, "failed to put findings: err=%+v", err)
 		s.updateStatusToError(ctx, scanStatus, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
@@ -130,6 +146,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		}
 	}
 
+	// Update status based on scan type
+	// Organization scan - update global status
 	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
 		return mimosasqs.WrapNonRetryable(err)
 	}
@@ -140,6 +158,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		s.logger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
+
 	return nil
 }
 
