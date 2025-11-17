@@ -5,6 +5,9 @@ go 1.21.3
 // patch https://github.com/ca-risken/go-git/pull/1
 replace github.com/go-git/go-git/v5 v5.4.3-0.20220529141257-bc1f419cebcf => github.com/ca-risken/go-git/v5 v5.4.3-0.20220715100214-652d3d7d4a0e
 
+// Ensure compatibility with Go 1.23 toolchains by pinning x/sys before go1.24 build tags
+replace golang.org/x/sys => golang.org/x/sys v0.27.0
+
 require (
 	github.com/aquasecurity/trivy v0.30.4
 	github.com/aquasecurity/trivy-db v0.0.0-20220801073337-2c0339bb9085
