@@ -1,9 +1,13 @@
-FROM golang:1.21.3 AS builder
+FROM golang:1.23.0 AS builder
+WORKDIR /go/src/github.com/ca-risken/
+# Copy datasource-api first to satisfy replace directive
+COPY datasource-api ./datasource-api
 WORKDIR /go/src/github.com/ca-risken/code/
-COPY go.mod .
-COPY go.sum .
-RUN go mod download
-COPY . .
+COPY code/go.mod .
+COPY code/go.sum .
+ENV GOTOOLCHAIN=auto
+COPY code/ .
+RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/dependency cmd/dependency/main.go
 
 FROM public.ecr.aws/risken/code/dependency-base:v0.0.2
