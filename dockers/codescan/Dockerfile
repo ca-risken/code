@@ -1,12 +1,12 @@
 FROM golang:1.23.0 AS builder
 WORKDIR /go/src/github.com/ca-risken/code/
-COPY code/go.mod .
-COPY code/go.sum .
+COPY go.mod .
+COPY go.sum .
 ENV GOTOOLCHAIN=auto
-COPY code/ .
-# Run go mod tidy, but ignore errors from test dependencies (opentelemetry internal package issues)
-# The error is from test dependencies and doesn't affect the actual build
-RUN go mod tidy || true
+COPY . .
+# Tidy module dependencies without loading test-only deps (which pull non-existent OTel internals)
+RUN go mod tidy -test=false \
+	&& go mod verify
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/codescan cmd/codescan/main.go
 
 FROM public.ecr.aws/risken/base/risken-base:v0.0.1 AS riskenbase
