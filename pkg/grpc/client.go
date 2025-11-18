@@ -2,7 +2,6 @@ package grpc
 
 import (
 	"context"
-	"time"
 
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
@@ -36,10 +35,9 @@ func NewCodeClient(ctx context.Context, svcAddr string) (code.CodeServiceClient,
 }
 
 func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
-	// gRPCクライアントの呼び出し回数が非常に多くトレーシング情報の送信がエラーになるため、トレースは無効にしておく
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Note: OpenTelemetry interceptor is not added to avoid trace overhead
+	// due to high frequency of gRPC calls
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
