@@ -4,9 +4,8 @@ COPY go.mod .
 COPY go.sum .
 ENV GOTOOLCHAIN=auto
 COPY . .
-# Tidy module dependencies without loading test-only deps (which pull non-existent OTel internals)
-RUN go mod tidy -test=false \
-	&& go mod verify
+# Tidy dependencies (replace directives pin unstable modules)
+RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/gitleaks cmd/gitleaks/main.go
 
 FROM public.ecr.aws/risken/base/risken-base:v0.0.1
