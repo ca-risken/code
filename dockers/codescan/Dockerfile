@@ -1,7 +1,4 @@
 FROM golang:1.23.0 AS builder
-WORKDIR /go/src/github.com/ca-risken/
-# Copy datasource-api first to satisfy replace directive
-COPY datasource-api ./datasource-api
 WORKDIR /go/src/github.com/ca-risken/code/
 COPY code/go.mod .
 COPY code/go.sum .
