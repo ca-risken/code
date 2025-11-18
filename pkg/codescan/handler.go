@@ -18,15 +18,17 @@ import (
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
+	"github.com/google/go-github/v44/github"
 )
 
 type sqsHandler struct {
-	cipherBlock   cipher.Block
-	githubClient  githubcli.GithubServiceClient
-	findingClient finding.FindingServiceClient
-	alertClient   alert.AlertServiceClient
-	codeClient    code.CodeServiceClient
-	logger        logging.Logger
+	cipherBlock           cipher.Block
+	githubClient          githubcli.GithubServiceClient
+	findingClient         finding.FindingServiceClient
+	alertClient           alert.AlertServiceClient
+	codeClient            code.CodeServiceClient
+	limitRepositorySizeKb int
+	logger                logging.Logger
 }
 
 func NewHandler(
@@ -36,6 +38,7 @@ func NewHandler(
 	cc code.CodeServiceClient,
 	codeDataKey string,
 	githubDefaultToken string,
+	limitRepositorySizeKb int,
 	l logging.Logger,
 ) (*sqsHandler, error) {
 	key := []byte(codeDataKey)
@@ -44,12 +47,13 @@ func NewHandler(
 		return nil, err
 	}
 	return &sqsHandler{
-		cipherBlock:   block,
-		githubClient:  githubcli.NewGithubClient(githubDefaultToken, l),
-		findingClient: fc,
-		alertClient:   ac,
-		codeClient:    cc,
-		logger:        l,
+		cipherBlock:           block,
+		githubClient:          githubcli.NewGithubClient(githubDefaultToken, l),
+		findingClient:         fc,
+		alertClient:           ac,
+		codeClient:            cc,
+		limitRepositorySizeKb: limitRepositorySizeKb,
+		logger:                l,
 	}, nil
 }
 
@@ -82,34 +86,39 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string) error {
 	scanStatus := s.initScanStatus(gitHubSetting.CodeScanSetting)
 
-	// Get repositories filtered by CodeScanSetting via gRPC API
-	resp, err := s.codeClient.ListCodescanTargetRepository(ctx, &code.ListCodescanTargetRepositoryRequest{
-		ProjectId:       msg.ProjectID,
-		GithubSettingId: msg.GitHubSettingID,
-	})
+	// Get repositories (will return all repos or single repo based on RepositoryName)
+	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateStatusToError(ctx, scanStatus, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	repos := resp.Repository
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, msg.RepositoryName)
+
+	// Filtered By Visibility
+	repos = common.FilterByVisibility(repos, gitHubSetting.CodeScanSetting.ScanPublic, gitHubSetting.CodeScanSetting.ScanInternal, gitHubSetting.CodeScanSetting.ScanPrivate)
+	// Filtered By Name
+	repos = common.FilterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
 	// Scan repositories using common logic
 	return s.scanRepositories(ctx, msg, gitHubSetting, token, repos, scanStatus)
 }
 
 // scanRepositories is the common scanning logic for both organization and repository scans
-func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*code.GitHubRepository, scanStatus *code.PutCodeScanSettingRequest) error {
+func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository, scanStatus *code.PutCodeScanSettingRequest) error {
 	beforeScanAt := time.Now()
 	semgrepFindings := []*SemgrepFinding{}
 
 	for _, r := range repos {
+		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
+			continue
+		}
+
 		// Scan source code
-		scanResult, err := s.scanForRepositoryFromProto(ctx, r, token, gitHubSetting.BaseUrl)
+		scanResult, err := s.scanForRepository(ctx, r, token, gitHubSetting.BaseUrl)
 		if err != nil {
-			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", r.FullName, err)
+			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", r.GetFullName(), err)
 			s.updateStatusToError(ctx, scanStatus, err)
 			return mimosasqs.WrapNonRetryable(err)
 		}
@@ -124,7 +133,7 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 
 	// Clear score for inactive findings
 	for _, r := range repos {
-		repo := r.FullName
+		repo := r.GetFullName()
 		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
 			DataSource: message.CodeScanDataSource,
 			ProjectId:  msg.ProjectID,
@@ -151,6 +160,41 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 	}
 
 	return nil
+}
+
+func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, limitRepositorySize int) bool {
+	if repo == nil {
+		s.logger.Warnf(ctx, "Skip scan repository(data not found)")
+		return true
+	}
+
+	repoName := ""
+	if repo.FullName != nil {
+		repoName = *repo.FullName
+	}
+	if repo.Archived != nil && *repo.Archived {
+		s.logger.Infof(ctx, "Skip scan for %s repository(archived)", repoName)
+		return true
+	}
+	if repo.Fork != nil && *repo.Fork {
+		s.logger.Infof(ctx, "Skip scan for %s repository(fork repo)", repoName)
+		return true
+	}
+	if repo.Disabled != nil && *repo.Disabled {
+		s.logger.Infof(ctx, "Skip scan for %s repository(disabled)", repoName)
+		return true
+	}
+	if repo.Size != nil && *repo.Size < 1 {
+		s.logger.Infof(ctx, "Skip scan for %s repository(empty)", repoName)
+		return true
+	}
+
+	// Hard limit size
+	if repo.Size != nil && *repo.Size > limitRepositorySize {
+		s.logger.Warnf(ctx, "Skip scan for %s repository(too big size, limit=%dkb, size(kb)=%dkb)", repoName, limitRepositorySize, *repo.Size)
+		return true
+	}
+	return false
 }
 
 func (s *sqsHandler) updateStatusToError(ctx context.Context, scanStatus *code.PutCodeScanSettingRequest, err error) {

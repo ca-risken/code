@@ -13,43 +13,26 @@ import (
 	"time"
 
 	"github.com/ca-risken/code/pkg/common"
-	"github.com/ca-risken/datasource-api/proto/code"
+	"github.com/google/go-github/v44/github"
 )
 
-// scanForRepositoryFromProto scans repository from code.GitHubRepository proto format
-func (s *sqsHandler) scanForRepositoryFromProto(ctx context.Context, r *code.GitHubRepository, token, githubBaseURL string) ([]*SemgrepFinding, error) {
-	if r.FullName == "" {
-		return nil, fmt.Errorf("repository full name is empty")
-	}
-	if r.CloneUrl == "" {
-		return nil, fmt.Errorf("repository clone URL is empty: repo=%s", r.FullName)
-	}
-
-	// Extract repository name from full name (e.g., "owner/repo" -> "repo")
-	parts := strings.Split(r.FullName, "/")
-	repoName := r.FullName
-	if len(parts) > 0 {
-		repoName = parts[len(parts)-1]
-	}
-
+func (s *sqsHandler) scanForRepository(ctx context.Context, r *github.Repository, token, githubBaseURL string) ([]*SemgrepFinding, error) {
 	// Clone repository
-	dir, err := common.CreateCloneDir(repoName)
+	dir, err := common.CreateCloneDir(*r.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create directory to clone: repo=%s err=%w", r.FullName, err)
+		return nil, fmt.Errorf("failed to create directory to clone: repo=%s err=%w", *r.FullName, err)
 	}
 	defer os.RemoveAll(dir)
 
-	err = s.githubClient.Clone(ctx, token, r.CloneUrl, dir)
+	err = s.githubClient.Clone(ctx, token, *r.CloneURL, dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to clone: repo=%s err=%w", r.FullName, err)
+		return nil, fmt.Errorf("failed to clone: repo=%s err=%w", *r.FullName, err)
 	}
 
-	// Use default branch "main" (code.GitHubRepository doesn't have DefaultBranch field)
-	defaultBranch := "main"
-	// Semgrep
-	findings, err := s.semgrepScan(ctx, dir, r.FullName, defaultBranch, githubBaseURL)
+	// Scemgrep
+	findings, err := s.semgrepScan(ctx, dir, *r.FullName, *r.DefaultBranch, githubBaseURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan: repo=%s  err=%w", r.FullName, err)
+		return nil, fmt.Errorf("failed to scan: repo=%s  err=%w", *r.FullName, err)
 	}
 	return findings, nil
 }
