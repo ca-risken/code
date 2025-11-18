@@ -2,10 +2,9 @@ FROM golang:1.23.0 AS builder
 WORKDIR /go/src/github.com/ca-risken/code/
 COPY go.mod .
 COPY go.sum .
+RUN go mod download
 ENV GOTOOLCHAIN=auto
 COPY . .
-# Tidy dependencies (replace directives pin unstable modules)
-RUN go mod tidy
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/codescan cmd/codescan/main.go
 
 FROM public.ecr.aws/risken/base/risken-base:v0.0.1 AS riskenbase
