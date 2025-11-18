@@ -48,6 +48,9 @@ type AppConfig struct {
 	// codescan
 	GithubDefaultToken string `required:"true" split_words:"true" default:"your-token-here"`
 
+	// scan settings
+	LimitRepositorySizeKb int `required:"true" split_words:"true" default:"500000"` // 500MB
+
 	// grpc
 	CoreSvcAddr          string `split_words:"true" default:"core.core.svc.cluster.local:8080"`
 	DataSourceAPISvcAddr string `required:"true" split_words:"true" default:"datasource-api.datasource.svc.cluster.local:8081"`
@@ -112,6 +115,7 @@ func main() {
 		cc,
 		conf.CodeDataKey,
 		conf.GithubDefaultToken,
+		conf.LimitRepositorySizeKb,
 		appLogger,
 	)
 	if err != nil {
