@@ -43,11 +43,7 @@ func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	connectCtx := ctx
-	cancel := func() {}
-	if _, ok := ctx.Deadline(); !ok {
-		connectCtx, cancel = context.WithTimeout(ctx, 3*time.Second)
-	}
+	connectCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	conn.Connect()
 	if err := waitForReady(connectCtx, conn); err != nil {
