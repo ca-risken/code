@@ -174,7 +174,11 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 	if err != nil {
 		return nil, fmt.Errorf("failed to create directory to clone %s: %w", *r.FullName, err)
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			s.logger.Warnf(ctx, "Failed to remove temporary directory: dir=%s, err=%+v", dir, err)
+		}
+	}()
 
 	cloneDate := time.Now()
 	err = s.githubClient.Clone(ctx, token, *r.CloneURL, dir)
@@ -241,7 +245,7 @@ func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, last
 	}
 
 	// Check comparing pushedAt and lastScannedAt
-	if repo.PushedAt != nil && lastScannedAt != nil && repo.PushedAt.Time.Unix() <= lastScannedAt.Unix() {
+	if repo.PushedAt != nil && lastScannedAt != nil && repo.PushedAt.Unix() <= lastScannedAt.Unix() {
 		s.logger.Infof(ctx, "Skip scan for %s repository(already scanned)", repoName)
 		return true
 	}
@@ -343,7 +347,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 			f.Result.RuleDescription,
 			f.Result.Repo,
 			f.Result.File,
-			*f.RepositoryMetadata.Visibility,
+			*f.Visibility,
 			f.Result.URL,
 			f.Result.Author,
 			f.Result.Email,
