@@ -100,15 +100,15 @@ func main() {
 	tracer.Start(tc)
 	defer tracer.Stop()
 
-	fc, err := grpc.NewFindingClient(ctx, conf.CoreSvcAddr)
+	fc, err := grpc.NewFindingClient(conf.CoreSvcAddr)
 	if err != nil {
 		appLogger.Fatalf(ctx, "failed to create finding client, err=%+v", err)
 	}
-	ac, err := grpc.NewAlertClient(ctx, conf.CoreSvcAddr)
+	ac, err := grpc.NewAlertClient(conf.CoreSvcAddr)
 	if err != nil {
 		appLogger.Fatalf(ctx, "failed to create alert client, err=%+v", err)
 	}
-	cc, err := grpc.NewCodeClient(ctx, conf.DataSourceAPISvcAddr)
+	cc, err := grpc.NewCodeClient(conf.DataSourceAPISvcAddr)
 	if err != nil {
 		appLogger.Fatalf(ctx, "failed to create alert client, err=%+v", err)
 	}
