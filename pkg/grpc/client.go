@@ -43,9 +43,6 @@ func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
 	if err != nil {
 		return nil, err
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	connectCtx := ctx
 	cancel := func() {}
 	if _, ok := ctx.Deadline(); !ok {
