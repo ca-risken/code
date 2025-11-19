@@ -226,17 +226,17 @@ func getScore(vuln *trivytypes.DetectedVulnerability, canTriage bool) (float32, 
 }
 
 func getTriageableScore(vuln *trivytypes.DetectedVulnerability) (float32, error) {
-	score, ok := mapTriageableScore[vuln.Vulnerability.Severity]
+	score, ok := mapTriageableScore[vuln.Severity]
 	if !ok {
-		return 0, fmt.Errorf("unknown severity: %s", vuln.Vulnerability.Severity)
+		return 0, fmt.Errorf("unknown severity: %s", vuln.Severity)
 	}
 	return score, nil
 }
 
 func getDefaultScore(vuln *trivytypes.DetectedVulnerability) (float32, error) {
-	score, ok := mapSeverityScore[vuln.Vulnerability.Severity]
+	score, ok := mapSeverityScore[vuln.Severity]
 	if !ok {
-		return 0, fmt.Errorf("unknown severity: %s", vuln.Vulnerability.Severity)
+		return 0, fmt.Errorf("unknown severity: %s", vuln.Severity)
 	}
 	return score, nil
 }

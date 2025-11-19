@@ -296,7 +296,7 @@ func TestCreateCloneDir(t *testing.T) {
 				t.Errorf("CreateCloneDir() error = %v, wantErr %v", err, tt.wantErr)
 			}
 			if err == nil {
-				os.RemoveAll(dir)
+				_ = os.RemoveAll(dir)
 			}
 		})
 	}

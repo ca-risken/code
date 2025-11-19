@@ -120,7 +120,7 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 
 	case code.Type_USER:
 		// Check target user(targetResource) == authenticated user(PAT user)
-		user, _, err := client.Client.Users.Get(ctx, "")
+		user, _, err := client.Users.Get(ctx, "")
 		if err != nil {
 			return nil, err
 		}

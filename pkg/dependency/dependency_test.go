@@ -116,7 +116,9 @@ func TestGetResult(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to close test result file. err: %+v", err)
 			}
-			defer os.Remove(f.Name())
+			defer func() {
+				_ = os.Remove(f.Name())
+			}()
 			got, err := client.getResult(ctx, c.cloneURL, c.token, f.Name())
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
