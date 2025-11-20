@@ -241,7 +241,7 @@ func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, last
 	}
 
 	// Check comparing pushedAt and lastScannedAt
-	if repo.PushedAt != nil && lastScannedAt != nil && repo.PushedAt.Time.Unix() <= lastScannedAt.Unix() {
+	if repo.PushedAt != nil && lastScannedAt != nil && repo.PushedAt.Unix() <= lastScannedAt.Unix() {
 		s.logger.Infof(ctx, "Skip scan for %s repository(already scanned)", repoName)
 		return true
 	}
@@ -343,7 +343,7 @@ func (s *sqsHandler) putFindings(ctx context.Context, projectID uint32, findings
 			f.Result.RuleDescription,
 			f.Result.Repo,
 			f.Result.File,
-			*f.RepositoryMetadata.Visibility,
+			*f.Visibility,
 			f.Result.URL,
 			f.Result.Author,
 			f.Result.Email,

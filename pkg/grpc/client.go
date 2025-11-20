@@ -8,6 +8,7 @@ import (
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/proto/code"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -36,12 +37,30 @@ func NewCodeClient(ctx context.Context, svcAddr string) (code.CodeServiceClient,
 }
 
 func getGRPCConn(ctx context.Context, addr string) (*grpc.ClientConn, error) {
-	// gRPCクライアントの呼び出し回数が非常に多くトレーシング情報の送信がエラーになるため、トレースは無効にしておく
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-	conn, err := grpc.DialContext(ctx, addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// Note: OpenTelemetry interceptor is not added to avoid trace overhead
+	// due to high frequency of gRPC calls
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
+	connectCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	conn.Connect()
+	if err := waitForReady(connectCtx, conn); err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
 	return conn, nil
+}
+
+func waitForReady(ctx context.Context, conn *grpc.ClientConn) error {
+	for {
+		state := conn.GetState()
+		if state == connectivity.Ready {
+			return nil
+		}
+		if !conn.WaitForStateChange(ctx, state) {
+			return ctx.Err()
+		}
+	}
 }

@@ -15,7 +15,7 @@ IMAGE_TAG=latest
 MANIFEST_TAG=latest
 IMAGE_PREFIX=code
 IMAGE_REGISTRY=local
-GOLANGCI_LINT_VERSION ?= v1.62.2
+GOLANGCI_LINT_VERSION ?= v2.5.0
 
 PHONY: all
 all: build
@@ -65,7 +65,7 @@ go-test:
 
 .PHONY: lint
 lint:
-	GO111MODULE=on GOFLAGS=-buildvcs=false go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) --timeout 5m run
+	GO111MODULE=on GOTOOLCHAIN=auto GOFLAGS=-buildvcs=false go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) --timeout 5m run
 
 .PHONY: enqueue-gitleaks
 enqueue-gitleaks:
