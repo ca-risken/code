@@ -1,8 +1,7 @@
-FROM golang:1.23.0 AS builder
+FROM golang:1.24 AS builder
 WORKDIR /go/src/github.com/ca-risken/code/
 COPY go.mod .
 COPY go.sum .
-ENV GOTOOLCHAIN=auto
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/codescan cmd/codescan/main.go
