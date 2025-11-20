@@ -22,11 +22,7 @@ func (s *sqsHandler) scanForRepository(ctx context.Context, r *github.Repository
 	if err != nil {
 		return nil, fmt.Errorf("failed to create directory to clone: repo=%s err=%w", *r.FullName, err)
 	}
-	defer func() {
-		if err := os.RemoveAll(dir); err != nil {
-			s.logger.Warnf(ctx, "Failed to remove temporary directory: dir=%s, err=%+v", dir, err)
-		}
-	}()
+	defer os.RemoveAll(dir)
 
 	err = s.githubClient.Clone(ctx, token, *r.CloneURL, dir)
 	if err != nil {

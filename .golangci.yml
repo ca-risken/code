@@ -1,0 +1,23 @@
+# https://golangci-lint.run/docs/configuration/file/
+
+version: "2"
+
+run:
+  go: "1.24"
+  timeout: 5m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+  settings:
+    errcheck:
+      # https://golangci-lint.run/docs/linters/configuration/#errcheck
+      # os.Remove and os.RemoveAll are cleanup operations where errors are not critical
+      exclude-functions:
+        - os.Remove
+        - os.RemoveAll
+      verbose: true

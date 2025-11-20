@@ -64,9 +64,7 @@ func newDependencyClient(conf *dependencyConfig, l logging.Logger) dependencySer
 }
 
 func (d *dependencyClient) getResult(ctx context.Context, cloneURL, token, outputPath string) (*trivytypes.Report, error) {
-	defer func() {
-		_ = os.Remove(outputPath)
-	}()
+	defer os.Remove(outputPath)
 	err := d.trivy.Scan(ctx, cloneURL, token, outputPath)
 	if err != nil {
 		return nil, err
