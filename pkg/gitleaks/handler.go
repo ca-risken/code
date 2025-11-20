@@ -174,11 +174,7 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 	if err != nil {
 		return nil, fmt.Errorf("failed to create directory to clone %s: %w", *r.FullName, err)
 	}
-	defer func() {
-		if err := os.RemoveAll(dir); err != nil {
-			s.logger.Warnf(ctx, "Failed to remove temporary directory: dir=%s, err=%+v", dir, err)
-		}
-	}()
+	defer os.RemoveAll(dir)
 
 	cloneDate := time.Now()
 	err = s.githubClient.Clone(ctx, token, *r.CloneURL, dir)
