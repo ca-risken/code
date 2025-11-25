@@ -76,10 +76,10 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	gitHubSetting.PersonalAccessToken = token
-	return s.handleRepoScan(ctx, msg, gitHubSetting, token)
+	return s.handleScan(ctx, msg, gitHubSetting, token)
 }
 
-func (s *sqsHandler) handleRepoScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string) error {
+func (s *sqsHandler) handleScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string) error {
 	scanStatus := s.initScanStatus(gitHubSetting.CodeScanSetting)
 
 	if err := s.updateUsrOrgStatusToInProgress(ctx, scanStatus); err != nil {
