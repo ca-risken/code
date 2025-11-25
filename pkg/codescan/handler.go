@@ -145,16 +145,24 @@ func (s *sqsHandler) handleUserOrgScan(ctx context.Context, msg *message.CodeQue
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s",
 		len(repoListResp.Repository), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
+	hasError := false
 	for _, repo := range repoListResp.Repository {
 		err = s.scanSingleRepository(ctx, msg, gitHubSetting, token, repo, scanStatus)
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to scan repository: repository_name=%s, err=%+v", repo.FullName, err)
+			hasError = true
 			continue
 		}
 	}
 
-	if err := s.updateUsrOrgStatusToOK(ctx, scanStatus); err != nil {
-		s.logger.Warnf(ctx, "Failed to update usrOrg status to OK: err=%+v", err)
+	if hasError {
+		if err := s.updateUsrOrgStatusToError(ctx, scanStatus, "Some repositories failed to scan"); err != nil {
+			s.logger.Warnf(ctx, "Failed to update usrOrg status to ERROR: err=%+v", err)
+		}
+	} else {
+		if err := s.updateUsrOrgStatusToOK(ctx, scanStatus); err != nil {
+			s.logger.Warnf(ctx, "Failed to update usrOrg status to OK: err=%+v", err)
+		}
 	}
 
 	return nil
