@@ -23,8 +23,10 @@ func (s *sqsHandler) scanForRepository(ctx context.Context, r *code.GitHubReposi
 		repoName = parts[len(parts)-1]
 	}
 
-	defaultBranch := "main"
-
+	defaultBranch := r.DefaultBranch
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
 	// Clone repository
 	dir, err := common.CreateCloneDir(repoName)
 	if err != nil {
