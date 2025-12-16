@@ -120,29 +120,14 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_name=%s, err=%+v", repoFullName, err)
 		}
 
-		// Track scan status to ensure status is updated even if process is interrupted
-		// scanCompleted indicates that the scan itself (scanForRepository) completed successfully,
-		// regardless of whether the status update succeeded or failed
-		scanCompleted := false
-
 		// Scan source code with panic recovery to ensure status is updated even if panic occurs
 		func() {
 			defer func() {
-				// Ensure status is updated if scan didn't complete successfully
-				// Only handle cases where scanForRepository itself didn't complete (panic or interruption)
-				if !scanCompleted {
-					if r := recover(); r != nil {
-						// Panic occurred during scan
-						s.logger.Errorf(ctx, "panic occurred during scan: repository_name=%s, panic=%+v", repoFullName, r)
-						if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("panic occurred: %v", r)); updateErr != nil {
-							s.logger.Warnf(ctx, "Failed to update repository status error after panic: repository_name=%s, err=%+v", repoFullName, updateErr)
-						}
-					} else {
-						// Process was interrupted before scan completed (scanForRepository didn't return)
-						s.logger.Errorf(ctx, "Scan interrupted before completion: repository_name=%s", repoFullName)
-						if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, "scan interrupted before completion"); updateErr != nil {
-							s.logger.Warnf(ctx, "Failed to update repository status error after interruption: repository_name=%s, err=%+v", repoFullName, updateErr)
-						}
+				if r := recover(); r != nil {
+					// Panic occurred during scan - update status to ERROR
+					s.logger.Errorf(ctx, "panic occurred during scan: repository_name=%s, panic=%+v", repoFullName, r)
+					if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("panic occurred: %v", r)); updateErr != nil {
+						s.logger.Warnf(ctx, "Failed to update repository status error after panic: repository_name=%s, err=%+v", repoFullName, updateErr)
 					}
 				}
 			}()
@@ -155,17 +140,14 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 					s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repoFullName, updateErr)
 				}
 				// Continue to next repository instead of returning error
+				// Note: defer will not execute any error handling since recover() == nil (no panic)
 				return
 			}
-
-			// Scan completed successfully - mark as completed regardless of status update result
-			scanCompleted = true
 
 			// Append findings to the outer scope variable
 			semgrepFindings = append(semgrepFindings, scanResult...)
 
 			// Update repository status to OK
-			// Note: Even if this fails, scanCompleted is already true, so defer won't overwrite with ERROR
 			if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
 				s.logger.Warnf(ctx, "Failed to update repository status success: repository_name=%s, err=%+v", repoFullName, err)
 			}
@@ -187,7 +169,7 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 			BeforeAt:   beforeScanAt.Unix(),
 		}); err != nil {
 			s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repo, err)
-			// Continue processing even if clear score fails
+			return mimosasqs.WrapNonRetryable(err)
 		}
 	}
 
