@@ -146,7 +146,7 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 	// Put findings - if this fails, update all successfully scanned repositories to ERROR
 	if err := s.putSemgrepFindings(ctx, msg.ProjectID, semgrepFindings); err != nil {
 		s.logger.Errorf(ctx, "failed to put findings: err=%+v", err)
-		// Update all successfully scanned repositories to ERROR status
+		// Update all repositories that were already set to Status_OK back to Status_ERROR when findings save fails
 		for _, repoFullName := range successfullyScannedRepos {
 			if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to put findings: %v", err)); updateErr != nil {
 				s.logger.Warnf(ctx, "Failed to update repository status error after putSemgrepFindings failure: repository_name=%s, err=%+v", repoFullName, updateErr)
