@@ -120,38 +120,25 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_name=%s, err=%+v", repoFullName, err)
 		}
 
-		// Scan source code with panic recovery to ensure status is updated even if panic occurs
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					// Panic occurred during scan - update status to ERROR
-					s.logger.Errorf(ctx, "panic occurred during scan: repository_name=%s, panic=%+v", repoFullName, r)
-					if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("panic occurred: %v", r)); updateErr != nil {
-						s.logger.Warnf(ctx, "Failed to update repository status error after panic: repository_name=%s, err=%+v", repoFullName, updateErr)
-					}
-				}
-			}()
-
-			scanResult, err := s.scanForRepository(ctx, r, token, gitHubSetting.BaseUrl)
-			if err != nil {
-				// Scan failed - update status to ERROR
-				s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", repoFullName, err)
-				if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error()); updateErr != nil {
-					s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repoFullName, updateErr)
-				}
-				// Continue to next repository instead of returning error
-				// Note: defer will not execute any error handling since recover() == nil (no panic)
-				return
+		// Scan source code
+		scanResult, err := s.scanForRepository(ctx, r, token, gitHubSetting.BaseUrl)
+		if err != nil {
+			// Scan failed - update status to ERROR
+			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", repoFullName, err)
+			if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error()); updateErr != nil {
+				s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repoFullName, updateErr)
 			}
+			// Continue to next repository instead of returning error
+			continue
+		}
 
-			// Append findings to the outer scope variable
-			semgrepFindings = append(semgrepFindings, scanResult...)
+		// Append findings to the outer scope variable
+		semgrepFindings = append(semgrepFindings, scanResult...)
 
-			// Update repository status to OK
-			if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-				s.logger.Warnf(ctx, "Failed to update repository status success: repository_name=%s, err=%+v", repoFullName, err)
-			}
-		}()
+		// Update repository status to OK
+		if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
+			s.logger.Warnf(ctx, "Failed to update repository status success: repository_name=%s, err=%+v", repoFullName, err)
+		}
 	}
 
 	if err := s.putSemgrepFindings(ctx, msg.ProjectID, semgrepFindings); err != nil {
