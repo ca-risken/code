@@ -171,8 +171,13 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 // saveFindings saves findings and handles failures by updating repository statuses
 func (s *sqsHandler) saveFindings(ctx context.Context, msg *message.CodeQueueMessage, semgrepFindings []*SemgrepFinding, successfullyScannedRepos []string) error {
 	if err := s.putSemgrepFindings(ctx, msg.ProjectID, semgrepFindings); err != nil {
-		if updateErr := s.handlePutFindingsFailure(ctx, msg, successfullyScannedRepos, err); updateErr != nil {
-			return updateErr
+		s.logger.Errorf(ctx, "failed to put findings: err=%+v", err)
+		// Update all repositories that were already set to Status_OK back to Status_ERROR when findings save fails
+		for _, repoFullName := range successfullyScannedRepos {
+			if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to put findings: %v", err)); updateErr != nil {
+				s.logger.Errorf(ctx, "Failed to update repository status error after putSemgrepFindings failure: repository_name=%s, err=%+v", repoFullName, updateErr)
+				return fmt.Errorf("failed to put findings and repository status update failed: putFindingsErr=%w, statusUpdateErr=%w, repository=%s", err, updateErr, repoFullName)
+			}
 		}
 		return mimosasqs.WrapNonRetryable(err)
 	}
@@ -287,19 +292,6 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
-// handlePutFindingsFailure handles the failure of putSemgrepFindings by updating all successfully scanned repositories to ERROR status
-func (s *sqsHandler) handlePutFindingsFailure(ctx context.Context, msg *message.CodeQueueMessage, successfullyScannedRepos []string, putFindingsErr error) error {
-	s.logger.Errorf(ctx, "failed to put findings: err=%+v", putFindingsErr)
-	// Update all repositories that were already set to Status_OK back to Status_ERROR when findings save fails
-	for _, repoFullName := range successfullyScannedRepos {
-		if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to put findings: %v", putFindingsErr)); updateErr != nil {
-			s.logger.Errorf(ctx, "Failed to update repository status error after putSemgrepFindings failure: repository_name=%s, err=%+v", repoFullName, updateErr)
-			return fmt.Errorf("failed to put findings and repository status update failed: putFindingsErr=%w, statusUpdateErr=%w, repository=%s", putFindingsErr, updateErr, repoFullName)
-		}
-	}
-	return nil
-}
-
 // clearScoresForRepositories clears finding scores for successfully scanned repositories
 func (s *sqsHandler) clearScoresForRepositories(ctx context.Context, msg *message.CodeQueueMessage, successfullyScannedRepos []string, beforeScanAt time.Time) error {
 	for _, repoFullName := range successfullyScannedRepos {
@@ -309,21 +301,14 @@ func (s *sqsHandler) clearScoresForRepositories(ctx context.Context, msg *messag
 			Tag:        []string{tagCodeScan, repoFullName},
 			BeforeAt:   beforeScanAt.Unix(),
 		}); err != nil {
-			if err := s.handleClearScoreFailure(ctx, msg, repoFullName, err); err != nil {
-				return err
+			s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repoFullName, err)
+			// Update repository status to ERROR when ClearScore fails
+			if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to clear finding score: %v", err)); updateErr != nil {
+				s.logger.Errorf(ctx, "Failed to update repository status error after ClearScore failure: repository_name=%s, err=%+v", repoFullName, updateErr)
+				return fmt.Errorf("failed to clear finding score and repository status update failed: clearScoreErr=%w, statusUpdateErr=%w, repository=%s", err, updateErr, repoFullName)
 			}
 			return mimosasqs.WrapNonRetryable(err)
 		}
-	}
-	return nil
-}
-
-// handleClearScoreFailure handles the failure of ClearScore by updating repository status to ERROR
-func (s *sqsHandler) handleClearScoreFailure(ctx context.Context, msg *message.CodeQueueMessage, repoFullName string, clearScoreErr error) error {
-	s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repoFullName, clearScoreErr)
-	if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to clear finding score: %v", clearScoreErr)); updateErr != nil {
-		s.logger.Errorf(ctx, "Failed to update repository status error after ClearScore failure: repository_name=%s, err=%+v", repoFullName, updateErr)
-		return fmt.Errorf("failed to clear finding score and repository status update failed: clearScoreErr=%w, statusUpdateErr=%w, repository=%s", clearScoreErr, updateErr, repoFullName)
 	}
 	return nil
 }
