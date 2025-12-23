@@ -148,9 +148,7 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 		if err != nil {
 			// Scan failed - update status to ERROR
 			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", repoFullName, err)
-			if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error()); updateErr != nil {
-				s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repoFullName, updateErr)
-			}
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 			// Continue to next repository instead of returning error
 			continue
 		}
