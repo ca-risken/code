@@ -174,7 +174,7 @@ func (s *sqsHandler) saveFindings(ctx context.Context, msg *message.CodeQueueMes
 		s.logger.Errorf(ctx, "failed to put findings: err=%+v", err)
 		// Update all repositories that were already set to Status_OK back to Status_ERROR when findings save fails
 		for _, repoFullName := range successfullyScannedRepos {
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to put findings: %v", err), "putSemgrepFindings failure")
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to put findings: %v", err))
 		}
 		return mimosasqs.WrapNonRetryable(err)
 	}
@@ -282,10 +282,10 @@ func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, gith
 	return nil
 }
 
-// updateRepositoryStatusErrorWithLog updates repository status to ERROR and logs a warning if the update fails
-func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail, operation string) {
+// updateRepositoryStatusErrorWithWarn updates repository status to ERROR and logs a warning if the update fails
+func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) {
 	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
-		s.logger.Warnf(ctx, "Failed to update repository status error after %s: repository_name=%s, err=%+v", operation, repositoryFullName, err)
+		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
 	}
 }
 
@@ -307,7 +307,7 @@ func (s *sqsHandler) clearScoresForRepositories(ctx context.Context, msg *messag
 		}); err != nil {
 			s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repoFullName, err)
 			// Update repository status to ERROR when ClearScore fails
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to clear finding score: %v", err), "ClearScore failure")
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to clear finding score: %v", err))
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
