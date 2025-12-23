@@ -103,11 +103,33 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	return s.scanRepositories(ctx, msg, gitHubSetting, token, repos)
 }
 
-// scanRepositories is the common scanning logic for both organization and repository scans
+// scanRepositories orchestrates the scanning process for repositories
 func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) error {
 	beforeScanAt := time.Now()
+
+	// Step 1: Scan all repositories
+	semgrepFindings, successfullyScannedRepos, err := s.scanAllRepositories(ctx, msg, gitHubSetting, token, repos)
+	if err != nil {
+		return err
+	}
+
+	// Step 2: Save findings
+	if err := s.saveFindings(ctx, msg, semgrepFindings, successfullyScannedRepos); err != nil {
+		return err
+	}
+
+	// Step 3: Post-scan processing (clear scores and analyze alerts)
+	if err := s.postScanProcessing(ctx, msg, repos, successfullyScannedRepos, beforeScanAt); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// scanAllRepositories scans all repositories and returns findings and successfully scanned repository names
+func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) ([]*SemgrepFinding, []string, error) {
 	semgrepFindings := []*SemgrepFinding{}
-	successfullyScannedRepos := []string{} // Track repositories that were successfully scanned
+	successfullyScannedRepos := []string{}
 
 	for _, r := range repos {
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
@@ -143,44 +165,31 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 		}
 	}
 
-	// Put findings - if this fails, update all successfully scanned repositories to ERROR
+	return semgrepFindings, successfullyScannedRepos, nil
+}
+
+// saveFindings saves findings and handles failures by updating repository statuses
+func (s *sqsHandler) saveFindings(ctx context.Context, msg *message.CodeQueueMessage, semgrepFindings []*SemgrepFinding, successfullyScannedRepos []string) error {
 	if err := s.putSemgrepFindings(ctx, msg.ProjectID, semgrepFindings); err != nil {
-		s.logger.Errorf(ctx, "failed to put findings: err=%+v", err)
-		// Update all repositories that were already set to Status_OK back to Status_ERROR when findings save fails
-		for _, repoFullName := range successfullyScannedRepos {
-			if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to put findings: %v", err)); updateErr != nil {
-				s.logger.Warnf(ctx, "Failed to update repository status error after putSemgrepFindings failure: repository_name=%s, err=%+v", repoFullName, updateErr)
-			}
+		if updateErr := s.handlePutFindingsFailure(ctx, msg, successfullyScannedRepos, err); updateErr != nil {
+			return updateErr
 		}
 		return mimosasqs.WrapNonRetryable(err)
 	}
+	return nil
+}
 
+// postScanProcessing performs post-scan tasks: clearing scores and analyzing alerts
+func (s *sqsHandler) postScanProcessing(ctx context.Context, msg *message.CodeQueueMessage, repos []*github.Repository, successfullyScannedRepos []string, beforeScanAt time.Time) error {
 	// Clear score for inactive findings
-	for _, r := range repos {
-		repo := r.GetFullName()
-		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
-			DataSource: message.CodeScanDataSource,
-			ProjectId:  msg.ProjectID,
-			Tag:        []string{tagCodeScan, repo},
-			BeforeAt:   beforeScanAt.Unix(),
-		}); err != nil {
-			s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repo, err)
-			// Update repository status to ERROR if it was successfully scanned
-			for _, scannedRepo := range successfullyScannedRepos {
-				if scannedRepo == repo {
-					if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repo, fmt.Sprintf("failed to clear finding score: %v", err)); updateErr != nil {
-						s.logger.Warnf(ctx, "Failed to update repository status error after ClearScore failure: repository_name=%s, err=%+v", repo, updateErr)
-					}
-					break
-				}
-			}
-			return mimosasqs.WrapNonRetryable(err)
-		}
+	if err := s.clearScoresForRepositories(ctx, msg, repos, successfullyScannedRepos, beforeScanAt); err != nil {
+		return err
 	}
 
 	if msg.ScanOnly {
 		return nil
 	}
+
 	if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
 		s.logger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
 		return mimosasqs.WrapNonRetryable(err)
@@ -276,4 +285,60 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 		ProjectId: projectID,
 	})
 	return err
+}
+
+// handlePutFindingsFailure handles the failure of putSemgrepFindings by updating all successfully scanned repositories to ERROR status
+func (s *sqsHandler) handlePutFindingsFailure(ctx context.Context, msg *message.CodeQueueMessage, successfullyScannedRepos []string, putFindingsErr error) error {
+	s.logger.Errorf(ctx, "failed to put findings: err=%+v", putFindingsErr)
+	// Update all repositories that were already set to Status_OK back to Status_ERROR when findings save fails
+	for _, repoFullName := range successfullyScannedRepos {
+		if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to put findings: %v", putFindingsErr)); updateErr != nil {
+			s.logger.Errorf(ctx, "Failed to update repository status error after putSemgrepFindings failure: repository_name=%s, err=%+v", repoFullName, updateErr)
+			return fmt.Errorf("failed to put findings and repository status update failed: putFindingsErr=%w, statusUpdateErr=%w, repository=%s", putFindingsErr, updateErr, repoFullName)
+		}
+	}
+	return nil
+}
+
+// isSuccessfullyScanned checks if a repository is in the successfully scanned repositories list
+func isSuccessfullyScanned(repoFullName string, successfullyScannedRepos []string) bool {
+	for _, scannedRepo := range successfullyScannedRepos {
+		if scannedRepo == repoFullName {
+			return true
+		}
+	}
+	return false
+}
+
+// clearScoresForRepositories clears finding scores for all repositories
+func (s *sqsHandler) clearScoresForRepositories(ctx context.Context, msg *message.CodeQueueMessage, repos []*github.Repository, successfullyScannedRepos []string, beforeScanAt time.Time) error {
+	for _, r := range repos {
+		repo := r.GetFullName()
+		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
+			DataSource: message.CodeScanDataSource,
+			ProjectId:  msg.ProjectID,
+			Tag:        []string{tagCodeScan, repo},
+			BeforeAt:   beforeScanAt.Unix(),
+		}); err != nil {
+			if err := s.handleClearScoreFailure(ctx, msg, repo, successfullyScannedRepos, err); err != nil {
+				return err
+			}
+			return mimosasqs.WrapNonRetryable(err)
+		}
+	}
+	return nil
+}
+
+// handleClearScoreFailure handles the failure of ClearScore by updating repository status to ERROR if it was successfully scanned
+func (s *sqsHandler) handleClearScoreFailure(ctx context.Context, msg *message.CodeQueueMessage, repoFullName string, successfullyScannedRepos []string, clearScoreErr error) error {
+	s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repoFullName, clearScoreErr)
+	// Update repository status to ERROR if it was successfully scanned
+	if !isSuccessfullyScanned(repoFullName, successfullyScannedRepos) {
+		return nil
+	}
+	if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to clear finding score: %v", clearScoreErr)); updateErr != nil {
+		s.logger.Errorf(ctx, "Failed to update repository status error after ClearScore failure: repository_name=%s, err=%+v", repoFullName, updateErr)
+		return fmt.Errorf("failed to clear finding score and repository status update failed: clearScoreErr=%w, statusUpdateErr=%w, repository=%s", clearScoreErr, updateErr, repoFullName)
+	}
+	return nil
 }
