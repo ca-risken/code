@@ -119,7 +119,7 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 	}
 
 	// Step 3: Post-scan processing (clear scores and analyze alerts)
-	if err := s.postScanProcessing(ctx, msg, repos, successfullyScannedRepos, beforeScanAt); err != nil {
+	if err := s.postScanProcessing(ctx, msg, successfullyScannedRepos, beforeScanAt); err != nil {
 		return err
 	}
 
@@ -180,9 +180,9 @@ func (s *sqsHandler) saveFindings(ctx context.Context, msg *message.CodeQueueMes
 }
 
 // postScanProcessing performs post-scan tasks: clearing scores and analyzing alerts
-func (s *sqsHandler) postScanProcessing(ctx context.Context, msg *message.CodeQueueMessage, repos []*github.Repository, successfullyScannedRepos []string, beforeScanAt time.Time) error {
+func (s *sqsHandler) postScanProcessing(ctx context.Context, msg *message.CodeQueueMessage, successfullyScannedRepos []string, beforeScanAt time.Time) error {
 	// Clear score for inactive findings
-	if err := s.clearScoresForRepositories(ctx, msg, repos, successfullyScannedRepos, beforeScanAt); err != nil {
+	if err := s.clearScoresForRepositories(ctx, msg, successfullyScannedRepos, beforeScanAt); err != nil {
 		return err
 	}
 
@@ -300,27 +300,16 @@ func (s *sqsHandler) handlePutFindingsFailure(ctx context.Context, msg *message.
 	return nil
 }
 
-// isSuccessfullyScanned checks if a repository is in the successfully scanned repositories list
-func isSuccessfullyScanned(repoFullName string, successfullyScannedRepos []string) bool {
-	for _, scannedRepo := range successfullyScannedRepos {
-		if scannedRepo == repoFullName {
-			return true
-		}
-	}
-	return false
-}
-
-// clearScoresForRepositories clears finding scores for all repositories
-func (s *sqsHandler) clearScoresForRepositories(ctx context.Context, msg *message.CodeQueueMessage, repos []*github.Repository, successfullyScannedRepos []string, beforeScanAt time.Time) error {
-	for _, r := range repos {
-		repo := r.GetFullName()
+// clearScoresForRepositories clears finding scores for successfully scanned repositories
+func (s *sqsHandler) clearScoresForRepositories(ctx context.Context, msg *message.CodeQueueMessage, successfullyScannedRepos []string, beforeScanAt time.Time) error {
+	for _, repoFullName := range successfullyScannedRepos {
 		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
 			DataSource: message.CodeScanDataSource,
 			ProjectId:  msg.ProjectID,
-			Tag:        []string{tagCodeScan, repo},
+			Tag:        []string{tagCodeScan, repoFullName},
 			BeforeAt:   beforeScanAt.Unix(),
 		}); err != nil {
-			if err := s.handleClearScoreFailure(ctx, msg, repo, successfullyScannedRepos, err); err != nil {
+			if err := s.handleClearScoreFailure(ctx, msg, repoFullName, err); err != nil {
 				return err
 			}
 			return mimosasqs.WrapNonRetryable(err)
@@ -329,13 +318,9 @@ func (s *sqsHandler) clearScoresForRepositories(ctx context.Context, msg *messag
 	return nil
 }
 
-// handleClearScoreFailure handles the failure of ClearScore by updating repository status to ERROR if it was successfully scanned
-func (s *sqsHandler) handleClearScoreFailure(ctx context.Context, msg *message.CodeQueueMessage, repoFullName string, successfullyScannedRepos []string, clearScoreErr error) error {
+// handleClearScoreFailure handles the failure of ClearScore by updating repository status to ERROR
+func (s *sqsHandler) handleClearScoreFailure(ctx context.Context, msg *message.CodeQueueMessage, repoFullName string, clearScoreErr error) error {
 	s.logger.Errorf(ctx, "Failed to clear finding score. project_id: %v, repo: %s, error: %v", msg.ProjectID, repoFullName, clearScoreErr)
-	// Update repository status to ERROR if it was successfully scanned
-	if !isSuccessfullyScanned(repoFullName, successfullyScannedRepos) {
-		return nil
-	}
 	if updateErr := s.updateRepositoryStatusError(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, fmt.Sprintf("failed to clear finding score: %v", clearScoreErr)); updateErr != nil {
 		s.logger.Errorf(ctx, "Failed to update repository status error after ClearScore failure: repository_name=%s, err=%+v", repoFullName, updateErr)
 		return fmt.Errorf("failed to clear finding score and repository status update failed: clearScoreErr=%w, statusUpdateErr=%w, repository=%s", clearScoreErr, updateErr, repoFullName)
