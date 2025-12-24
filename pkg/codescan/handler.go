@@ -89,6 +89,10 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+		// Update repository status to ERROR if repository_name is specified
+		if msg.RepositoryName != "" {
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, msg.RepositoryName, err.Error())
+		}
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
