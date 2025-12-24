@@ -259,6 +259,8 @@ func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID,
 	// Sanitize invalid UTF-8 characters to prevent gRPC marshaling errors
 	statusDetail = strings.ToValidUTF8(statusDetail, "")
 	statusDetail = common.CutString(statusDetail, 200)
+	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
+	statusDetail = strings.ToValidUTF8(statusDetail, "")
 	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
 }
 
@@ -280,7 +282,7 @@ func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, gith
 	if err != nil {
 		return err
 	}
-	s.logger.Infof(ctx, "Success to update repository scan status, repository=%s, status=%s, response=%+v", repositoryFullName, status, resp)
+	s.logger.Infof(ctx, "Success to update repository scan status, repository=%s, status=%v, response=%+v", repositoryFullName, status, resp)
 	return nil
 }
 
