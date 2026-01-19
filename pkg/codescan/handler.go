@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -269,7 +270,7 @@ func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, gith
 			GithubSettingId:    githubSettingID,
 			RepositoryFullName: repositoryFullName,
 			Status:             status,
-			StatusDetail:       statusDetail,
+			StatusDetail:       sanitizeStatusDetail(status, statusDetail),
 			ScanAt:             time.Now().Unix(),
 		},
 	})
@@ -285,6 +286,17 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
 		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
 	}
+}
+
+func sanitizeStatusDetail(status code.Status, statusDetail string) string {
+	if status != code.Status_ERROR {
+		return statusDetail
+	}
+	// Sanitize invalid UTF-8 characters to prevent gRPC marshaling errors
+	statusDetail = strings.ToValidUTF8(statusDetail, "")
+	statusDetail = common.CutString(statusDetail, 200)
+	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
+	return strings.ToValidUTF8(statusDetail, "")
 }
 
 func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
