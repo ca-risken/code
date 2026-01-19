@@ -23,8 +23,7 @@ type dependencyServiceClient interface {
 }
 
 type dependencyConfig struct {
-	githubDefaultToken string
-	trivyPath          string
+	trivyPath string
 }
 
 type dependencyClient struct {
