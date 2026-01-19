@@ -5,7 +5,6 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -256,11 +255,6 @@ func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, proje
 }
 
 func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {
-	// Sanitize invalid UTF-8 characters to prevent gRPC marshaling errors
-	statusDetail = strings.ToValidUTF8(statusDetail, "")
-	statusDetail = common.CutString(statusDetail, 200)
-	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
-	statusDetail = strings.ToValidUTF8(statusDetail, "")
 	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
 }
 
