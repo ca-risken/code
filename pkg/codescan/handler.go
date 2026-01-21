@@ -103,12 +103,11 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	// Filtered By Name
 	repos = common.FilterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
-	// Scan repositories using common logic
-	return s.scanRepositories(ctx, msg, gitHubSetting, token, repos)
+	// Orchestrate repository scanning process
+	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, token, repos)
 }
 
-// scanRepositories orchestrates the scanning process for repositories
-func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) error {
+func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) error {
 	beforeScanAt := time.Now()
 
 	// Step 1: Scan all repositories
