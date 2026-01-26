@@ -27,7 +27,7 @@ require (
 	github.com/ca-risken/common/pkg/sqs v0.0.0-20221119073224-9db027bda6f8
 	github.com/ca-risken/common/pkg/tracer v0.0.0-20251104095036-403011f05377
 	github.com/ca-risken/core v0.16.0
-	github.com/ca-risken/datasource-api v0.16.1-0.20251118013046-6336a235c296
+	github.com/ca-risken/datasource-api v0.16.1-0.20260119073340-7ba515c97730
 	github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee
 	github.com/ca-risken/vulnerability v0.0.0-20250207144506-e2bcae88c3dc
 	github.com/cenkalti/backoff/v4 v4.3.0
@@ -40,6 +40,7 @@ require (
 	github.com/zricethezav/gitleaks/v8 v8.8.6
 	golang.org/x/oauth2 v0.33.0
 	google.golang.org/grpc v1.77.0
+	google.golang.org/protobuf v1.36.10
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
 )
 
@@ -184,7 +185,6 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251111163417-95abcf5c77ba // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/DataDog/dd-trace-go.v1 v1.74.8 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

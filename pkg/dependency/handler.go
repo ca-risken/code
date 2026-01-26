@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -52,8 +53,7 @@ func NewHandler(
 		return nil, fmt.Errorf("failed to create new cipher, err=%w", err)
 	}
 	dependencyConf := &dependencyConfig{
-		githubDefaultToken: githubDefaultToken,
-		trivyPath:          trivyPath,
+		trivyPath: trivyPath,
 	}
 	return &sqsHandler{
 		cipherBlock:           block,
@@ -77,7 +77,6 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		return mimosasqs.WrapNonRetryable(err)
 	}
 
-	beforeScanAt := time.Now()
 	requestID, err := s.logger.GenerateRequestID(fmt.Sprint(msg.ProjectID))
 	if err != nil {
 		s.logger.Warnf(ctx, "Failed to generate requestID: err=%+v", err)
@@ -89,80 +88,8 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		s.logger.Errorf(ctx, "Failed to get scan setting: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	scanStatus := s.initScanStatus(gitHubSetting.DependencySetting)
 
-	// Get repositories
-	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, "")
-	if err != nil {
-		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-		s.updateStatusToError(ctx, scanStatus, err)
-		return mimosasqs.WrapNonRetryable(err)
-	}
-	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
-	// Filtered By Name
-	repos = common.FilterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
-
-	for _, r := range repos {
-		isSkip := s.skipScan(ctx, r, s.limitRepositorySizeKb)
-		if isSkip {
-			continue
-		}
-
-		// Scan per repository
-		resultFilePath := fmt.Sprintf("/tmp/%v_%v_%s_%v.json", msg.ProjectID, msg.GitHubSettingID, *r.Name, time.Now().Unix())
-		result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, gitHubSetting.PersonalAccessToken, resultFilePath)
-		if err != nil {
-			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			s.updateStatusToError(ctx, scanStatus, err)
-			return mimosasqs.WrapNonRetryable(err)
-		}
-
-		findings, err := s.makeFindings(ctx, msg, result, r.GetID())
-		if err != nil {
-			s.logger.Errorf(ctx, "Failed to make findings: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
-			s.updateStatusToError(ctx, scanStatus, err)
-			return mimosasqs.WrapNonRetryable(err)
-		}
-
-		// Put findings
-		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
-			s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
-			s.updateStatusToError(ctx, scanStatus, err)
-			return mimosasqs.WrapNonRetryable(err)
-		}
-
-		// Put repository resource
-		if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
-			s.logger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-			s.updateStatusToError(ctx, scanStatus, err)
-			return mimosasqs.WrapNonRetryable(err)
-		}
-
-		// Clear score for inactive findings
-		if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
-			DataSource: message.DependencyDataSource,
-			ProjectId:  msg.ProjectID,
-			Tag:        []string{fmt.Sprintf("repository_id:%v", r.GetID())},
-			BeforeAt:   beforeScanAt.Unix(),
-		}); err != nil {
-			s.logger.Errorf(ctx, "Failed to clear finding score. repository: %v, error: %v", r.Name, err)
-			s.updateStatusToError(ctx, scanStatus, err)
-			return mimosasqs.WrapNonRetryable(err)
-		}
-	}
-	if err := s.updateScanStatusSuccess(ctx, scanStatus); err != nil {
-		return mimosasqs.WrapNonRetryable(err)
-	}
-	s.logger.Infof(ctx, "end Scan, RequestID=%s", requestID)
-	if msg.ScanOnly {
-		return nil
-	}
-	if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
-		s.logger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
-		return mimosasqs.WrapNonRetryable(err)
-	}
-	return nil
+	return s.handleRepositoryScan(ctx, msg, gitHubSetting, requestID)
 }
 
 func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, limitRepositorySize int) bool {
@@ -187,12 +114,6 @@ func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, limi
 	return false
 }
 
-func (s *sqsHandler) updateStatusToError(ctx context.Context, scanStatus *code.PutDependencySettingRequest, err error) {
-	if updateErr := s.updateScanStatusError(ctx, scanStatus, err.Error()); updateErr != nil {
-		s.logger.Warnf(ctx, "Failed to update scan status error: err=%+v", updateErr)
-	}
-}
-
 func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
 	data, err := s.codeClient.GetGitHubSetting(ctx, &code.GetGitHubSettingRequest{
 		ProjectId:       projectID,
@@ -215,46 +136,172 @@ func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSett
 	return data.GithubSetting, nil
 }
 
-func (s *sqsHandler) initScanStatus(g *code.DependencySetting) *code.PutDependencySettingRequest {
-	return &code.PutDependencySettingRequest{
-		ProjectId: g.ProjectId,
-		DependencySetting: &code.DependencySettingForUpsert{
-			GithubSettingId:   g.GithubSettingId,
-			CodeDataSourceId:  g.CodeDataSourceId,
-			ProjectId:         g.ProjectId,
-			RepositoryPattern: g.RepositoryPattern,
-			ScanAt:            time.Now().Unix(),
-			Status:            code.Status_UNKNOWN, // After scan, will be updated
-			StatusDetail:      "",
-		},
-	}
-}
-
-func (s *sqsHandler) updateScanStatusError(ctx context.Context, putData *code.PutDependencySettingRequest, statusDetail string) error {
-	putData.DependencySetting.Status = code.Status_ERROR
-	statusDetail = common.CutString(statusDetail, 200)
-	putData.DependencySetting.StatusDetail = statusDetail
-	return s.updateScanStatus(ctx, putData)
-}
-
-func (s *sqsHandler) updateScanStatusSuccess(ctx context.Context, putData *code.PutDependencySettingRequest) error {
-	putData.DependencySetting.Status = code.Status_OK
-	putData.DependencySetting.StatusDetail = ""
-	return s.updateScanStatus(ctx, putData)
-}
-
-func (s *sqsHandler) updateScanStatus(ctx context.Context, putData *code.PutDependencySettingRequest) error {
-	resp, err := s.codeClient.PutDependencySetting(ctx, putData)
-	if err != nil {
-		return err
-	}
-	s.logger.Infof(ctx, "Success to update scan status, response=%+v", resp)
-	return nil
-}
-
 func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	_, err := s.alertClient.AnalyzeAlert(ctx, &alert.AnalyzeAlertRequest{
 		ProjectId: projectID,
 	})
 	return err
+}
+
+func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
+}
+
+func (s *sqsHandler) updateRepositoryStatusSuccess(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_OK, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string, status code.Status, statusDetail string) error {
+	resp, err := s.codeClient.PutDependencyRepository(ctx, &code.PutDependencyRepositoryRequest{
+		ProjectId: projectID,
+		DependencyRepository: &code.DependencyRepositoryForUpsert{
+			GithubSettingId:    githubSettingID,
+			RepositoryFullName: repositoryFullName,
+			Status:             status,
+			StatusDetail:       sanitizeStatusDetail(status, statusDetail),
+			ScanAt:             time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	s.logger.Infof(ctx, "Success to update repository scan status, repository=%s, status=%v, response=%+v", repositoryFullName, status, resp)
+	return nil
+}
+
+// updateRepositoryStatusErrorWithWarn updates repository status to ERROR and logs a warning if the update fails
+func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) {
+	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
+	}
+}
+
+func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, requestID string) error {
+	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
+	if err != nil {
+		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, msg.RepositoryName, err)
+		if msg.RepositoryName != "" {
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, msg.RepositoryName, err.Error())
+		}
+		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
+		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, msg.RepositoryName)
+	repos = common.FilterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
+
+	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, repos, requestID)
+}
+
+func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, repos []*github.Repository, requestID string) error {
+	beforeScanAt := time.Now()
+
+	// Step 1: Scan repositories (includes per-repo find/put/clear)
+	successfullyScannedRepos, err := s.scanAllRepositories(ctx, msg, gitHubSetting, beforeScanAt, repos)
+	if err != nil {
+		return err
+	}
+
+	// Step 2: Post-scan processing (end log / alert analysis)
+	return s.postScanProcessing(ctx, msg, successfullyScannedRepos, requestID)
+}
+
+// scanAllRepositories scans all repositories and returns successfully scanned repository names
+func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
+	successfullyScannedRepos := []string{}
+	for _, r := range repos {
+		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
+			continue
+		}
+		repoFullName := r.GetFullName()
+
+		if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
+			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_name=%s, err=%+v", repoFullName, err)
+		}
+
+		if err := s.scanRepository(ctx, msg, gitHubSetting, beforeScanAt, r); err != nil {
+			return successfullyScannedRepos, err
+		}
+		successfullyScannedRepos = append(successfullyScannedRepos, repoFullName)
+	}
+	return successfullyScannedRepos, nil
+}
+
+func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, r *github.Repository) error {
+	repoFullName := r.GetFullName()
+
+	resultFilePath := fmt.Sprintf("/tmp/%v_%v_%s_%v.json", msg.ProjectID, msg.GitHubSettingID, *r.Name, time.Now().Unix())
+	result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, gitHubSetting.PersonalAccessToken, resultFilePath)
+	if err != nil {
+		s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	findings, err := s.makeFindings(ctx, msg, result, r.GetID())
+	if err != nil {
+		s.logger.Errorf(ctx, "Failed to make findings: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
+		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
+		s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, r.GetFullName(), err)
+		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
+		s.logger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	if _, err := s.findingClient.ClearScore(ctx, &finding.ClearScoreRequest{
+		DataSource: message.DependencyDataSource,
+		ProjectId:  msg.ProjectID,
+		Tag:        []string{fmt.Sprintf("repository_id:%v", r.GetID())},
+		BeforeAt:   beforeScanAt.Unix(),
+	}); err != nil {
+		s.logger.Errorf(ctx, "Failed to clear finding score. repository: %v, error: %v", r.Name, err)
+		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status success: repository_name=%s, err=%+v", repoFullName, err)
+	}
+	return nil
+}
+
+// postScanProcessing handles tasks after repository scans
+func (s *sqsHandler) postScanProcessing(ctx context.Context, msg *message.CodeQueueMessage, successfullyScannedRepos []string, requestID string) error {
+	s.logger.Infof(ctx, "end Scan, RequestID=%s", requestID)
+	s.logger.Infof(ctx, "scanned repositories count=%d", len(successfullyScannedRepos))
+
+	if msg.ScanOnly {
+		return nil
+	}
+
+	if err := s.analyzeAlert(ctx, msg.ProjectID); err != nil {
+		s.logger.Notifyf(ctx, logging.ErrorLevel, "Failed to analyzeAlert, project_id=%d, err=%+v", msg.ProjectID, err)
+		return mimosasqs.WrapNonRetryable(err)
+	}
+
+	return nil
+}
+
+func sanitizeStatusDetail(status code.Status, statusDetail string) string {
+	if status != code.Status_ERROR {
+		return statusDetail
+	}
+	// Sanitize invalid UTF-8 characters to prevent gRPC marshaling errors
+	statusDetail = strings.ToValidUTF8(statusDetail, "")
+	statusDetail = common.CutString(statusDetail, 200)
+	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
+	return strings.ToValidUTF8(statusDetail, "")
 }

@@ -103,12 +103,11 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	// Filtered By Name
 	repos = common.FilterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
-	// Scan repositories using common logic
-	return s.scanRepositories(ctx, msg, gitHubSetting, token, repos)
+	// Orchestrate repository scanning process
+	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, token, repos)
 }
 
-// scanRepositories orchestrates the scanning process for repositories
-func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) error {
+func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) error {
 	beforeScanAt := time.Now()
 
 	// Step 1: Scan all repositories
@@ -256,11 +255,6 @@ func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, proje
 }
 
 func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {
-	// Sanitize invalid UTF-8 characters to prevent gRPC marshaling errors
-	statusDetail = strings.ToValidUTF8(statusDetail, "")
-	statusDetail = common.CutString(statusDetail, 200)
-	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
-	statusDetail = strings.ToValidUTF8(statusDetail, "")
 	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
 }
 
@@ -275,7 +269,7 @@ func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, gith
 			GithubSettingId:    githubSettingID,
 			RepositoryFullName: repositoryFullName,
 			Status:             status,
-			StatusDetail:       statusDetail,
+			StatusDetail:       sanitizeStatusDetail(status, statusDetail),
 			ScanAt:             time.Now().Unix(),
 		},
 	})
@@ -291,6 +285,17 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
 		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
 	}
+}
+
+func sanitizeStatusDetail(status code.Status, statusDetail string) string {
+	if status != code.Status_ERROR {
+		return statusDetail
+	}
+	// Sanitize invalid UTF-8 characters to prevent gRPC marshaling errors
+	statusDetail = strings.ToValidUTF8(statusDetail, "")
+	statusDetail = common.CutString(statusDetail, 200)
+	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
+	return strings.ToValidUTF8(statusDetail, "")
 }
 
 func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
