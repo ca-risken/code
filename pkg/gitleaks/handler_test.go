@@ -190,6 +190,20 @@ func TestGetLastScannedAt(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "OK with cache",
+			args: args{projectID: 1, githubSettingID: 1, repoName: "owner/repo"},
+			mockResp: &GetGitleaksCacheResponse{
+				Resp: &code.GetGitleaksCacheResponse{
+					GitleaksCache: &code.GitleaksCache{
+						ScanAt: time.Unix(1, 0).Unix(),
+					},
+				},
+				Err: nil,
+			},
+			want:    func() *time.Time { t := time.Unix(1, 0); return &t }(),
+			wantErr: false,
+		},
+		{
 			name: "NG API error",
 			args: args{projectID: 1, githubSettingID: 1, repoName: "owner/repo"},
 			mockResp: &GetGitleaksCacheResponse{
