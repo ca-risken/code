@@ -467,6 +467,6 @@ func sanitizeStatusDetail(status code.Status, statusDetail string) string {
 	}
 	statusDetail = strings.ToValidUTF8(statusDetail, "")
 	statusDetail = common.CutString(statusDetail, 200)
-	statusDetail = strings.ToValidUTF8(statusDetail, "")
-	return statusDetail
+	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
+	return strings.ToValidUTF8(statusDetail, "")
 }
