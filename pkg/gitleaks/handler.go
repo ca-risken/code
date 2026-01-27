@@ -112,6 +112,105 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	return nil
 }
 
+func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.Time, limitRepositorySize int) bool {
+	if repo == nil {
+		s.logger.Warnf(ctx, "Skip scan repository(data not found)")
+		return true
+	}
+
+	repoName := ""
+	if repo.FullName != nil {
+		repoName = *repo.FullName
+	}
+	if repo.Archived != nil && *repo.Archived {
+		s.logger.Infof(ctx, "Skip scan for %s repository(archived)", repoName)
+		return true
+	}
+	if repo.Fork != nil && *repo.Fork {
+		s.logger.Infof(ctx, "Skip scan for %s repository(fork repo)", repoName)
+		return true
+	}
+	if repo.Disabled != nil && *repo.Disabled {
+		s.logger.Infof(ctx, "Skip scan for %s repository(disabled)", repoName)
+		return true
+	}
+	if repo.Size != nil && *repo.Size < 1 {
+		s.logger.Infof(ctx, "Skip scan for %s repository(empty)", repoName)
+		return true
+	}
+
+	// Hard limit size
+	if repo.Size != nil && *repo.Size > limitRepositorySize {
+		s.logger.Warnf(ctx, "Skip scan for %s repository(too big size, limit=%dkb, size(kb)=%dkb)", repoName, limitRepositorySize, *repo.Size)
+		return true
+	}
+
+	// Check comparing pushedAt and lastScannedAt
+	if repo.PushedAt != nil && lastScannedAt != nil && repo.PushedAt.Unix() <= lastScannedAt.Unix() {
+		s.logger.Infof(ctx, "Skip scan for %s repository(already scanned)", repoName)
+		return true
+	}
+
+	return false
+}
+
+func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
+	data, err := s.codeClient.GetGitHubSetting(ctx, &code.GetGitHubSettingRequest{
+		ProjectId:       projectID,
+		GithubSettingId: GitHubSettingID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if data == nil || data.GithubSetting == nil || data.GithubSetting.GitleaksSetting == nil {
+		return nil, fmt.Errorf("no data for scan gitleaks, project_id=%d, github_setting_id=%d", projectID, GitHubSettingID)
+	}
+	return data.GithubSetting, nil
+}
+
+func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
+	_, err := s.alertClient.AnalyzeAlert(ctx, &alert.AnalyzeAlertRequest{
+		ProjectId: projectID,
+	})
+	return err
+}
+
+func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
+}
+
+func (s *sqsHandler) updateRepositoryStatusSuccess(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_OK, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string, status code.Status, statusDetail string) error {
+	resp, err := s.codeClient.PutGitleaksRepository(ctx, &code.PutGitleaksRepositoryRequest{
+		ProjectId: projectID,
+		GitleaksRepository: &code.GitleaksRepositoryForUpsert{
+			GithubSettingId:    githubSettingID,
+			RepositoryFullName: repositoryFullName,
+			Status:             status,
+			StatusDetail:       sanitizeStatusDetail(status, statusDetail),
+			ScanAt:             time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	s.logger.Infof(ctx, "Success to update gitleaks repository status, repository=%s, status=%v, response=%+v", repositoryFullName, status, resp)
+	return nil
+}
+
+func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) {
+	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
+	}
+}
+
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string) error {
 	// Get repositories (single repo when RepositoryName is specified)
 	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
@@ -126,10 +225,10 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	// Filtered By Name
 	repos = common.FilterByNamePattern(repos, gitHubSetting.GitleaksSetting.RepositoryPattern)
 
-	return s.scanRepositories(ctx, msg, gitHubSetting, token, repos)
+	return s.scanDiffRepositories(ctx, msg, gitHubSetting, token, repos)
 }
 
-func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) error {
+func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) error {
 	for _, r := range repos {
 		// Get LastScannedAt
 		var lastScannedAt *time.Time
@@ -137,7 +236,9 @@ func (s *sqsHandler) scanRepositories(ctx context.Context, msg *message.CodeQueu
 			var err error
 			lastScannedAt, err = s.getLastScannedAt(ctx, msg.ProjectID, msg.GitHubSettingID, *r.FullName)
 			if err != nil {
+				repoFullName := r.GetFullName()
 				s.logger.Errorf(ctx, "Failed to get LastScannedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 				return mimosasqs.WrapNonRetryable(err)
 			}
 		}
@@ -226,62 +327,6 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 		return nil, fmt.Errorf("failed to cache time %s: %w", *r.FullName, err)
 	}
 	return results, nil
-}
-
-func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.Time, limitRepositorySize int) bool {
-	if repo == nil {
-		s.logger.Warnf(ctx, "Skip scan repository(data not found)")
-		return true
-	}
-
-	repoName := ""
-	if repo.FullName != nil {
-		repoName = *repo.FullName
-	}
-	if repo.Archived != nil && *repo.Archived {
-		s.logger.Infof(ctx, "Skip scan for %s repository(archived)", repoName)
-		return true
-	}
-	if repo.Fork != nil && *repo.Fork {
-		s.logger.Infof(ctx, "Skip scan for %s repository(fork repo)", repoName)
-		return true
-	}
-	if repo.Disabled != nil && *repo.Disabled {
-		s.logger.Infof(ctx, "Skip scan for %s repository(disabled)", repoName)
-		return true
-	}
-	if repo.Size != nil && *repo.Size < 1 {
-		s.logger.Infof(ctx, "Skip scan for %s repository(empty)", repoName)
-		return true
-	}
-
-	// Hard limit size
-	if repo.Size != nil && *repo.Size > limitRepositorySize {
-		s.logger.Warnf(ctx, "Skip scan for %s repository(too big size, limit=%dkb, size(kb)=%dkb)", repoName, limitRepositorySize, *repo.Size)
-		return true
-	}
-
-	// Check comparing pushedAt and lastScannedAt
-	if repo.PushedAt != nil && lastScannedAt != nil && repo.PushedAt.Unix() <= lastScannedAt.Unix() {
-		s.logger.Infof(ctx, "Skip scan for %s repository(already scanned)", repoName)
-		return true
-	}
-
-	return false
-}
-
-func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
-	data, err := s.codeClient.GetGitHubSetting(ctx, &code.GetGitHubSettingRequest{
-		ProjectId:       projectID,
-		GithubSettingId: GitHubSettingID,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if data == nil || data.GithubSetting == nil || data.GithubSetting.GitleaksSetting == nil {
-		return nil, fmt.Errorf("no data for scan gitleaks, project_id=%d, github_setting_id=%d", projectID, GitHubSettingID)
-	}
-	return data.GithubSetting, nil
 }
 
 func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resourceName string) error {
@@ -402,13 +447,6 @@ func (s *sqsHandler) tagResource(ctx context.Context, tag string, resourceID uin
 	return nil
 }
 
-func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
-	_, err := s.alertClient.AnalyzeAlert(ctx, &alert.AnalyzeAlertRequest{
-		ProjectId: projectID,
-	})
-	return err
-}
-
 func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, findingID uint64, rule string, r *Recommend) error {
 	if _, err := s.findingClient.PutRecommend(ctx, &finding.PutRecommendRequest{
 		ProjectId:      projectID,
@@ -421,42 +459,6 @@ func (s *sqsHandler) putRecommend(ctx context.Context, projectID uint32, finding
 		return fmt.Errorf("failed to PutRecommend, finding_id=%d, rule=%s, error=%w", findingID, rule, err)
 	}
 	return nil
-}
-
-func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
-	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
-}
-
-func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {
-	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
-}
-
-func (s *sqsHandler) updateRepositoryStatusSuccess(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
-	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_OK, "")
-}
-
-func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string, status code.Status, statusDetail string) error {
-	resp, err := s.codeClient.PutGitleaksRepository(ctx, &code.PutGitleaksRepositoryRequest{
-		ProjectId: projectID,
-		GitleaksRepository: &code.GitleaksRepositoryForUpsert{
-			GithubSettingId:    githubSettingID,
-			RepositoryFullName: repositoryFullName,
-			Status:             status,
-			StatusDetail:       sanitizeStatusDetail(status, statusDetail),
-			ScanAt:             time.Now().Unix(),
-		},
-	})
-	if err != nil {
-		return err
-	}
-	s.logger.Infof(ctx, "Success to update gitleaks repository status, repository=%s, status=%v, response=%+v", repositoryFullName, status, resp)
-	return nil
-}
-
-func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) {
-	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
-		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
-	}
 }
 
 func sanitizeStatusDetail(status code.Status, statusDetail string) string {

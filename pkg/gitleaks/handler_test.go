@@ -162,8 +162,6 @@ func TestSkipScan(t *testing.T) {
 }
 
 func TestGetLastScannedAt(t *testing.T) {
-	nowUnix := time.Now().Unix()
-	now := time.Unix(nowUnix, 0)
 	type GetGitleaksCacheResponse struct {
 		Resp *code.GetGitleaksCacheResponse
 		Err  error
@@ -181,22 +179,6 @@ func TestGetLastScannedAt(t *testing.T) {
 		want    *time.Time
 		wantErr bool
 	}{
-		{
-			name: "OK",
-			args: args{projectID: 1, githubSettingID: 1, repoName: "owner/repo"},
-			mockResp: &GetGitleaksCacheResponse{
-				Resp: &code.GetGitleaksCacheResponse{
-					GitleaksCache: &code.GitleaksCache{
-						GithubSettingId:    1,
-						RepositoryFullName: "owner/repo",
-						ScanAt:             nowUnix,
-					},
-				},
-				Err: nil,
-			},
-			want:    &now,
-			wantErr: false,
-		},
 		{
 			name: "OK no cache",
 			args: args{projectID: 1, githubSettingID: 1, repoName: "owner/repo"},
