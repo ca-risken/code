@@ -225,16 +225,16 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	// Filtered By Name
 	repos = common.FilterByNamePattern(repos, gitHubSetting.GitleaksSetting.RepositoryPattern)
 
-	return s.scanDiffRepositories(ctx, msg, gitHubSetting, token, repos)
+	return s.scanDiffRepositories(ctx, msg, token, repos)
 }
 
-func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, repos []*github.Repository) error {
+func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository) error {
 	for _, r := range repos {
 		// Get LastScannedAt
 		var lastScannedAt *time.Time
 		if !msg.FullScan {
 			var err error
-			lastScannedAt, err = s.getLastScannedAt(ctx, msg.ProjectID, msg.GitHubSettingID, *r.FullName)
+			lastScannedAt, err = s.getLastScannedAt(ctx, msg.ProjectID, msg.GitHubSettingID, r.GetFullName())
 			if err != nil {
 				repoFullName := r.GetFullName()
 				s.logger.Errorf(ctx, "Failed to get LastScannedAt: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
@@ -264,7 +264,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 
 		// Put Resource
 		if len(results) == 0 {
-			if err := s.putResource(ctx, msg.ProjectID, *r.FullName); err != nil {
+			if err := s.putResource(ctx, msg.ProjectID, repoFullName); err != nil {
 				s.logger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 				return mimosasqs.WrapNonRetryable(err)
