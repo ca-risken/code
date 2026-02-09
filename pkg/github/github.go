@@ -114,17 +114,20 @@ func (g *riskenGitHubClient) repoListCacheKey(config *code.GitHubSetting) string
 }
 
 func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.GitHubSetting, repoName string) ([]*github.Repository, error) {
-	client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
-	if err != nil {
-		return nil, fmt.Errorf("create github-v3 client: %w", err)
-	}
-
-	// For single repository scan: use cache to reduce API calls when multiple repos are scanned for the same org/user
+	// For single repository scan: check cache first to skip client creation on cache hit
 	if repoName != "" {
 		if repo := g.getRepoFromCache(config, repoName); repo != nil {
 			g.logger.Infof(ctx, "Repository %s found in cache, skipped GitHub API call", repoName)
 			return []*github.Repository{repo}, nil
 		}
+	}
+
+	client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
+	if err != nil {
+		return nil, fmt.Errorf("create github-v3 client: %w", err)
+	}
+
+	if repoName != "" {
 		// Cache miss: fetch full list once, cache it, then return the requested repo
 		repos, err := g.getFullRepositoryList(ctx, client, config)
 		if err != nil {
