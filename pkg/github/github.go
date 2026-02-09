@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -139,7 +140,12 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 				return []*github.Repository{r}, nil
 			}
 		}
-		return nil, fmt.Errorf("repository %s not found in %s %s", repoName, config.Type.String(), config.TargetResource)
+		// Fallback: Repositories.Get for fine-grained PATs where list may not return all accessible repos
+		repo, err := g.getSingleRepositoryDirect(ctx, client, config, repoName)
+		if err != nil {
+			return nil, err
+		}
+		return []*github.Repository{repo}, nil
 	}
 
 	// Handle bulk repository scan based on config.Type
@@ -147,6 +153,7 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 	if err != nil {
 		return nil, err
 	}
+	g.setRepoListCache(config, repos)
 	return repos, nil
 }
 
@@ -177,6 +184,22 @@ func (g *riskenGitHubClient) setRepoListCache(config *code.GitHubSetting, repos 
 		}
 	}
 	g.repoListCache[key] = repoListCacheEntry{repos: repos, fetchedAt: time.Now()}
+}
+
+func (g *riskenGitHubClient) getSingleRepositoryDirect(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting, repoName string) (*github.Repository, error) {
+	parts := strings.Split(repoName, "/")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repoName)
+	}
+	owner, repo := parts[0], parts[1]
+	if owner != config.TargetResource {
+		return nil, fmt.Errorf("repository %s does not belong to %s %s", repoName, config.Type.String(), config.TargetResource)
+	}
+	repository, _, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository %s: %w", repoName, err)
+	}
+	return repository, nil
 }
 
 func (g *riskenGitHubClient) getFullRepositoryList(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting) ([]*github.Repository, error) {
