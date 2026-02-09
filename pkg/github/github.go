@@ -166,8 +166,14 @@ func (g *riskenGitHubClient) getRepoFromCache(config *code.GitHubSetting, repoNa
 func (g *riskenGitHubClient) setRepoListCache(config *code.GitHubSetting, repos []*github.Repository) {
 	key := g.repoListCacheKey(config)
 	g.repoListCacheMu.Lock()
+	defer g.repoListCacheMu.Unlock()
+	// Evict expired entries to prevent unbounded memory growth
+	for k, entry := range g.repoListCache {
+		if time.Since(entry.fetchedAt) > repoListCacheTTL {
+			delete(g.repoListCache, k)
+		}
+	}
 	g.repoListCache[key] = repoListCacheEntry{repos: repos, fetchedAt: time.Now()}
-	g.repoListCacheMu.Unlock()
 }
 
 func (g *riskenGitHubClient) getFullRepositoryList(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting) ([]*github.Repository, error) {
