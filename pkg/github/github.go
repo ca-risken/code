@@ -2,6 +2,8 @@ package github
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"sync"
@@ -105,7 +107,10 @@ func (g *riskenGitHubClient) Clone(ctx context.Context, token string, cloneURL s
 }
 
 func (g *riskenGitHubClient) repoListCacheKey(config *code.GitHubSetting) string {
-	return fmt.Sprintf("%s|%s|%s", config.Type.String(), config.TargetResource, config.BaseUrl)
+	token := getToken(config.PersonalAccessToken, g.defaultToken)
+	hash := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(hash[:])[:16] // First 16 chars for uniqueness without exposing full hash
+	return fmt.Sprintf("%s|%s|%s|%s", config.Type.String(), config.TargetResource, config.BaseUrl, tokenHash)
 }
 
 func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.GitHubSetting, repoName string) ([]*github.Repository, error) {
