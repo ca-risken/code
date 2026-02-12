@@ -167,10 +167,43 @@ func (g *riskenGitHubClient) getRepoFromCache(config *code.GitHubSetting, repoNa
 	}
 	for _, r := range entry.repos {
 		if r.FullName != nil && *r.FullName == repoName {
-			return r
+			// Return a deep copy so callers don't share the same *github.Repository with other goroutines.
+			// The client is shared across SQS message handlers; returning the cache pointer would cause data races if a caller mutates the object.
+			return g.copyRepository(r)
 		}
 	}
 	return nil
+}
+
+// copyRepository returns a deep copy of *github.Repository to avoid data races:
+// the client is shared by multiple goroutines (SQS handlers), so returning the cache pointer would let one caller's mutations affect others.
+func (g *riskenGitHubClient) copyRepository(repo *github.Repository) *github.Repository {
+	if repo == nil {
+		return nil
+	}
+	repoCopy := *repo
+	// Copy pointer fields
+	if repo.FullName != nil {
+		fullName := *repo.FullName
+		repoCopy.FullName = &fullName
+	}
+	if repo.Name != nil {
+		name := *repo.Name
+		repoCopy.Name = &name
+	}
+	if repo.CloneURL != nil {
+		cloneURL := *repo.CloneURL
+		repoCopy.CloneURL = &cloneURL
+	}
+	if repo.Owner != nil {
+		ownerCopy := *repo.Owner
+		if repo.Owner.Login != nil {
+			login := *repo.Owner.Login
+			ownerCopy.Login = &login
+		}
+		repoCopy.Owner = &ownerCopy
+	}
+	return &repoCopy
 }
 
 func (g *riskenGitHubClient) setRepoListCache(config *code.GitHubSetting, repos []*github.Repository) {
@@ -253,7 +286,7 @@ func (g *riskenGitHubClient) listRepositoryForUserWithOption(ctx context.Context
 		if err != nil {
 			return nil, err
 		}
-		g.logger.Infof(ctx, "Success GitHub API for user repos, %s,login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
+		g.logger.Infof(ctx, "Success GitHub API for user repos, login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
 
 		for _, r := range repos {
 			// Filter repositories by user owner
