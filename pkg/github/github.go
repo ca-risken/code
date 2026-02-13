@@ -206,6 +206,17 @@ func (g *riskenGitHubClient) copyRepository(repo *github.Repository) *github.Rep
 	return &repoCopy
 }
 
+func (g *riskenGitHubClient) copyRepositoryList(repos []*github.Repository) []*github.Repository {
+	if len(repos) == 0 {
+		return nil
+	}
+	repoCopies := make([]*github.Repository, 0, len(repos))
+	for _, repo := range repos {
+		repoCopies = append(repoCopies, g.copyRepository(repo))
+	}
+	return repoCopies
+}
+
 func (g *riskenGitHubClient) setRepoListCache(config *code.GitHubSetting, repos []*github.Repository) {
 	key := g.repoListCacheKey(config)
 	g.repoListCacheMu.Lock()
@@ -216,7 +227,8 @@ func (g *riskenGitHubClient) setRepoListCache(config *code.GitHubSetting, repos 
 			delete(g.repoListCache, k)
 		}
 	}
-	g.repoListCache[key] = repoListCacheEntry{repos: repos, fetchedAt: time.Now()}
+	// Cache isolated copies so callers cannot mutate cached repository objects.
+	g.repoListCache[key] = repoListCacheEntry{repos: g.copyRepositoryList(repos), fetchedAt: time.Now()}
 }
 
 func (g *riskenGitHubClient) getSingleRepositoryDirect(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting, repoName string) (*github.Repository, error) {
