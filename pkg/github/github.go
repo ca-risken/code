@@ -132,7 +132,12 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 		// Cache miss: fetch full list once, cache it, then return the requested repo
 		repos, err := g.getFullRepositoryList(ctx, client, config)
 		if err != nil {
-			return nil, err
+			g.logger.Warnf(ctx, "Failed to list repositories, fallback to direct repository lookup: repository_name=%s, err=%+v", repoName, err)
+			repo, directErr := g.getSingleRepositoryDirect(ctx, client, config, repoName)
+			if directErr != nil {
+				return nil, fmt.Errorf("failed to list repositories and direct lookup for %s: list_err=%v, direct_err=%w", repoName, err, directErr)
+			}
+			return []*github.Repository{repo}, nil
 		}
 		g.setRepoListCache(config, repos)
 		for _, r := range repos {
