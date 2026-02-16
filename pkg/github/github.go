@@ -137,7 +137,7 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 		g.setRepoListCache(config, repos)
 		for _, r := range repos {
 			if r.FullName != nil && *r.FullName == repoName {
-				return []*github.Repository{r}, nil
+				return []*github.Repository{g.copyRepository(r)}, nil
 			}
 		}
 		// Fallback: Repositories.Get for fine-grained PATs where list may not return all accessible repos
@@ -160,8 +160,8 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 func (g *riskenGitHubClient) getRepoFromCache(config *code.GitHubSetting, repoName string) *github.Repository {
 	key := g.repoListCacheKey(config)
 	g.repoListCacheMu.RLock()
+	defer g.repoListCacheMu.RUnlock()
 	entry, ok := g.repoListCache[key]
-	g.repoListCacheMu.RUnlock()
 	if !ok || time.Since(entry.fetchedAt) > repoListCacheTTL {
 		return nil
 	}
