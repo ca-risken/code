@@ -142,7 +142,7 @@ func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.Gi
 		g.setRepoListCache(config, repos)
 		for _, r := range repos {
 			if r.FullName != nil && *r.FullName == repoName {
-				return []*github.Repository{g.copyRepository(r)}, nil
+				return []*github.Repository{r}, nil
 			}
 		}
 		// Fallback: Repositories.Get for fine-grained PATs where list may not return all accessible repos
@@ -172,54 +172,10 @@ func (g *riskenGitHubClient) getRepoFromCache(config *code.GitHubSetting, repoNa
 	}
 	for _, r := range entry.repos {
 		if r.FullName != nil && *r.FullName == repoName {
-			// Return a deep copy so callers don't share the same *github.Repository with other goroutines.
-			// The client is shared across SQS message handlers; returning the cache pointer would cause data races if a caller mutates the object.
-			return g.copyRepository(r)
+			return r
 		}
 	}
 	return nil
-}
-
-// copyRepository returns a deep copy of *github.Repository to avoid data races:
-// the client is shared by multiple goroutines (SQS handlers), so returning the cache pointer would let one caller's mutations affect others.
-func (g *riskenGitHubClient) copyRepository(repo *github.Repository) *github.Repository {
-	if repo == nil {
-		return nil
-	}
-	repoCopy := *repo
-	// Copy pointer fields
-	if repo.FullName != nil {
-		fullName := *repo.FullName
-		repoCopy.FullName = &fullName
-	}
-	if repo.Name != nil {
-		name := *repo.Name
-		repoCopy.Name = &name
-	}
-	if repo.CloneURL != nil {
-		cloneURL := *repo.CloneURL
-		repoCopy.CloneURL = &cloneURL
-	}
-	if repo.Owner != nil {
-		ownerCopy := *repo.Owner
-		if repo.Owner.Login != nil {
-			login := *repo.Owner.Login
-			ownerCopy.Login = &login
-		}
-		repoCopy.Owner = &ownerCopy
-	}
-	return &repoCopy
-}
-
-func (g *riskenGitHubClient) copyRepositoryList(repos []*github.Repository) []*github.Repository {
-	if len(repos) == 0 {
-		return nil
-	}
-	repoCopies := make([]*github.Repository, 0, len(repos))
-	for _, repo := range repos {
-		repoCopies = append(repoCopies, g.copyRepository(repo))
-	}
-	return repoCopies
 }
 
 func (g *riskenGitHubClient) setRepoListCache(config *code.GitHubSetting, repos []*github.Repository) {
@@ -232,8 +188,7 @@ func (g *riskenGitHubClient) setRepoListCache(config *code.GitHubSetting, repos 
 			delete(g.repoListCache, k)
 		}
 	}
-	// Cache isolated copies so callers cannot mutate cached repository objects.
-	g.repoListCache[key] = repoListCacheEntry{repos: g.copyRepositoryList(repos), fetchedAt: time.Now()}
+	g.repoListCache[key] = repoListCacheEntry{repos: repos, fetchedAt: time.Now()}
 }
 
 func (g *riskenGitHubClient) getSingleRepositoryDirect(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting, repoName string) (*github.Repository, error) {
