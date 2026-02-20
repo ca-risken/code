@@ -220,9 +220,9 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	}
 	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
 	if msg.RepositoryName != "" {
-		repos = filterByRepositoryFullName(repos, msg.RepositoryName)
-		if len(repos) == 0 {
-			return mimosasqs.WrapNonRetryable(fmt.Errorf("repository not found in message metadata: repository_name=%s", msg.RepositoryName))
+		repoFullName := repos[0].GetFullName()
+		if repoFullName != msg.RepositoryName {
+			return mimosasqs.WrapNonRetryable(fmt.Errorf("repository_name does not match repository.full_name in queue message: repository_name=%s, repository_full_name=%s", msg.RepositoryName, repoFullName))
 		}
 	}
 	if err := validateRepositoriesForFilter(repos); err != nil {
@@ -517,16 +517,4 @@ func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 	return []*github.Repository{repo}
 }
 
-func filterByRepositoryFullName(repos []*github.Repository, repositoryName string) []*github.Repository {
-	filtered := make([]*github.Repository, 0, len(repos))
-	for _, r := range repos {
-		if r == nil || r.FullName == nil {
-			continue
-		}
-		if *r.FullName == repositoryName {
-			filtered = append(filtered, r)
-		}
-	}
-	return filtered
-}
 
