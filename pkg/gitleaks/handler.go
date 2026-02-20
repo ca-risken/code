@@ -98,7 +98,9 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	}
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 
-	if err := s.handleRepositoryScan(ctx, msg, gitHubSetting, token, requestID); err != nil {
+	messageRepos := getRepositoriesFromCodeQueueMessage(msg)
+
+	if err := s.handleRepositoryScan(ctx, msg, gitHubSetting, token, requestID, messageRepos); err != nil {
 		return err
 	}
 	s.logger.Infof(ctx, "end Scan, RequestID=%s", requestID)
@@ -211,11 +213,19 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	}
 }
 
-func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string) error {
-	// Get repositories (single repo when RepositoryName is specified)
-	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
-	if err != nil {
-		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, msg.RepositoryName, err)
+func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string, messageRepos []*github.Repository) error {
+	repos := messageRepos
+	if len(repos) == 0 {
+		return mimosasqs.WrapNonRetryable(fmt.Errorf("repository metadata is required in queue message"))
+	}
+	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
+	if msg.RepositoryName != "" {
+		repos = filterByRepositoryFullName(repos, msg.RepositoryName)
+		if len(repos) == 0 {
+			return mimosasqs.WrapNonRetryable(fmt.Errorf("repository not found in message metadata: repository_name=%s", msg.RepositoryName))
+		}
+	}
+	if err := validateRepositoriesForFilter(repos); err != nil {
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s, repository_name=%s",
@@ -230,6 +240,16 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 
 func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository) error {
 	for _, r := range repos {
+		if err := validateRepositoryForScan(r); err != nil {
+			repoFullName := ""
+			if r != nil {
+				repoFullName = r.GetFullName()
+			}
+			if repoFullName != "" {
+				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			}
+			return mimosasqs.WrapNonRetryable(err)
+		}
 		// Get LastScannedAt
 		var lastScannedAt *time.Time
 		if !msg.FullScan {
@@ -470,3 +490,43 @@ func sanitizeStatusDetail(status code.Status, statusDetail string) string {
 	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
 	return strings.ToValidUTF8(statusDetail, "")
 }
+
+func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*github.Repository {
+	if msg == nil || msg.Repository == nil {
+		return nil
+	}
+	repoMeta := msg.Repository
+	size := int(repoMeta.Size)
+	repo := &github.Repository{
+		Name:       github.String(repoMeta.Name),
+		FullName:   github.String(repoMeta.FullName),
+		CloneURL:   github.String(repoMeta.CloneURL),
+		Visibility: github.String(repoMeta.Visibility),
+		Archived:   github.Bool(repoMeta.Archived),
+		Fork:       github.Bool(repoMeta.Fork),
+		Disabled:   github.Bool(repoMeta.Disabled),
+		Size:       &size,
+		HTMLURL:    github.String(repoMeta.HTMLURL),
+	}
+	if repoMeta.CreatedAt != 0 {
+		repo.CreatedAt = &github.Timestamp{Time: time.Unix(repoMeta.CreatedAt, 0)}
+	}
+	if repoMeta.PushedAt != 0 {
+		repo.PushedAt = &github.Timestamp{Time: time.Unix(repoMeta.PushedAt, 0)}
+	}
+	return []*github.Repository{repo}
+}
+
+func filterByRepositoryFullName(repos []*github.Repository, repositoryName string) []*github.Repository {
+	filtered := make([]*github.Repository, 0, len(repos))
+	for _, r := range repos {
+		if r == nil || r.FullName == nil {
+			continue
+		}
+		if *r.FullName == repositoryName {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
+}
+

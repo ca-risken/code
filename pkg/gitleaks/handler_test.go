@@ -8,11 +8,78 @@ import (
 	"time"
 
 	"github.com/ca-risken/common/pkg/logging"
+	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/ca-risken/datasource-api/proto/code/mocks"
 	"github.com/google/go-github/v44/github"
 	"github.com/stretchr/testify/mock"
 )
+
+func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
+	t.Run("Repository metadata exists", func(t *testing.T) {
+		now := time.Now().Unix()
+		msg := &message.CodeQueueMessage{
+			Repository: &message.RepositoryMetadata{
+				Name:       "repo",
+				FullName:   "owner/repo",
+				CloneURL:   "https://github.com/owner/repo.git",
+				Visibility: "private",
+				Archived:   false,
+				Fork:       false,
+				Disabled:   false,
+				Size:       123,
+				CreatedAt:  now - 3600,
+				PushedAt:   now,
+				HTMLURL:    "https://github.com/owner/repo",
+			},
+		}
+		repos := getRepositoriesFromCodeQueueMessage(msg)
+		if len(repos) != 1 {
+			t.Fatalf("unexpected repository count: %+v", len(repos))
+		}
+		if repos[0].GetFullName() != "owner/repo" {
+			t.Fatalf("unexpected full_name: %+v", repos[0].GetFullName())
+		}
+		if repos[0].GetCloneURL() != "https://github.com/owner/repo.git" {
+			t.Fatalf("unexpected clone_url: %+v", repos[0].GetCloneURL())
+		}
+	})
+
+	t.Run("Repository metadata is nil", func(t *testing.T) {
+		repos := getRepositoriesFromCodeQueueMessage(&message.CodeQueueMessage{})
+		if len(repos) != 0 {
+			t.Fatalf("unexpected repository count: %+v", len(repos))
+		}
+	})
+}
+
+func TestValidateRepositoriesForFilter(t *testing.T) {
+	repo := &github.Repository{
+		Name:       github.String("repo"),
+		FullName:   github.String("owner/repo"),
+		Visibility: github.String("private"),
+	}
+	if err := validateRepositoriesForFilter([]*github.Repository{repo}); err != nil {
+		t.Fatalf("unexpected error: %+v", err)
+	}
+}
+
+func TestValidateRepositoryForScan(t *testing.T) {
+	repo := &github.Repository{
+		CloneURL: github.String("https://github.com/owner/repo.git"),
+		FullName: github.String("owner/repo"),
+		HTMLURL:  github.String("https://github.com/owner/repo"),
+		CreatedAt: &github.Timestamp{
+			Time: time.Now().Add(-1 * time.Hour),
+		},
+		PushedAt: &github.Timestamp{
+			Time: time.Now(),
+		},
+	}
+	if err := validateRepositoryForScan(repo); err != nil {
+		t.Fatalf("unexpected error: %+v", err)
+	}
+}
 
 func TestSkipScan(t *testing.T) {
 	now := time.Now()
