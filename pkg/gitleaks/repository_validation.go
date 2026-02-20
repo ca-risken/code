@@ -32,10 +32,10 @@ func validateRepositoryForScan(repo *github.Repository) error {
 		return fmt.Errorf("invalid repository metadata: clone_url is required, repository=%s", repo.GetFullName())
 	}
 	if repo.CreatedAt == nil {
-		return fmt.Errorf("invalid repository metadata: created_at is required, repository=%s", repo.GetFullName())
+		return fmt.Errorf("invalid repository metadata: queue message repository.created_at is required (>0 unix time), repository=%s", repo.GetFullName())
 	}
 	if repo.PushedAt == nil {
-		return fmt.Errorf("invalid repository metadata: pushed_at is required, repository=%s", repo.GetFullName())
+		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at is required (>0 unix time), repository=%s", repo.GetFullName())
 	}
 	if repo.HTMLURL == nil || *repo.HTMLURL == "" {
 		return fmt.Errorf("invalid repository metadata: html_url is required, repository=%s", repo.GetFullName())
