@@ -220,27 +220,17 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	}
 	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
 	if msg.RepositoryName != "" {
-		repoFullName := repos[0].GetFullName()
-		if repoFullName != msg.RepositoryName {
-			return mimosasqs.WrapNonRetryable(fmt.Errorf("repository_name does not match repository.full_name in queue message: repository_name=%s, repository_full_name=%s", msg.RepositoryName, repoFullName))
-		}
+		return mimosasqs.WrapNonRetryable(fmt.Errorf("repository_name is deprecated; use repository.full_name in queue message"))
 	}
-	if err := validateRepositoriesForFilter(repos); err != nil {
-		return mimosasqs.WrapNonRetryable(err)
-	}
-	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s, repository_name=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, gitHubSetting.GitleaksSetting.RepositoryPattern, msg.RepositoryName)
-	// Filtered By Visibility
-	repos = common.FilterByVisibility(repos, gitHubSetting.GitleaksSetting.ScanPublic, gitHubSetting.GitleaksSetting.ScanInternal, gitHubSetting.GitleaksSetting.ScanPrivate)
-	// Filtered By Name
-	repos = common.FilterByNamePattern(repos, gitHubSetting.GitleaksSetting.RepositoryPattern)
+	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
+		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 
 	return s.scanDiffRepositories(ctx, msg, token, repos)
 }
 
 func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository) error {
 	for _, r := range repos {
-		if err := validateRepositoryForScan(r); err != nil {
+		if err := validateRepository(r); err != nil {
 			repoFullName := ""
 			if r != nil {
 				repoFullName = r.GetFullName()

@@ -53,22 +53,13 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 	})
 }
 
-func TestValidateRepositoriesForFilter(t *testing.T) {
+func TestValidateRepository(t *testing.T) {
 	repo := &github.Repository{
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
+		CloneURL:   github.String("https://github.com/owner/repo.git"),
 		Visibility: github.String("private"),
-	}
-	if err := validateRepositoriesForFilter([]*github.Repository{repo}); err != nil {
-		t.Fatalf("unexpected error: %+v", err)
-	}
-}
-
-func TestValidateRepositoryForScan(t *testing.T) {
-	repo := &github.Repository{
-		CloneURL: github.String("https://github.com/owner/repo.git"),
-		FullName: github.String("owner/repo"),
-		HTMLURL:  github.String("https://github.com/owner/repo"),
+		HTMLURL:    github.String("https://github.com/owner/repo"),
 		CreatedAt: &github.Timestamp{
 			Time: time.Now().Add(-1 * time.Hour),
 		},
@@ -76,7 +67,7 @@ func TestValidateRepositoryForScan(t *testing.T) {
 			Time: time.Now(),
 		},
 	}
-	if err := validateRepositoryForScan(repo); err != nil {
+	if err := validateRepository(repo); err != nil {
 		t.Fatalf("unexpected error: %+v", err)
 	}
 }
