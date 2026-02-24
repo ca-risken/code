@@ -2,9 +2,12 @@ package github
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ca-risken/common/pkg/logging"
@@ -16,7 +19,10 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const RETRY_NUM uint64 = 3
+const (
+	RETRY_NUM        uint64        = 3
+	repoListCacheTTL               = 10 * time.Minute
+)
 
 type GithubServiceClient interface {
 	ListRepository(ctx context.Context, config *code.GitHubSetting, repoName string) ([]*github.Repository, error)
@@ -34,18 +40,26 @@ type GitHubV3Client struct {
 	*github.Client
 }
 
+type repoListCacheEntry struct {
+	repos     []*github.Repository
+	fetchedAt time.Time
+}
+
 type riskenGitHubClient struct {
-	defaultToken string
-	retryer      backoff.BackOff
-	logger       logging.Logger
+	defaultToken   string
+	retryer        backoff.BackOff
+	logger         logging.Logger
+	repoListCache  map[string]repoListCacheEntry
+	repoListCacheMu sync.RWMutex
 }
 
 func NewGithubClient(defaultToken string, logger logging.Logger) *riskenGitHubClient {
 	retry := RETRY_NUM
 	return &riskenGitHubClient{
-		defaultToken: defaultToken,
-		retryer:      backoff.WithMaxRetries(backoff.NewExponentialBackOff(), retry),
-		logger:       logger,
+		defaultToken:  defaultToken,
+		retryer:       backoff.WithMaxRetries(backoff.NewExponentialBackOff(), retry),
+		logger:        logger,
+		repoListCache: make(map[string]repoListCacheEntry),
 	}
 }
 
@@ -93,48 +107,120 @@ func (g *riskenGitHubClient) Clone(ctx context.Context, token string, cloneURL s
 	return nil
 }
 
+func (g *riskenGitHubClient) repoListCacheKey(config *code.GitHubSetting) string {
+	token := getToken(config.PersonalAccessToken, g.defaultToken)
+	hash := sha256.Sum256([]byte(token))
+	tokenHash := hex.EncodeToString(hash[:])[:16] // First 16 chars for uniqueness without exposing full hash
+	return fmt.Sprintf("%s|%s|%s|%s", config.Type.String(), config.TargetResource, config.BaseUrl, tokenHash)
+}
+
 func (g *riskenGitHubClient) ListRepository(ctx context.Context, config *code.GitHubSetting, repoName string) ([]*github.Repository, error) {
+	// For single repository scan: check cache first to skip client creation on cache hit
+	if repoName != "" {
+		if repo := g.getRepoFromCache(config, repoName); repo != nil {
+			g.logger.Infof(ctx, "Repository %s found in cache, skipped GitHub API call", repoName)
+			return []*github.Repository{repo}, nil
+		}
+	}
+
 	client, err := g.newV3Client(ctx, config.PersonalAccessToken, config.BaseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("create github-v3 client: %w", err)
 	}
 
-	// First check if repoName is specified for single repository scan
 	if repoName != "" {
-		repository, err := g.GetSingleRepository(ctx, client, config, repoName)
+		// Cache miss: fetch full list once, cache it, then return the requested repo
+		repos, err := g.getFullRepositoryList(ctx, client, config)
+		if err != nil {
+			g.logger.Warnf(ctx, "Failed to list repositories, fallback to direct repository lookup: repository_name=%s, err=%+v", repoName, err)
+			repo, directErr := g.getSingleRepositoryDirect(ctx, client, config, repoName)
+			if directErr != nil {
+				return nil, fmt.Errorf("failed to list repositories and direct lookup for %s: list_err=%v, direct_err=%w", repoName, err, directErr)
+			}
+			return []*github.Repository{repo}, nil
+		}
+		g.setRepoListCache(config, repos)
+		for _, r := range repos {
+			if r.FullName != nil && *r.FullName == repoName {
+				return []*github.Repository{r}, nil
+			}
+		}
+		// Fallback: Repositories.Get for fine-grained PATs where list may not return all accessible repos
+		repo, err := g.getSingleRepositoryDirect(ctx, client, config, repoName)
 		if err != nil {
 			return nil, err
 		}
-		return []*github.Repository{repository}, nil
+		return []*github.Repository{repo}, nil
 	}
 
 	// Handle bulk repository scan based on config.Type
-	var repos []*github.Repository
+	repos, err := g.getFullRepositoryList(ctx, client, config)
+	if err != nil {
+		return nil, err
+	}
+	g.setRepoListCache(config, repos)
+	return repos, nil
+}
 
+func (g *riskenGitHubClient) getRepoFromCache(config *code.GitHubSetting, repoName string) *github.Repository {
+	key := g.repoListCacheKey(config)
+	g.repoListCacheMu.RLock()
+	defer g.repoListCacheMu.RUnlock()
+	entry, ok := g.repoListCache[key]
+	if !ok || time.Since(entry.fetchedAt) > repoListCacheTTL {
+		return nil
+	}
+	for _, r := range entry.repos {
+		if r.FullName != nil && *r.FullName == repoName {
+			return r
+		}
+	}
+	return nil
+}
+
+func (g *riskenGitHubClient) setRepoListCache(config *code.GitHubSetting, repos []*github.Repository) {
+	key := g.repoListCacheKey(config)
+	g.repoListCacheMu.Lock()
+	defer g.repoListCacheMu.Unlock()
+	// Evict expired entries to prevent unbounded memory growth
+	for k, entry := range g.repoListCache {
+		if time.Since(entry.fetchedAt) > repoListCacheTTL {
+			delete(g.repoListCache, k)
+		}
+	}
+	g.repoListCache[key] = repoListCacheEntry{repos: repos, fetchedAt: time.Now()}
+}
+
+func (g *riskenGitHubClient) getSingleRepositoryDirect(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting, repoName string) (*github.Repository, error) {
+	parts := strings.Split(repoName, "/")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repoName)
+	}
+	owner, repo := parts[0], parts[1]
+	if owner != config.TargetResource {
+		return nil, fmt.Errorf("repository %s does not belong to %s %s", repoName, config.Type.String(), config.TargetResource)
+	}
+	repository, _, err := client.Repositories.Get(ctx, owner, repo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository %s: %w", repoName, err)
+	}
+	return repository, nil
+}
+
+func (g *riskenGitHubClient) getFullRepositoryList(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting) ([]*github.Repository, error) {
 	switch config.Type {
 	case code.Type_ORGANIZATION:
-		repos, err = g.listRepositoryForOrg(ctx, client.Repositories, config)
-		if err != nil {
-			return repos, err
-		}
-
+		return g.listRepositoryForOrg(ctx, client.Repositories, config)
 	case code.Type_USER:
-		// Check target user(targetResource) == authenticated user(PAT user)
 		user, _, err := client.Users.Get(ctx, "")
 		if err != nil {
 			return nil, err
 		}
 		isAuthUser := user.Login != nil && *user.Login == config.TargetResource
-		repos, err = g.listRepositoryForUser(ctx, client.Repositories, config, isAuthUser)
-		if err != nil {
-			return repos, err
-		}
-
+		return g.listRepositoryForUser(ctx, client.Repositories, config, isAuthUser)
 	default:
 		return nil, fmt.Errorf("unknown github type: type=%s", config.Type.String())
 	}
-
-	return repos, nil
 }
 
 const (
@@ -172,7 +258,7 @@ func (g *riskenGitHubClient) listRepositoryForUserWithOption(ctx context.Context
 		if err != nil {
 			return nil, err
 		}
-		g.logger.Infof(ctx, "Success GitHub API for user repos, %s,login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
+		g.logger.Infof(ctx, "Success GitHub API for user repos, login:%s, option:%+v, repo_count: %d, response:%+v", login, opt, len(repos), resp)
 
 		for _, r := range repos {
 			// Filter repositories by user owner
@@ -216,26 +302,6 @@ func (g *riskenGitHubClient) listRepositoryForOrgWithOption(ctx context.Context,
 		opt.Page = resp.NextPage
 	}
 	return allRepo, nil
-}
-
-func (g *riskenGitHubClient) GetSingleRepository(ctx context.Context, client *GitHubV3Client, config *code.GitHubSetting, repoName string) (*github.Repository, error) {
-	parts := strings.Split(repoName, "/")
-	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid repository name format: %s, expected 'owner/repo'", repoName)
-	}
-	owner, repo := parts[0], parts[1]
-
-	// Validate that the repository belongs to the target resource
-	if owner != config.TargetResource {
-		return nil, fmt.Errorf("repository %s does not belong to %s %s", repoName, config.Type.String(), config.TargetResource)
-	}
-
-	repository, _, err := client.Repositories.Get(ctx, owner, repo)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get repository %s: %w", repoName, err)
-	}
-
-	return repository, nil
 }
 
 func (t *riskenGitHubClient) newRetryLogger(ctx context.Context, funcName string) func(error, time.Duration) {
