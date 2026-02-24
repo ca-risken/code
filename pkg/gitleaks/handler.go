@@ -222,12 +222,12 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 
-	return s.scanDiffRepositories(ctx, msg, token, repos)
+	return s.scanDiffRepositories(ctx, msg, token, repos, gitHubSetting.BaseUrl)
 }
 
-func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository) error {
+func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository, githubBaseURL string) error {
 	for _, r := range repos {
-		if err := validateRepository(r); err != nil {
+		if err := validateRepository(r, githubBaseURL); err != nil {
 			repoFullName := ""
 			if r != nil {
 				repoFullName = r.GetFullName()

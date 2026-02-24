@@ -67,8 +67,80 @@ func TestValidateRepository(t *testing.T) {
 			Time: time.Now(),
 		},
 	}
-	if err := validateRepository(repo); err != nil {
+	if err := validateRepository(repo, ""); err != nil {
 		t.Fatalf("unexpected error: %+v", err)
+	}
+}
+
+func TestValidateRepository_CloneURLValidation(t *testing.T) {
+	baseRepo := &github.Repository{
+		Name:       github.String("repo"),
+		FullName:   github.String("owner/repo"),
+		CloneURL:   github.String("https://github.com/owner/repo.git"),
+		Visibility: github.String("private"),
+		HTMLURL:    github.String("https://github.com/owner/repo"),
+		CreatedAt:  &github.Timestamp{Time: time.Now().Add(-1 * time.Hour)},
+		PushedAt:   &github.Timestamp{Time: time.Now()},
+	}
+	tests := []struct {
+		name    string
+		repo    *github.Repository
+		baseURL string
+		wantErr bool
+	}{
+		{
+			name:    "invalid scheme",
+			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("file:///tmp/repo"); return &r }(),
+			baseURL: "",
+			wantErr: true,
+		},
+		{
+			name:    "host mismatch",
+			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://evil.example.com/owner/repo.git"); return &r }(),
+			baseURL: "https://api.github.com/",
+			wantErr: true,
+		},
+		{
+			name:    "path mismatch",
+			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://github.com/owner/other.git"); return &r }(),
+			baseURL: "",
+			wantErr: true,
+		},
+		{
+			name:    "enterprise host accepted",
+			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://github.example.com/owner/repo.git"); return &r }(),
+			baseURL: "https://github.example.com/api/v3/",
+			wantErr: false,
+		},
+		{
+			name:    "html_url invalid scheme",
+			repo:    func() *github.Repository { r := *baseRepo; r.HTMLURL = github.String("http://github.com/owner/repo"); return &r }(),
+			baseURL: "",
+			wantErr: true,
+		},
+		{
+			name:    "html_url host mismatch",
+			repo:    func() *github.Repository { r := *baseRepo; r.HTMLURL = github.String("https://evil.example.com/owner/repo"); return &r }(),
+			baseURL: "https://api.github.com/",
+			wantErr: true,
+		},
+		{
+			name:    "html_url path mismatch",
+			repo:    func() *github.Repository { r := *baseRepo; r.HTMLURL = github.String("https://github.com/owner/other"); return &r }(),
+			baseURL: "",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRepository(tt.repo, tt.baseURL)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %+v", err)
+			}
+		})
 	}
 }
 
