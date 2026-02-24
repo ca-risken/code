@@ -27,8 +27,14 @@ func validateRepository(repo *github.Repository, githubBaseURL string) error {
 	if repo.CreatedAt == nil {
 		return fmt.Errorf("invalid repository metadata: queue message repository.created_at is required (>0 unix time), repository=%s", repo.GetFullName())
 	}
+	if repo.CreatedAt.Unix() <= 0 {
+		return fmt.Errorf("invalid repository metadata: queue message repository.created_at must be >0 unix time, repository=%s, created_at=%d", repo.GetFullName(), repo.CreatedAt.Unix())
+	}
 	if repo.PushedAt == nil {
 		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at is required (>0 unix time), repository=%s", repo.GetFullName())
+	}
+	if repo.PushedAt.Unix() <= 0 {
+		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at must be >0 unix time, repository=%s, pushed_at=%d", repo.GetFullName(), repo.PushedAt.Unix())
 	}
 	if repo.HTMLURL == nil || *repo.HTMLURL == "" {
 		return fmt.Errorf("invalid repository metadata: html_url is required, repository=%s", repo.GetFullName())
@@ -54,7 +60,10 @@ func validateCloneURL(cloneURL, repoFullName, githubBaseURL string) error {
 		return fmt.Errorf("invalid repository metadata: clone_url host is required: clone_url=%s", cloneURL)
 	}
 
-	allowedHosts := allowedCloneHosts(githubBaseURL)
+	allowedHosts, err := allowedCloneHosts(githubBaseURL)
+	if err != nil {
+		return err
+	}
 	if _, ok := allowedHosts[strings.ToLower(u.Hostname())]; !ok {
 		return fmt.Errorf("invalid repository metadata: clone_url host is not allowed: clone_url=%s, allowed_hosts=%v", cloneURL, keys(allowedHosts))
 	}
@@ -79,7 +88,10 @@ func validateHTMLURL(htmlURL, repoFullName, githubBaseURL string) error {
 		return fmt.Errorf("invalid repository metadata: html_url host is required: html_url=%s", htmlURL)
 	}
 
-	allowedHosts := allowedCloneHosts(githubBaseURL)
+	allowedHosts, err := allowedCloneHosts(githubBaseURL)
+	if err != nil {
+		return err
+	}
 	if _, ok := allowedHosts[strings.ToLower(u.Hostname())]; !ok {
 		return fmt.Errorf("invalid repository metadata: html_url host is not allowed: html_url=%s, allowed_hosts=%v", htmlURL, keys(allowedHosts))
 	}
@@ -91,21 +103,24 @@ func validateHTMLURL(htmlURL, repoFullName, githubBaseURL string) error {
 	return nil
 }
 
-func allowedCloneHosts(githubBaseURL string) map[string]struct{} {
+func allowedCloneHosts(githubBaseURL string) (map[string]struct{}, error) {
 	if githubBaseURL == "" {
-		return map[string]struct{}{"github.com": {}}
+		return map[string]struct{}{"github.com": {}}, nil
 	}
 	hosts := make(map[string]struct{})
 	u, err := url.Parse(githubBaseURL)
-	if err != nil || u.Hostname() == "" {
-		return hosts
+	if err != nil {
+		return nil, fmt.Errorf("invalid github base_url configuration: parse error: base_url=%s, err=%w", githubBaseURL, err)
+	}
+	if u.Hostname() == "" {
+		return nil, fmt.Errorf("invalid github base_url configuration: hostname is required: base_url=%s", githubBaseURL)
 	}
 	host := strings.ToLower(u.Hostname())
 	hosts[host] = struct{}{}
 	if strings.HasPrefix(host, "api.") {
 		hosts[strings.TrimPrefix(host, "api.")] = struct{}{}
 	}
-	return hosts
+	return hosts, nil
 }
 
 func keys(m map[string]struct{}) []string {

@@ -136,10 +136,55 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 			baseURL: "",
 			wantErr: true,
 		},
+		{
+			name:    "invalid github base url configuration",
+			repo:    baseRepo,
+			baseURL: "://invalid-base-url",
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateRepository(tt.repo, tt.baseURL)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %+v", err)
+			}
+		})
+	}
+}
+
+func TestValidateRepository_TimestampValidation(t *testing.T) {
+	baseRepo := &github.Repository{
+		Name:       github.String("repo"),
+		FullName:   github.String("owner/repo"),
+		CloneURL:   github.String("https://github.com/owner/repo.git"),
+		Visibility: github.String("private"),
+		HTMLURL:    github.String("https://github.com/owner/repo"),
+		CreatedAt:  &github.Timestamp{Time: time.Now().Add(-1 * time.Hour)},
+		PushedAt:   &github.Timestamp{Time: time.Now()},
+	}
+	tests := []struct {
+		name    string
+		repo    *github.Repository
+		wantErr bool
+	}{
+		{
+			name:    "created_at negative unix",
+			repo:    func() *github.Repository { r := *baseRepo; r.CreatedAt = &github.Timestamp{Time: time.Unix(-1, 0)}; return &r }(),
+			wantErr: true,
+		},
+		{
+			name:    "pushed_at zero unix",
+			repo:    func() *github.Repository { r := *baseRepo; r.PushedAt = &github.Timestamp{Time: time.Unix(0, 0)}; return &r }(),
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateRepository(tt.repo, "")
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
