@@ -92,10 +92,10 @@ func validateHTMLURL(htmlURL, repoFullName, githubBaseURL string) error {
 }
 
 func allowedCloneHosts(githubBaseURL string) map[string]struct{} {
-	hosts := map[string]struct{}{"github.com": {}}
 	if githubBaseURL == "" {
-		return hosts
+		return map[string]struct{}{"github.com": {}}
 	}
+	hosts := make(map[string]struct{})
 	u, err := url.Parse(githubBaseURL)
 	if err != nil || u.Hostname() == "" {
 		return hosts

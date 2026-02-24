@@ -108,9 +108,15 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 		},
 		{
 			name:    "enterprise host accepted",
-			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://github.example.com/owner/repo.git"); return &r }(),
+			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://github.example.com/owner/repo.git"); r.HTMLURL = github.String("https://github.example.com/owner/repo"); return &r }(),
 			baseURL: "https://github.example.com/api/v3/",
 			wantErr: false,
+		},
+		{
+			name:    "enterprise mode rejects github.com clone_url",
+			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://github.com/owner/repo.git"); return &r }(),
+			baseURL: "https://github.example.com/api/v3/",
+			wantErr: true,
 		},
 		{
 			name:    "html_url invalid scheme",
