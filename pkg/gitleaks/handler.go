@@ -98,7 +98,9 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	}
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 
-	if err := s.handleRepositoryScan(ctx, msg, gitHubSetting, token, requestID); err != nil {
+	messageRepos := getRepositoriesFromCodeQueueMessage(msg)
+
+	if err := s.handleRepositoryScan(ctx, msg, gitHubSetting, token, requestID, messageRepos); err != nil {
 		return err
 	}
 	s.logger.Infof(ctx, "end Scan, RequestID=%s", requestID)
@@ -207,29 +209,34 @@ func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, gith
 
 func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) {
 	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
-		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
+		s.logger.Warnf(ctx, "Failed to update repository status error: repository_full_name=%s, err=%+v", repositoryFullName, err)
 	}
 }
 
-func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string) error {
-	// Get repositories (single repo when RepositoryName is specified)
-	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
-	if err != nil {
-		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, msg.RepositoryName, err)
-		return mimosasqs.WrapNonRetryable(err)
+func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string, messageRepos []*github.Repository) error {
+	repos := messageRepos
+	if len(repos) == 0 {
+		return mimosasqs.WrapNonRetryable(fmt.Errorf("repository metadata is required in queue message"))
 	}
-	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_pattern=%s, repository_name=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, gitHubSetting.GitleaksSetting.RepositoryPattern, msg.RepositoryName)
-	// Filtered By Visibility
-	repos = common.FilterByVisibility(repos, gitHubSetting.GitleaksSetting.ScanPublic, gitHubSetting.GitleaksSetting.ScanInternal, gitHubSetting.GitleaksSetting.ScanPrivate)
-	// Filtered By Name
-	repos = common.FilterByNamePattern(repos, gitHubSetting.GitleaksSetting.RepositoryPattern)
+	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
+	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
+		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 
-	return s.scanDiffRepositories(ctx, msg, token, repos)
+	return s.scanDiffRepositories(ctx, msg, token, repos, gitHubSetting.BaseUrl)
 }
 
-func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository) error {
+func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository, githubBaseURL string) error {
 	for _, r := range repos {
+		if err := validateRepository(r, githubBaseURL); err != nil {
+			repoFullName := ""
+			if r != nil {
+				repoFullName = r.GetFullName()
+			}
+			if repoFullName != "" {
+				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			}
+			return mimosasqs.WrapNonRetryable(err)
+		}
 		// Get LastScannedAt
 		var lastScannedAt *time.Time
 		if !msg.FullScan {
@@ -251,13 +258,13 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 
 		// Update repository status to IN_PROGRESS
 		if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_name=%s, err=%+v", repoFullName, err)
+			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_full_name=%s, err=%+v", repoFullName, err)
 		}
 
 		// Scan per repository
 		results, err := s.scanRepository(ctx, r, token, lastScannedAt, msg)
 		if err != nil {
-			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
+			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 			return mimosasqs.WrapNonRetryable(err)
 		}
@@ -265,26 +272,26 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		// Put Resource
 		if len(results) == 0 {
 			if err := s.putResource(ctx, msg.ProjectID, repoFullName); err != nil {
-				s.logger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
+				s.logger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 				return mimosasqs.WrapNonRetryable(err)
 			}
 			if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-				s.logger.Warnf(ctx, "Failed to update repository status success: repository_name=%s, err=%+v", repoFullName, err)
+				s.logger.Warnf(ctx, "Failed to update repository status success: repository_full_name=%s, err=%+v", repoFullName, err)
 			}
 			continue
 		}
 
 		// Put findings
 		if err := s.putFindings(ctx, msg.ProjectID, GenrateGitleaksFinding(r, results)); err != nil {
-			s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
+			s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
 		// Update repository status to OK
 		if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-			s.logger.Warnf(ctx, "Failed to update repository status success: repository_name=%s, err=%+v", repoFullName, err)
+			s.logger.Warnf(ctx, "Failed to update repository status success: repository_full_name=%s, err=%+v", repoFullName, err)
 		}
 	}
 	return nil
@@ -470,3 +477,31 @@ func sanitizeStatusDetail(status code.Status, statusDetail string) string {
 	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
 	return strings.ToValidUTF8(statusDetail, "")
 }
+
+func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*github.Repository {
+	if msg == nil || msg.Repository == nil {
+		return nil
+	}
+	repoMeta := msg.Repository
+	size := int(repoMeta.Size)
+	repo := &github.Repository{
+		Name:       github.String(repoMeta.Name),
+		FullName:   github.String(repoMeta.FullName),
+		CloneURL:   github.String(repoMeta.CloneURL),
+		Visibility: github.String(repoMeta.Visibility),
+		Archived:   github.Bool(repoMeta.Archived),
+		Fork:       github.Bool(repoMeta.Fork),
+		Disabled:   github.Bool(repoMeta.Disabled),
+		Size:       &size,
+		HTMLURL:    github.String(repoMeta.HTMLURL),
+	}
+	if repoMeta.CreatedAt != 0 {
+		repo.CreatedAt = &github.Timestamp{Time: time.Unix(repoMeta.CreatedAt, 0)}
+	}
+	if repoMeta.PushedAt != 0 {
+		repo.PushedAt = &github.Timestamp{Time: time.Unix(repoMeta.PushedAt, 0)}
+	}
+	return []*github.Repository{repo}
+}
+
+
