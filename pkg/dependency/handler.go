@@ -181,17 +181,13 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 }
 
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, requestID string) error {
-	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
-	if err != nil {
-		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, msg.RepositoryName, err)
-		if msg.RepositoryName != "" {
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, msg.RepositoryName, err.Error())
-		}
-		return mimosasqs.WrapNonRetryable(err)
+	repos := getRepositoriesFromCodeQueueMessage(msg)
+	if len(repos) == 0 {
+		return mimosasqs.WrapNonRetryable(fmt.Errorf("repository metadata is required in queue message"))
 	}
-
-	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, msg.RepositoryName)
+	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
+	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
+		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 	repos = common.FilterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
 
 	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, repos, requestID)
@@ -304,4 +300,24 @@ func sanitizeStatusDetail(status code.Status, statusDetail string) string {
 	statusDetail = common.CutString(statusDetail, 200)
 	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
 	return strings.ToValidUTF8(statusDetail, "")
+}
+
+func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*github.Repository {
+	if msg == nil || msg.Repository == nil {
+		return nil
+	}
+	repoMeta := msg.Repository
+	size := int(repoMeta.Size)
+	repo := &github.Repository{
+		Name:       github.String(repoMeta.Name),
+		FullName:   github.String(repoMeta.FullName),
+		CloneURL:   github.String(repoMeta.CloneURL),
+		Visibility: github.String(repoMeta.Visibility),
+		Archived:   github.Bool(repoMeta.Archived),
+		Fork:       github.Bool(repoMeta.Fork),
+		Disabled:   github.Bool(repoMeta.Disabled),
+		Size:       &size,
+		HTMLURL:    github.String(repoMeta.HTMLURL),
+	}
+	return []*github.Repository{repo}
 }
