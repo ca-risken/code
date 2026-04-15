@@ -13,6 +13,7 @@ import (
 	"github.com/ca-risken/datasource-api/proto/code/mocks"
 	"github.com/google/go-github/v44/github"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
@@ -81,6 +82,42 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 	})
 }
 
+func TestHandleRepositoryScan_UpdatesStatusWhenRepositoryNameExists(t *testing.T) {
+	ctx := context.Background()
+	mockCode := mocks.CodeServiceClient{}
+	mockCode.
+		On("PutGitleaksRepository", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksRepositoryRequest) bool {
+			if req == nil || req.GitleaksRepository == nil {
+				return false
+			}
+			return req.ProjectId == 1 &&
+				req.GitleaksRepository.GithubSettingId == 2 &&
+				req.GitleaksRepository.RepositoryFullName == "owner/repo" &&
+				req.GitleaksRepository.Status == code.Status_ERROR
+		}), mock.Anything).
+		Return(&emptypb.Empty{}, nil).
+		Once()
+
+	s := sqsHandler{
+		codeClient: &mockCode,
+		logger:     logging.NewLogger(),
+	}
+	msg := &message.CodeQueueMessage{
+		ProjectID:       1,
+		GitHubSettingID: 2,
+		RepositoryName:  "owner/repo",
+	}
+	setting := &code.GitHubSetting{
+		GitleaksSetting: &code.GitleaksSetting{},
+	}
+
+	err := s.handleRepositoryScan(ctx, msg, setting, "token", "req-1", nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	mockCode.AssertExpectations(t)
+}
+
 func TestValidateRepository(t *testing.T) {
 	repo := &github.Repository{
 		Name:       github.String("repo"),
@@ -123,44 +160,73 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name:    "host mismatch",
-			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://evil.example.com/owner/repo.git"); return &r }(),
+			name: "host mismatch",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.CloneURL = github.String("https://evil.example.com/owner/repo.git")
+				return &r
+			}(),
 			baseURL: "https://api.github.com/",
 			wantErr: true,
 		},
 		{
-			name:    "path mismatch",
-			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://github.com/owner/other.git"); return &r }(),
+			name: "path mismatch",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.CloneURL = github.String("https://github.com/owner/other.git")
+				return &r
+			}(),
 			baseURL: "",
 			wantErr: true,
 		},
 		{
-			name:    "enterprise host accepted",
-			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://github.example.com/owner/repo.git"); r.HTMLURL = github.String("https://github.example.com/owner/repo"); return &r }(),
+			name: "enterprise host accepted",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.CloneURL = github.String("https://github.example.com/owner/repo.git")
+				r.HTMLURL = github.String("https://github.example.com/owner/repo")
+				return &r
+			}(),
 			baseURL: "https://github.example.com/api/v3/",
 			wantErr: false,
 		},
 		{
-			name:    "enterprise mode rejects github.com clone_url",
-			repo:    func() *github.Repository { r := *baseRepo; r.CloneURL = github.String("https://github.com/owner/repo.git"); return &r }(),
+			name: "enterprise mode rejects github.com clone_url",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.CloneURL = github.String("https://github.com/owner/repo.git")
+				return &r
+			}(),
 			baseURL: "https://github.example.com/api/v3/",
 			wantErr: true,
 		},
 		{
-			name:    "html_url invalid scheme",
-			repo:    func() *github.Repository { r := *baseRepo; r.HTMLURL = github.String("http://github.com/owner/repo"); return &r }(),
+			name: "html_url invalid scheme",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.HTMLURL = github.String("http://github.com/owner/repo")
+				return &r
+			}(),
 			baseURL: "",
 			wantErr: true,
 		},
 		{
-			name:    "html_url host mismatch",
-			repo:    func() *github.Repository { r := *baseRepo; r.HTMLURL = github.String("https://evil.example.com/owner/repo"); return &r }(),
+			name: "html_url host mismatch",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.HTMLURL = github.String("https://evil.example.com/owner/repo")
+				return &r
+			}(),
 			baseURL: "https://api.github.com/",
 			wantErr: true,
 		},
 		{
-			name:    "html_url path mismatch",
-			repo:    func() *github.Repository { r := *baseRepo; r.HTMLURL = github.String("https://github.com/owner/other"); return &r }(),
+			name: "html_url path mismatch",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.HTMLURL = github.String("https://github.com/owner/other")
+				return &r
+			}(),
 			baseURL: "",
 			wantErr: true,
 		},
@@ -200,13 +266,21 @@ func TestValidateRepository_TimestampValidation(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "created_at negative unix",
-			repo:    func() *github.Repository { r := *baseRepo; r.CreatedAt = &github.Timestamp{Time: time.Unix(-1, 0)}; return &r }(),
+			name: "created_at negative unix",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.CreatedAt = &github.Timestamp{Time: time.Unix(-1, 0)}
+				return &r
+			}(),
 			wantErr: true,
 		},
 		{
-			name:    "pushed_at zero unix",
-			repo:    func() *github.Repository { r := *baseRepo; r.PushedAt = &github.Timestamp{Time: time.Unix(0, 0)}; return &r }(),
+			name: "pushed_at zero unix",
+			repo: func() *github.Repository {
+				r := *baseRepo
+				r.PushedAt = &github.Timestamp{Time: time.Unix(0, 0)}
+				return &r
+			}(),
 			wantErr: true,
 		},
 	}
