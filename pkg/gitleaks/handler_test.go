@@ -51,6 +51,34 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 			t.Fatalf("unexpected repository count: %+v", len(repos))
 		}
 	})
+
+	t.Run("Repository metadata has empty full_name", func(t *testing.T) {
+		msg := &message.CodeQueueMessage{
+			Repository: &message.RepositoryMetadata{
+				Name:     "repo",
+				FullName: " ",
+				CloneURL: "https://github.com/owner/repo.git",
+			},
+		}
+		repos := getRepositoriesFromCodeQueueMessage(msg)
+		if len(repos) != 0 {
+			t.Fatalf("unexpected repository count: %+v", len(repos))
+		}
+	})
+
+	t.Run("Repository metadata has empty clone_url", func(t *testing.T) {
+		msg := &message.CodeQueueMessage{
+			Repository: &message.RepositoryMetadata{
+				Name:     "repo",
+				FullName: "owner/repo",
+				CloneURL: " ",
+			},
+		}
+		repos := getRepositoriesFromCodeQueueMessage(msg)
+		if len(repos) != 0 {
+			t.Fatalf("unexpected repository count: %+v", len(repos))
+		}
+	})
 }
 
 func TestValidateRepository(t *testing.T) {
