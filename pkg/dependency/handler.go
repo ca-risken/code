@@ -210,6 +210,16 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
 	successfullyScannedRepos := []string{}
 	for _, r := range repos {
+		if err := validateRepository(r, gitHubSetting.BaseUrl); err != nil {
+			repoFullName := ""
+			if r != nil {
+				repoFullName = r.GetFullName()
+			}
+			if repoFullName != "" {
+				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			}
+			return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
+		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
 			continue
 		}
@@ -322,6 +332,12 @@ func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 		Disabled:   github.Bool(repoMeta.Disabled),
 		Size:       &size,
 		HTMLURL:    github.String(repoMeta.HTMLURL),
+	}
+	if repoMeta.CreatedAt != 0 {
+		repo.CreatedAt = &github.Timestamp{Time: time.Unix(repoMeta.CreatedAt, 0)}
+	}
+	if repoMeta.PushedAt != 0 {
+		repo.PushedAt = &github.Timestamp{Time: time.Unix(repoMeta.PushedAt, 0)}
 	}
 	return []*github.Repository{repo}
 }
