@@ -307,8 +307,12 @@ func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 		return nil
 	}
 	repoMeta := msg.Repository
+	if strings.TrimSpace(repoMeta.FullName) == "" || strings.TrimSpace(repoMeta.CloneURL) == "" {
+		return nil
+	}
 	size := int(repoMeta.Size)
 	repo := &github.Repository{
+		ID:         github.Int64(repoMeta.ID),
 		Name:       github.String(repoMeta.Name),
 		FullName:   github.String(repoMeta.FullName),
 		CloneURL:   github.String(repoMeta.CloneURL),
