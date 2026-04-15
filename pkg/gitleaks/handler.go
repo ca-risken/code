@@ -216,7 +216,15 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string, messageRepos []*github.Repository) error {
 	repos := messageRepos
 	if len(repos) == 0 {
-		return mimosasqs.WrapNonRetryable(fmt.Errorf("repository metadata is required in queue message"))
+		err := fmt.Errorf("repository metadata is required in queue message")
+		repositoryName := ""
+		if msg != nil {
+			repositoryName = msg.RepositoryName
+		}
+		if repositoryName != "" {
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repositoryName, err.Error())
+		}
+		return mimosasqs.WrapNonRetryable(err)
 	}
 	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
 	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
@@ -506,5 +514,3 @@ func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 	}
 	return []*github.Repository{repo}
 }
-
-

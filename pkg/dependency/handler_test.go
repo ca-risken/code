@@ -1,9 +1,15 @@
 package dependency
 
 import (
+	"context"
 	"testing"
 
+	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/datasource-api/pkg/message"
+	"github.com/ca-risken/datasource-api/proto/code"
+	"github.com/ca-risken/datasource-api/proto/code/mocks"
+	"github.com/stretchr/testify/mock"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
@@ -97,4 +103,40 @@ type wantRepository struct {
 	fullName string
 	cloneURL string
 	id       int64
+}
+
+func TestHandleRepositoryScan_UpdatesStatusWhenRepositoryNameExists(t *testing.T) {
+	ctx := context.Background()
+	mockCode := mocks.CodeServiceClient{}
+	mockCode.
+		On("PutDependencyRepository", mock.Anything, mock.MatchedBy(func(req *code.PutDependencyRepositoryRequest) bool {
+			if req == nil || req.DependencyRepository == nil {
+				return false
+			}
+			return req.ProjectId == 1 &&
+				req.DependencyRepository.GithubSettingId == 2 &&
+				req.DependencyRepository.RepositoryFullName == "owner/repo" &&
+				req.DependencyRepository.Status == code.Status_ERROR
+		}), mock.Anything).
+		Return(&emptypb.Empty{}, nil).
+		Once()
+
+	s := sqsHandler{
+		codeClient: &mockCode,
+		logger:     logging.NewLogger(),
+	}
+	msg := &message.CodeQueueMessage{
+		ProjectID:       1,
+		GitHubSettingID: 2,
+		RepositoryName:  "owner/repo",
+	}
+	setting := &code.GitHubSetting{
+		DependencySetting: &code.DependencySetting{},
+	}
+
+	err := s.handleRepositoryScan(ctx, msg, setting, "req-1")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	mockCode.AssertExpectations(t)
 }
