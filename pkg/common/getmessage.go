@@ -19,7 +19,7 @@ func GetRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 	cloneURL := strings.TrimSpace(repoMeta.CloneURL)
 	visibility := strings.TrimSpace(repoMeta.Visibility)
 	htmlURL := strings.TrimSpace(repoMeta.HTMLURL)
-	if fullName == "" || cloneURL == "" {
+	if name == "" || fullName == "" || cloneURL == "" {
 		return nil
 	}
 	size := int(repoMeta.Size)
