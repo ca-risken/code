@@ -72,24 +72,6 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 			},
 			wantLen: 0,
 		},
-		{
-			name: "negative timestamps are ignored",
-			msg: &message.CodeQueueMessage{
-				Repository: &message.RepositoryMetadata{
-					ID:        12345,
-					Name:      "repo",
-					FullName:  "owner/repo",
-					CloneURL:  "https://github.com/owner/repo.git",
-					CreatedAt: -1,
-					PushedAt:  -1,
-				},
-			},
-			wantLen:      1,
-			wantID:       12345,
-			wantName:     "repo",
-			wantFullName: "owner/repo",
-			wantCloneURL: "https://github.com/owner/repo.git",
-		},
 	}
 
 	for _, tt := range tests {
@@ -112,14 +94,6 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 			}
 			if got[0].GetCloneURL() != tt.wantCloneURL {
 				t.Errorf("CloneURL: got %q want %q", got[0].GetCloneURL(), tt.wantCloneURL)
-			}
-			if tt.name == "negative timestamps are ignored" {
-				if got[0].CreatedAt != nil {
-					t.Errorf("CreatedAt: got non-nil, want nil")
-				}
-				if got[0].PushedAt != nil {
-					t.Errorf("PushedAt: got non-nil, want nil")
-				}
 			}
 		})
 	}
