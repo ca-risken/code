@@ -19,9 +19,6 @@ func GetRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 	cloneURL := strings.TrimSpace(repoMeta.CloneURL)
 	visibility := strings.TrimSpace(repoMeta.Visibility)
 	htmlURL := strings.TrimSpace(repoMeta.HTMLURL)
-	if name == "" || fullName == "" || cloneURL == "" {
-		return nil
-	}
 	size := int(repoMeta.Size)
 	repo := &github.Repository{
 		ID:         github.Int64(repoMeta.ID),
@@ -35,10 +32,10 @@ func GetRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 		Size:       &size,
 		HTMLURL:    github.String(htmlURL),
 	}
-	if repoMeta.CreatedAt != 0 {
+	if repoMeta.CreatedAt > 0 {
 		repo.CreatedAt = &github.Timestamp{Time: time.Unix(repoMeta.CreatedAt, 0)}
 	}
-	if repoMeta.PushedAt != 0 {
+	if repoMeta.PushedAt > 0 {
 		repo.PushedAt = &github.Timestamp{Time: time.Unix(repoMeta.PushedAt, 0)}
 	}
 	return []*github.Repository{repo}
