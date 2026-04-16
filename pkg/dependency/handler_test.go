@@ -44,6 +44,29 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 			},
 		},
 		{
+			name: "repository metadata is trimmed before building repository",
+			msg: &message.CodeQueueMessage{
+				Repository: &message.RepositoryMetadata{
+					ID:         12345,
+					Name:       " repo ",
+					FullName:   " owner/repo ",
+					CloneURL:   " https://github.com/owner/repo.git ",
+					Visibility: " private ",
+					Archived:   false,
+					Fork:       false,
+					Disabled:   false,
+					Size:       123,
+					HTMLURL:    " https://github.com/owner/repo ",
+				},
+			},
+			wantLen: 1,
+			want: &wantRepository{
+				fullName: "owner/repo",
+				cloneURL: "https://github.com/owner/repo.git",
+				id:       12345,
+			},
+		},
+		{
 			name:    "repository metadata is nil",
 			msg:     &message.CodeQueueMessage{},
 			wantLen: 0,
