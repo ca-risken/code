@@ -14,136 +14,48 @@ import (
 	"github.com/ca-risken/datasource-api/proto/code/mocks"
 	"github.com/google/go-github/v44/github"
 	"github.com/stretchr/testify/mock"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
-	tests := []struct {
-		name    string
-		msg     *message.CodeQueueMessage
-		wantLen int
-		want    *wantRepository // nil when wantLen != 1
-	}{
-		{
-			name: "repository metadata exists",
-			msg: &message.CodeQueueMessage{
-				Repository: &message.RepositoryMetadata{
-					ID:         12345,
-					Name:       "repo",
-					FullName:   "owner/repo",
-					CloneURL:   "https://github.com/owner/repo.git",
-					Visibility: "private",
-					Archived:   false,
-					Fork:       false,
-					Disabled:   false,
-					Size:       123,
-					HTMLURL:    "https://github.com/owner/repo",
-				},
+	t.Run("Repository metadata exists", func(t *testing.T) {
+		now := time.Now().Unix()
+		msg := &message.CodeQueueMessage{
+			Repository: &message.RepositoryMetadata{
+				ID:         12345,
+				Name:       "repo",
+				FullName:   "owner/repo",
+				CloneURL:   "https://github.com/owner/repo.git",
+				Visibility: "private",
+				Archived:   false,
+				Fork:       false,
+				Disabled:   false,
+				Size:       123,
+				CreatedAt:  now - 3600,
+				PushedAt:   now,
+				HTMLURL:    "https://github.com/owner/repo",
 			},
-			wantLen: 1,
-			want: &wantRepository{
-				fullName: "owner/repo",
-				cloneURL: "https://github.com/owner/repo.git",
-				id:       12345,
-			},
-		},
-		{
-			name:    "repository metadata is nil",
-			msg:     &message.CodeQueueMessage{},
-			wantLen: 0,
-			want:    nil,
-		},
-		{
-			name: "repository metadata has empty full_name",
-			msg: &message.CodeQueueMessage{
-				Repository: &message.RepositoryMetadata{
-					Name:     "repo",
-					FullName: " ",
-					CloneURL: "https://github.com/owner/repo.git",
-				},
-			},
-			wantLen: 0,
-			want:    nil,
-		},
-		{
-			name: "repository metadata has empty clone_url",
-			msg: &message.CodeQueueMessage{
-				Repository: &message.RepositoryMetadata{
-					Name:     "repo",
-					FullName: "owner/repo",
-					CloneURL: "",
-				},
-			},
-			wantLen: 0,
-			want:    nil,
-		},
-	}
+		}
+		repos := common.GetRepositoriesFromCodeQueueMessage(msg)
+		if len(repos) != 1 {
+			t.Fatalf("unexpected repository count: %+v", len(repos))
+		}
+		if repos[0].GetID() != 12345 {
+			t.Fatalf("unexpected id: %+v", repos[0].GetID())
+		}
+		if repos[0].GetFullName() != "owner/repo" {
+			t.Fatalf("unexpected full_name: %+v", repos[0].GetFullName())
+		}
+		if repos[0].GetCloneURL() != "https://github.com/owner/repo.git" {
+			t.Fatalf("unexpected clone_url: %+v", repos[0].GetCloneURL())
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := common.GetRepositoriesFromCodeQueueMessage(tt.msg)
-			if len(got) != tt.wantLen {
-				t.Fatalf("len: got %d want %d", len(got), tt.wantLen)
-			}
-			if tt.wantLen != 1 {
-				return
-			}
-			if tt.want == nil {
-				t.Fatal("want must be set when wantLen == 1")
-			}
-			if got[0].GetFullName() != tt.want.fullName {
-				t.Errorf("FullName: got %q want %q", got[0].GetFullName(), tt.want.fullName)
-			}
-			if got[0].GetCloneURL() != tt.want.cloneURL {
-				t.Errorf("CloneURL: got %q want %q", got[0].GetCloneURL(), tt.want.cloneURL)
-			}
-			if got[0].GetID() != tt.want.id {
-				t.Errorf("ID: got %d want %d", got[0].GetID(), tt.want.id)
-			}
-		})
-	}
-}
-
-type wantRepository struct {
-	fullName string
-	cloneURL string
-	id       int64
-}
-
-func TestHandleRepositoryScan_UpdatesStatusWhenRepositoryNameExists(t *testing.T) {
-	ctx := context.Background()
-	mockCode := mocks.CodeServiceClient{}
-	mockCode.
-		On("PutGitleaksRepository", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksRepositoryRequest) bool {
-			if req == nil || req.GitleaksRepository == nil {
-				return false
-			}
-			return req.ProjectId == 1 &&
-				req.GitleaksRepository.GithubSettingId == 2 &&
-				req.GitleaksRepository.RepositoryFullName == "owner/repo" &&
-				req.GitleaksRepository.Status == code.Status_ERROR
-		}), mock.Anything).
-		Return(&emptypb.Empty{}, nil).
-		Once()
-
-	s := sqsHandler{
-		codeClient: &mockCode,
-		logger:     logging.NewLogger(),
-	}
-	msg := &message.CodeQueueMessage{
-		ProjectID:       1,
-		GitHubSettingID: 2,
-		RepositoryName:  "owner/repo",
-	}
-	setting := &code.GitHubSetting{
-		GitleaksSetting: &code.GitleaksSetting{},
-	}
-
-	err := s.handleRepositoryScan(ctx, msg, setting, "token", "req-1", nil)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	mockCode.AssertExpectations(t)
+	t.Run("Repository metadata is nil", func(t *testing.T) {
+		repos := common.GetRepositoriesFromCodeQueueMessage(&message.CodeQueueMessage{})
+		if len(repos) != 0 {
+			t.Fatalf("unexpected repository count: %+v", len(repos))
+		}
+	})
 }
 
 func TestValidateRepository(t *testing.T) {

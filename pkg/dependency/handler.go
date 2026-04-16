@@ -181,25 +181,17 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 }
 
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, requestID string) error {
-	repos := common.GetRepositoriesFromCodeQueueMessage(msg)
-	if len(repos) == 0 {
-		err := fmt.Errorf("repository metadata is required in queue message")
-		repositoryName := ""
-		if msg != nil {
-			repositoryName = msg.RepositoryName
-		}
-		if repositoryName != "" {
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repositoryName, err.Error())
-		} else if msg != nil {
-			s.logger.Warnf(ctx, "Missing repository metadata in queue message: project_id=%d, github_setting_id=%d", msg.ProjectID, msg.GitHubSettingID)
-		} else {
-			s.logger.Warnf(ctx, "Missing repository metadata in queue message")
+	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
+	if err != nil {
+		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, msg.RepositoryName, err)
+		if msg.RepositoryName != "" {
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, msg.RepositoryName, err.Error())
 		}
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
-	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
+
+	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
+		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, msg.RepositoryName)
 	repos = common.FilterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
 
 	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, repos, requestID)
@@ -222,16 +214,6 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
 	successfullyScannedRepos := []string{}
 	for _, r := range repos {
-		if err := common.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
-			repoFullName := ""
-			if r != nil {
-				repoFullName = r.GetFullName()
-			}
-			if repoFullName != "" {
-				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
-			}
-			return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
-		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
 			continue
 		}
