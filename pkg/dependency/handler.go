@@ -13,7 +13,6 @@ import (
 	"github.com/ca-risken/code/pkg/common"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	githubcli "github.com/ca-risken/code/pkg/github"
-	"github.com/ca-risken/code/pkg/validation"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
@@ -182,7 +181,7 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 }
 
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, requestID string) error {
-	repos := getRepositoriesFromCodeQueueMessage(msg)
+	repos := common.GetRepositoriesFromCodeQueueMessage(msg)
 	if len(repos) == 0 {
 		err := fmt.Errorf("repository metadata is required in queue message")
 		repositoryName := ""
@@ -219,7 +218,7 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
 	successfullyScannedRepos := []string{}
 	for _, r := range repos {
-		if err := validation.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
+		if err := common.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
 			repoFullName := ""
 			if r != nil {
 				repoFullName = r.GetFullName()
@@ -319,34 +318,4 @@ func sanitizeStatusDetail(status code.Status, statusDetail string) string {
 	statusDetail = common.CutString(statusDetail, 200)
 	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
 	return strings.ToValidUTF8(statusDetail, "")
-}
-
-func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*github.Repository {
-	if msg == nil || msg.Repository == nil {
-		return nil
-	}
-	repoMeta := msg.Repository
-	if strings.TrimSpace(repoMeta.FullName) == "" || strings.TrimSpace(repoMeta.CloneURL) == "" {
-		return nil
-	}
-	size := int(repoMeta.Size)
-	repo := &github.Repository{
-		ID:         github.Int64(repoMeta.ID),
-		Name:       github.String(repoMeta.Name),
-		FullName:   github.String(repoMeta.FullName),
-		CloneURL:   github.String(repoMeta.CloneURL),
-		Visibility: github.String(repoMeta.Visibility),
-		Archived:   github.Bool(repoMeta.Archived),
-		Fork:       github.Bool(repoMeta.Fork),
-		Disabled:   github.Bool(repoMeta.Disabled),
-		Size:       &size,
-		HTMLURL:    github.String(repoMeta.HTMLURL),
-	}
-	if repoMeta.CreatedAt != 0 {
-		repo.CreatedAt = &github.Timestamp{Time: time.Unix(repoMeta.CreatedAt, 0)}
-	}
-	if repoMeta.PushedAt != 0 {
-		repo.PushedAt = &github.Timestamp{Time: time.Unix(repoMeta.PushedAt, 0)}
-	}
-	return []*github.Repository{repo}
 }
