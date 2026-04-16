@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ca-risken/code/pkg/validation"
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
@@ -35,7 +35,7 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 				HTMLURL:    "https://github.com/owner/repo",
 			},
 		}
-		repos := getRepositoriesFromCodeQueueMessage(msg)
+		repos := common.GetRepositoriesFromCodeQueueMessage(msg)
 		if len(repos) != 1 {
 			t.Fatalf("unexpected repository count: %+v", len(repos))
 		}
@@ -48,7 +48,7 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 	})
 
 	t.Run("Repository metadata is nil", func(t *testing.T) {
-		repos := getRepositoriesFromCodeQueueMessage(&message.CodeQueueMessage{})
+		repos := common.GetRepositoriesFromCodeQueueMessage(&message.CodeQueueMessage{})
 		if len(repos) != 0 {
 			t.Fatalf("unexpected repository count: %+v", len(repos))
 		}
@@ -62,7 +62,7 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 				CloneURL: "https://github.com/owner/repo.git",
 			},
 		}
-		repos := getRepositoriesFromCodeQueueMessage(msg)
+		repos := common.GetRepositoriesFromCodeQueueMessage(msg)
 		if len(repos) != 0 {
 			t.Fatalf("unexpected repository count: %+v", len(repos))
 		}
@@ -76,7 +76,7 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 				CloneURL: " ",
 			},
 		}
-		repos := getRepositoriesFromCodeQueueMessage(msg)
+		repos := common.GetRepositoriesFromCodeQueueMessage(msg)
 		if len(repos) != 0 {
 			t.Fatalf("unexpected repository count: %+v", len(repos))
 		}
@@ -133,7 +133,7 @@ func TestValidateRepository(t *testing.T) {
 			Time: time.Now(),
 		},
 	}
-	if err := validation.ValidateRepository(repo, ""); err != nil {
+	if err := common.ValidateRepository(repo, ""); err != nil {
 		t.Fatalf("unexpected error: %+v", err)
 	}
 }
@@ -240,7 +240,7 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validation.ValidateRepository(tt.repo, tt.baseURL)
+			err := common.ValidateRepository(tt.repo, tt.baseURL)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -287,7 +287,7 @@ func TestValidateRepository_TimestampValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validation.ValidateRepository(tt.repo, "")
+			err := common.ValidateRepository(tt.repo, "")
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}

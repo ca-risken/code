@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
@@ -76,7 +77,7 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getRepositoriesFromCodeQueueMessage(tt.msg)
+			got := common.GetRepositoriesFromCodeQueueMessage(tt.msg)
 			if len(got) != tt.wantLen {
 				t.Fatalf("len: got %d want %d", len(got), tt.wantLen)
 			}

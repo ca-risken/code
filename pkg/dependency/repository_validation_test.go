@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ca-risken/code/pkg/validation"
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/google/go-github/v44/github"
 )
 
@@ -64,7 +64,7 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validation.ValidateRepository(tt.repo, tt.baseURL)
+			err := common.ValidateRepository(tt.repo, tt.baseURL)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
