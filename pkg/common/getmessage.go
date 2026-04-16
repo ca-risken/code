@@ -14,21 +14,26 @@ func GetRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 		return nil
 	}
 	repoMeta := msg.Repository
-	if strings.TrimSpace(repoMeta.FullName) == "" || strings.TrimSpace(repoMeta.CloneURL) == "" {
+	name := strings.TrimSpace(repoMeta.Name)
+	fullName := strings.TrimSpace(repoMeta.FullName)
+	cloneURL := strings.TrimSpace(repoMeta.CloneURL)
+	visibility := strings.TrimSpace(repoMeta.Visibility)
+	htmlURL := strings.TrimSpace(repoMeta.HTMLURL)
+	if fullName == "" || cloneURL == "" {
 		return nil
 	}
 	size := int(repoMeta.Size)
 	repo := &github.Repository{
 		ID:         github.Int64(repoMeta.ID),
-		Name:       github.String(repoMeta.Name),
-		FullName:   github.String(repoMeta.FullName),
-		CloneURL:   github.String(repoMeta.CloneURL),
-		Visibility: github.String(repoMeta.Visibility),
+		Name:       github.String(name),
+		FullName:   github.String(fullName),
+		CloneURL:   github.String(cloneURL),
+		Visibility: github.String(visibility),
 		Archived:   github.Bool(repoMeta.Archived),
 		Fork:       github.Bool(repoMeta.Fork),
 		Disabled:   github.Bool(repoMeta.Disabled),
 		Size:       &size,
-		HTMLURL:    github.String(repoMeta.HTMLURL),
+		HTMLURL:    github.String(htmlURL),
 	}
 	if repoMeta.CreatedAt != 0 {
 		repo.CreatedAt = &github.Timestamp{Time: time.Unix(repoMeta.CreatedAt, 0)}
