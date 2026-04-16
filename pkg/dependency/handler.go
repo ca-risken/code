@@ -13,6 +13,7 @@ import (
 	"github.com/ca-risken/code/pkg/common"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	githubcli "github.com/ca-risken/code/pkg/github"
+	"github.com/ca-risken/code/pkg/validation"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
@@ -218,7 +219,7 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
 	successfullyScannedRepos := []string{}
 	for _, r := range repos {
-		if err := validateRepository(r, gitHubSetting.BaseUrl); err != nil {
+		if err := validation.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
 			repoFullName := ""
 			if r != nil {
 				repoFullName = r.GetFullName()

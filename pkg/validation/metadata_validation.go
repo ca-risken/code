@@ -1,4 +1,4 @@
-package dependency
+package validation
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/google/go-github/v44/github"
 )
 
-func validateRepository(repo *github.Repository, githubBaseURL string) error {
+func ValidateRepository(repo *github.Repository, githubBaseURL string) error {
 	if repo == nil {
 		return fmt.Errorf("invalid repository metadata: repository is nil")
 	}

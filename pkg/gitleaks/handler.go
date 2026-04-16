@@ -16,6 +16,7 @@ import (
 	"github.com/ca-risken/code/pkg/common"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	githubcli "github.com/ca-risken/code/pkg/github"
+	"github.com/ca-risken/code/pkg/validation"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
@@ -235,7 +236,7 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 
 func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository, githubBaseURL string) error {
 	for _, r := range repos {
-		if err := validateRepository(r, githubBaseURL); err != nil {
+		if err := validation.ValidateRepository(r, githubBaseURL); err != nil {
 			repoFullName := ""
 			if r != nil {
 				repoFullName = r.GetFullName()

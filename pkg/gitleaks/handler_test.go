@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ca-risken/code/pkg/validation"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
@@ -132,7 +133,7 @@ func TestValidateRepository(t *testing.T) {
 			Time: time.Now(),
 		},
 	}
-	if err := validateRepository(repo, ""); err != nil {
+	if err := validation.ValidateRepository(repo, ""); err != nil {
 		t.Fatalf("unexpected error: %+v", err)
 	}
 }
@@ -239,7 +240,7 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateRepository(tt.repo, tt.baseURL)
+			err := validation.ValidateRepository(tt.repo, tt.baseURL)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -286,7 +287,7 @@ func TestValidateRepository_TimestampValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateRepository(tt.repo, "")
+			err := validation.ValidateRepository(tt.repo, "")
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
