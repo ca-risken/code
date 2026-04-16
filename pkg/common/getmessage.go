@@ -35,10 +35,10 @@ func GetRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*githu
 		Size:       &size,
 		HTMLURL:    github.String(htmlURL),
 	}
-	if repoMeta.CreatedAt != 0 {
+	if repoMeta.CreatedAt > 0 {
 		repo.CreatedAt = &github.Timestamp{Time: time.Unix(repoMeta.CreatedAt, 0)}
 	}
-	if repoMeta.PushedAt != 0 {
+	if repoMeta.PushedAt > 0 {
 		repo.PushedAt = &github.Timestamp{Time: time.Unix(repoMeta.PushedAt, 0)}
 	}
 	return []*github.Repository{repo}
