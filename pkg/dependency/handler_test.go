@@ -85,6 +85,18 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 			want:    nil,
 		},
 		{
+			name: "repository metadata has empty name",
+			msg: &message.CodeQueueMessage{
+				Repository: &message.RepositoryMetadata{
+					Name:     " ",
+					FullName: "owner/repo",
+					CloneURL: "https://github.com/owner/repo.git",
+				},
+			},
+			wantLen: 0,
+			want:    nil,
+		},
+		{
 			name: "repository metadata has empty clone_url",
 			msg: &message.CodeQueueMessage{
 				Repository: &message.RepositoryMetadata{
