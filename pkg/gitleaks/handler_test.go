@@ -17,64 +17,106 @@ import (
 )
 
 func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
-	t.Run("Repository metadata exists", func(t *testing.T) {
-		now := time.Now().Unix()
-		msg := &message.CodeQueueMessage{
-			Repository: &message.RepositoryMetadata{
-				ID:         12345,
-				Name:       "repo",
-				FullName:   "owner/repo",
-				CloneURL:   "https://github.com/owner/repo.git",
-				Visibility: "private",
-				Archived:   false,
-				Fork:       false,
-				Disabled:   false,
-				Size:       123,
-				CreatedAt:  now - 3600,
-				PushedAt:   now,
-				HTMLURL:    "https://github.com/owner/repo",
+	now := time.Now().Unix()
+	tests := []struct {
+		name         string
+		msg          *message.CodeQueueMessage
+		wantCount    int
+		wantID       int64
+		wantFullName string
+		wantCloneURL string
+	}{
+		{
+			name: "repository metadata exists",
+			msg: &message.CodeQueueMessage{
+				Repository: &message.RepositoryMetadata{
+					ID:         12345,
+					Name:       "repo",
+					FullName:   "owner/repo",
+					CloneURL:   "https://github.com/owner/repo.git",
+					Visibility: "private",
+					Archived:   false,
+					Fork:       false,
+					Disabled:   false,
+					Size:       123,
+					CreatedAt:  now - 3600,
+					PushedAt:   now,
+					HTMLURL:    "https://github.com/owner/repo",
+				},
 			},
-		}
-		repos := common.GetRepositoriesFromCodeQueueMessage(msg)
-		if len(repos) != 1 {
-			t.Fatalf("unexpected repository count: %+v", len(repos))
-		}
-		if repos[0].GetID() != 12345 {
-			t.Fatalf("unexpected id: %+v", repos[0].GetID())
-		}
-		if repos[0].GetFullName() != "owner/repo" {
-			t.Fatalf("unexpected full_name: %+v", repos[0].GetFullName())
-		}
-		if repos[0].GetCloneURL() != "https://github.com/owner/repo.git" {
-			t.Fatalf("unexpected clone_url: %+v", repos[0].GetCloneURL())
-		}
-	})
+			wantCount:    1,
+			wantID:       12345,
+			wantFullName: "owner/repo",
+			wantCloneURL: "https://github.com/owner/repo.git",
+		},
+		{
+			name:      "repository metadata is nil",
+			msg:       &message.CodeQueueMessage{},
+			wantCount: 0,
+		},
+	}
 
-	t.Run("Repository metadata is nil", func(t *testing.T) {
-		repos := common.GetRepositoriesFromCodeQueueMessage(&message.CodeQueueMessage{})
-		if len(repos) != 0 {
-			t.Fatalf("unexpected repository count: %+v", len(repos))
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repos := common.GetRepositoriesFromCodeQueueMessage(tt.msg)
+			if len(repos) != tt.wantCount {
+				t.Fatalf("unexpected repository count: got=%d want=%d", len(repos), tt.wantCount)
+			}
+			if tt.wantCount == 0 {
+				return
+			}
+			if repos[0].GetID() != tt.wantID {
+				t.Fatalf("unexpected id: got=%d want=%d", repos[0].GetID(), tt.wantID)
+			}
+			if repos[0].GetFullName() != tt.wantFullName {
+				t.Fatalf("unexpected full_name: got=%q want=%q", repos[0].GetFullName(), tt.wantFullName)
+			}
+			if repos[0].GetCloneURL() != tt.wantCloneURL {
+				t.Fatalf("unexpected clone_url: got=%q want=%q", repos[0].GetCloneURL(), tt.wantCloneURL)
+			}
+		})
+	}
 }
 
 func TestValidateRepository(t *testing.T) {
-	repo := &github.Repository{
-		ID:         github.Int64(1),
-		Name:       github.String("repo"),
-		FullName:   github.String("owner/repo"),
-		CloneURL:   github.String("https://github.com/owner/repo.git"),
-		Visibility: github.String("private"),
-		HTMLURL:    github.String("https://github.com/owner/repo"),
-		CreatedAt: &github.Timestamp{
-			Time: time.Now().Add(-1 * time.Hour),
-		},
-		PushedAt: &github.Timestamp{
-			Time: time.Now(),
+	now := time.Now()
+	tests := []struct {
+		name    string
+		repo    *github.Repository
+		baseURL string
+		wantErr bool
+	}{
+		{
+			name: "valid repository",
+			repo: &github.Repository{
+				ID:         github.Int64(1),
+				Name:       github.String("repo"),
+				FullName:   github.String("owner/repo"),
+				CloneURL:   github.String("https://github.com/owner/repo.git"),
+				Visibility: github.String("private"),
+				HTMLURL:    github.String("https://github.com/owner/repo"),
+				CreatedAt: &github.Timestamp{
+					Time: now.Add(-1 * time.Hour),
+				},
+				PushedAt: &github.Timestamp{
+					Time: now,
+				},
+			},
+			baseURL: "",
+			wantErr: false,
 		},
 	}
-	if err := common.ValidateRepository(repo, ""); err != nil {
-		t.Fatalf("unexpected error: %+v", err)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := common.ValidateRepository(tt.repo, tt.baseURL)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %+v", err)
+			}
+		})
 	}
 }
 
