@@ -98,7 +98,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	}
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 
-	messageRepos := getRepositoriesFromCodeQueueMessage(msg)
+	messageRepos := common.GetRepositoriesFromCodeQueueMessage(msg)
 
 	if err := s.handleRepositoryScan(ctx, msg, gitHubSetting, token, requestID, messageRepos); err != nil {
 		return err
@@ -227,7 +227,7 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 
 func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository, githubBaseURL string) error {
 	for _, r := range repos {
-		if err := validateRepository(r, githubBaseURL); err != nil {
+		if err := common.ValidateRepository(r, githubBaseURL); err != nil {
 			repoFullName := ""
 			if r != nil {
 				repoFullName = r.GetFullName()
@@ -477,31 +477,3 @@ func sanitizeStatusDetail(status code.Status, statusDetail string) string {
 	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
 	return strings.ToValidUTF8(statusDetail, "")
 }
-
-func getRepositoriesFromCodeQueueMessage(msg *message.CodeQueueMessage) []*github.Repository {
-	if msg == nil || msg.Repository == nil {
-		return nil
-	}
-	repoMeta := msg.Repository
-	size := int(repoMeta.Size)
-	repo := &github.Repository{
-		Name:       github.String(repoMeta.Name),
-		FullName:   github.String(repoMeta.FullName),
-		CloneURL:   github.String(repoMeta.CloneURL),
-		Visibility: github.String(repoMeta.Visibility),
-		Archived:   github.Bool(repoMeta.Archived),
-		Fork:       github.Bool(repoMeta.Fork),
-		Disabled:   github.Bool(repoMeta.Disabled),
-		Size:       &size,
-		HTMLURL:    github.String(repoMeta.HTMLURL),
-	}
-	if repoMeta.CreatedAt != 0 {
-		repo.CreatedAt = &github.Timestamp{Time: time.Unix(repoMeta.CreatedAt, 0)}
-	}
-	if repoMeta.PushedAt != 0 {
-		repo.PushedAt = &github.Timestamp{Time: time.Unix(repoMeta.PushedAt, 0)}
-	}
-	return []*github.Repository{repo}
-}
-
-

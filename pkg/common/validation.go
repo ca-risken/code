@@ -1,54 +1,77 @@
-package gitleaks
+package common
 
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/google/go-github/v44/github"
 )
 
-func validateRepository(repo *github.Repository, githubBaseURL string) error {
+func ValidateRepository(repo *github.Repository, githubBaseURL string) error {
 	if repo == nil {
 		return fmt.Errorf("invalid repository metadata: repository is nil")
 	}
-	if repo.Name == nil || *repo.Name == "" {
+	if repo.GetID() <= 0 {
+		return fmt.Errorf("invalid repository metadata: repository id must be > 0, repository_id=%d", repo.GetID())
+	}
+	if repo.Name == nil || strings.TrimSpace(*repo.Name) == "" {
 		return fmt.Errorf("invalid repository metadata: name is required")
 	}
-	if repo.FullName == nil || *repo.FullName == "" {
+	if repo.FullName == nil || strings.TrimSpace(*repo.FullName) == "" {
 		return fmt.Errorf("invalid repository metadata: full_name is required")
 	}
-	if repo.Visibility == nil || *repo.Visibility == "" {
-		return fmt.Errorf("invalid repository metadata: visibility is required, repository=%s", repo.GetFullName())
-	}
-	if repo.CloneURL == nil || *repo.CloneURL == "" {
-		return fmt.Errorf("invalid repository metadata: clone_url is required, repository=%s", repo.GetFullName())
-	}
-	if repo.CreatedAt == nil {
-		return fmt.Errorf("invalid repository metadata: queue message repository.created_at is required (>0 unix time), repository=%s", repo.GetFullName())
-	}
-	if repo.CreatedAt.Unix() <= 0 {
-		return fmt.Errorf("invalid repository metadata: queue message repository.created_at must be >0 unix time, repository=%s, created_at=%d", repo.GetFullName(), repo.CreatedAt.Unix())
-	}
-	if repo.PushedAt == nil {
-		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at is required (>0 unix time), repository=%s", repo.GetFullName())
-	}
-	if repo.PushedAt.Unix() <= 0 {
-		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at must be >0 unix time, repository=%s, pushed_at=%d", repo.GetFullName(), repo.PushedAt.Unix())
-	}
-	if repo.HTMLURL == nil || *repo.HTMLURL == "" {
-		return fmt.Errorf("invalid repository metadata: html_url is required, repository=%s", repo.GetFullName())
-	}
-	if err := validateCloneURL(repo.GetCloneURL(), repo.GetFullName(), githubBaseURL); err != nil {
+	name := strings.TrimSpace(*repo.Name)
+	fullName := strings.TrimSpace(*repo.FullName)
+	if err := validateRepositoryName(name, fullName); err != nil {
 		return err
 	}
-	if err := validateHTMLURL(repo.GetHTMLURL(), repo.GetFullName(), githubBaseURL); err != nil {
+	if repo.Visibility == nil || strings.TrimSpace(*repo.Visibility) == "" {
+		return fmt.Errorf("invalid repository metadata: visibility is required, repository=%s", fullName)
+	}
+	if repo.CloneURL == nil || strings.TrimSpace(*repo.CloneURL) == "" {
+		return fmt.Errorf("invalid repository metadata: clone_url is required, repository=%s", fullName)
+	}
+	cloneURL := strings.TrimSpace(*repo.CloneURL)
+	if repo.CreatedAt == nil {
+		return fmt.Errorf("invalid repository metadata: queue message repository.created_at is required (>0 unix time), repository=%s", fullName)
+	}
+	if repo.CreatedAt.Unix() <= 0 {
+		return fmt.Errorf("invalid repository metadata: queue message repository.created_at must be >0 unix time, repository=%s, created_at=%d", fullName, repo.CreatedAt.Unix())
+	}
+	if repo.PushedAt == nil {
+		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at is required (>0 unix time), repository=%s", fullName)
+	}
+	if repo.PushedAt.Unix() <= 0 {
+		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at must be >0 unix time, repository=%s, pushed_at=%d", fullName, repo.PushedAt.Unix())
+	}
+	if repo.HTMLURL == nil || strings.TrimSpace(*repo.HTMLURL) == "" {
+		return fmt.Errorf("invalid repository metadata: html_url is required, repository=%s", fullName)
+	}
+	htmlURL := strings.TrimSpace(*repo.HTMLURL)
+	if err := validateCloneURL(cloneURL, fullName, githubBaseURL); err != nil {
+		return err
+	}
+	if err := validateHTMLURL(htmlURL, fullName, githubBaseURL); err != nil {
 		return err
 	}
 	return nil
 }
 
+func validateRepositoryName(name, fullName string) error {
+	if strings.ContainsAny(name, `/\`) || name == "." || name == ".." {
+		return fmt.Errorf("invalid repository metadata: name must not contain path separators or traversal segments: name=%s", name)
+	}
+	if path.Base(fullName) != name {
+		return fmt.Errorf("invalid repository metadata: name does not match repository full_name: name=%s, repository_full_name=%s", name, fullName)
+	}
+	return nil
+}
+
 func validateCloneURL(cloneURL, repoFullName, githubBaseURL string) error {
+	cloneURL = strings.TrimSpace(cloneURL)
+	repoFullName = strings.TrimSpace(repoFullName)
 	u, err := url.Parse(cloneURL)
 	if err != nil {
 		return fmt.Errorf("invalid repository metadata: clone_url parse error: clone_url=%s, err=%w", cloneURL, err)
@@ -77,6 +100,8 @@ func validateCloneURL(cloneURL, repoFullName, githubBaseURL string) error {
 }
 
 func validateHTMLURL(htmlURL, repoFullName, githubBaseURL string) error {
+	htmlURL = strings.TrimSpace(htmlURL)
+	repoFullName = strings.TrimSpace(repoFullName)
 	u, err := url.Parse(htmlURL)
 	if err != nil {
 		return fmt.Errorf("invalid repository metadata: html_url parse error: html_url=%s, err=%w", htmlURL, err)
