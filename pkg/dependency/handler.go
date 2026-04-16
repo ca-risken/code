@@ -180,17 +180,17 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	repos := common.GetRepositoriesFromCodeQueueMessage(msg)
 	if len(repos) == 0 {
 		err := fmt.Errorf("repository metadata is required in queue message")
-		repositoryName := ""
-		if msg != nil {
-			repositoryName = msg.RepositoryName
-		}
-		if repositoryName != "" {
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repositoryName, err.Error())
-		} else if msg != nil {
-			s.logger.Warnf(ctx, "Missing repository metadata in queue message: project_id=%d, github_setting_id=%d", msg.ProjectID, msg.GitHubSettingID)
-		} else {
+		if msg == nil {
 			s.logger.Warnf(ctx, "Missing repository metadata in queue message")
+			return mimosasqs.WrapNonRetryable(err)
 		}
+
+		if msg.RepositoryName != "" {
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, msg.RepositoryName, err.Error())
+			return mimosasqs.WrapNonRetryable(err)
+		}
+
+		s.logger.Warnf(ctx, "Missing repository metadata in queue message: project_id=%d, github_setting_id=%d", msg.ProjectID, msg.GitHubSettingID)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
