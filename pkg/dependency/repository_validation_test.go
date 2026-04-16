@@ -10,6 +10,7 @@ import (
 
 func TestValidateRepository_CloneURLValidation(t *testing.T) {
 	baseRepo := &github.Repository{
+		ID:         github.Int64(1),
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
 		CloneURL:   github.String("https://github.com/owner/repo.git"),

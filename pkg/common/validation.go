@@ -12,6 +12,9 @@ func ValidateRepository(repo *github.Repository, githubBaseURL string) error {
 	if repo == nil {
 		return fmt.Errorf("invalid repository metadata: repository is nil")
 	}
+	if repo.GetID() <= 0 {
+		return fmt.Errorf("invalid repository metadata: repository id must be > 0, repository_id=%d", repo.GetID())
+	}
 	if repo.Name == nil || strings.TrimSpace(*repo.Name) == "" {
 		return fmt.Errorf("invalid repository metadata: name is required")
 	}
