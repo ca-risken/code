@@ -186,6 +186,10 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 		}
 		if repositoryName != "" {
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repositoryName, err.Error())
+		} else if msg != nil {
+			s.logger.Warnf(ctx, "Missing repository metadata in queue message: project_id=%d, github_setting_id=%d", msg.ProjectID, msg.GitHubSettingID)
+		} else {
+			s.logger.Warnf(ctx, "Missing repository metadata in queue message")
 		}
 		return mimosasqs.WrapNonRetryable(err)
 	}
