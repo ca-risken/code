@@ -148,6 +148,7 @@ func TestHandleRepositoryScan_UpdatesStatusWhenRepositoryNameExists(t *testing.T
 
 func TestValidateRepository(t *testing.T) {
 	repo := &github.Repository{
+		ID:         github.Int64(1),
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
 		CloneURL:   github.String("https://github.com/owner/repo.git"),
@@ -167,6 +168,7 @@ func TestValidateRepository(t *testing.T) {
 
 func TestValidateRepository_CloneURLValidation(t *testing.T) {
 	baseRepo := &github.Repository{
+		ID:         github.Int64(1),
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
 		CloneURL:   github.String("https://github.com/owner/repo.git"),
@@ -280,6 +282,7 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 
 func TestValidateRepository_TimestampValidation(t *testing.T) {
 	baseRepo := &github.Repository{
+		ID:         github.Int64(1),
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
 		CloneURL:   github.String("https://github.com/owner/repo.git"),
