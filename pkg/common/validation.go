@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/google/go-github/v44/github"
@@ -21,7 +22,11 @@ func ValidateRepository(repo *github.Repository, githubBaseURL string) error {
 	if repo.FullName == nil || strings.TrimSpace(*repo.FullName) == "" {
 		return fmt.Errorf("invalid repository metadata: full_name is required")
 	}
+	name := strings.TrimSpace(*repo.Name)
 	fullName := strings.TrimSpace(*repo.FullName)
+	if err := validateRepositoryName(name, fullName); err != nil {
+		return err
+	}
 	if repo.Visibility == nil || strings.TrimSpace(*repo.Visibility) == "" {
 		return fmt.Errorf("invalid repository metadata: visibility is required, repository=%s", fullName)
 	}
@@ -50,6 +55,16 @@ func ValidateRepository(repo *github.Repository, githubBaseURL string) error {
 	}
 	if err := validateHTMLURL(htmlURL, fullName, githubBaseURL); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateRepositoryName(name, fullName string) error {
+	if strings.ContainsAny(name, `/\`) || name == "." || name == ".." {
+		return fmt.Errorf("invalid repository metadata: name must not contain path separators or traversal segments: name=%s", name)
+	}
+	if path.Base(fullName) != name {
+		return fmt.Errorf("invalid repository metadata: name does not match repository full_name: name=%s, repository_full_name=%s", name, fullName)
 	}
 	return nil
 }
