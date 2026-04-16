@@ -59,6 +59,34 @@ func TestValidateRepository(t *testing.T) {
 			},
 			wantErr: "repository id must be > 0",
 		},
+		{
+			name: "repository name contains path separator",
+			repo: &github.Repository{
+				ID:         github.Int64(1),
+				Name:       github.String("../../repo"),
+				FullName:   github.String("owner/repo"),
+				Visibility: github.String("private"),
+				CloneURL:   github.String("https://github.com/owner/repo.git"),
+				CreatedAt:  &github.Timestamp{Time: now},
+				PushedAt:   &github.Timestamp{Time: now},
+				HTMLURL:    github.String("https://github.com/owner/repo"),
+			},
+			wantErr: "name must not contain path separators or traversal segments",
+		},
+		{
+			name: "repository name does not match full name",
+			repo: &github.Repository{
+				ID:         github.Int64(1),
+				Name:       github.String("other"),
+				FullName:   github.String("owner/repo"),
+				Visibility: github.String("private"),
+				CloneURL:   github.String("https://github.com/owner/repo.git"),
+				CreatedAt:  &github.Timestamp{Time: now},
+				PushedAt:   &github.Timestamp{Time: now},
+				HTMLURL:    github.String("https://github.com/owner/repo"),
+			},
+			wantErr: "name does not match repository full_name",
+		},
 	}
 
 	for _, tt := range tests {
