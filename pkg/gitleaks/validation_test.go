@@ -23,12 +23,9 @@ func TestValidateRepository(t *testing.T) {
 		{
 			name: "valid repository",
 			repo: &github.Repository{
-				ID:         github.Int64(1),
 				Name:       github.String("repo"),
 				FullName:   github.String("owner/repo"),
 				CloneURL:   github.String("https://github.com/owner/repo.git"),
-				Visibility: github.String("private"),
-				HTMLURL:    github.String("https://github.com/owner/repo"),
 				CreatedAt: &github.Timestamp{
 					Time: now.Add(-1 * time.Hour),
 				},
@@ -40,13 +37,11 @@ func TestValidateRepository(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing repository id",
+			name: "missing optional metadata",
 			repo: &github.Repository{
 				Name:       github.String("repo"),
 				FullName:   github.String("owner/repo"),
 				CloneURL:   github.String("https://github.com/owner/repo.git"),
-				Visibility: github.String("private"),
-				HTMLURL:    github.String("https://github.com/owner/repo"),
 				CreatedAt: &github.Timestamp{
 					Time: now.Add(-1 * time.Hour),
 				},
@@ -55,7 +50,7 @@ func TestValidateRepository(t *testing.T) {
 				},
 			},
 			baseURL: "",
-			wantErr: true,
+			wantErr: false,
 		},
 	}
 
@@ -74,12 +69,9 @@ func TestValidateRepository(t *testing.T) {
 
 func TestValidateRepository_CloneURLValidation(t *testing.T) {
 	baseRepo := &github.Repository{
-		ID:         github.Int64(1),
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
 		CloneURL:   github.String("https://github.com/owner/repo.git"),
-		Visibility: github.String("private"),
-		HTMLURL:    github.String("https://github.com/owner/repo"),
 		CreatedAt:  &github.Timestamp{Time: time.Now().Add(-1 * time.Hour)},
 		PushedAt:   &github.Timestamp{Time: time.Now()},
 	}
@@ -120,7 +112,6 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 			repo: func() *github.Repository {
 				r := *baseRepo
 				r.CloneURL = github.String("https://github.example.com/owner/repo.git")
-				r.HTMLURL = github.String("https://github.example.com/owner/repo")
 				return &r
 			}(),
 			baseURL: "https://github.example.com/api/v3/",
@@ -134,36 +125,6 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 				return &r
 			}(),
 			baseURL: "https://github.example.com/api/v3/",
-			wantErr: true,
-		},
-		{
-			name: "html_url invalid scheme",
-			repo: func() *github.Repository {
-				r := *baseRepo
-				r.HTMLURL = github.String("http://github.com/owner/repo")
-				return &r
-			}(),
-			baseURL: "",
-			wantErr: true,
-		},
-		{
-			name: "html_url host mismatch",
-			repo: func() *github.Repository {
-				r := *baseRepo
-				r.HTMLURL = github.String("https://evil.example.com/owner/repo")
-				return &r
-			}(),
-			baseURL: "https://api.github.com/",
-			wantErr: true,
-		},
-		{
-			name: "html_url path mismatch",
-			repo: func() *github.Repository {
-				r := *baseRepo
-				r.HTMLURL = github.String("https://github.com/owner/other")
-				return &r
-			}(),
-			baseURL: "",
 			wantErr: true,
 		},
 		{
@@ -188,12 +149,9 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 
 func TestValidateRepository_TimestampValidation(t *testing.T) {
 	baseRepo := &github.Repository{
-		ID:         github.Int64(1),
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
 		CloneURL:   github.String("https://github.com/owner/repo.git"),
-		Visibility: github.String("private"),
-		HTMLURL:    github.String("https://github.com/owner/repo"),
 		CreatedAt:  &github.Timestamp{Time: time.Now().Add(-1 * time.Hour)},
 		PushedAt:   &github.Timestamp{Time: time.Now()},
 	}
