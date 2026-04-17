@@ -214,6 +214,14 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
 	successfullyScannedRepos := []string{}
 	for _, r := range repos {
+		if err := validateRepositoryForDependency(r, gitHubSetting.BaseUrl); err != nil {
+			repoFullName := ""
+			if r != nil {
+				repoFullName = r.GetFullName()
+			}
+			s.logger.Warnf(ctx, "Skip scan due to invalid repository metadata: repository_name=%s, err=%+v", repoFullName, err)
+			return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
+		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
 			continue
 		}

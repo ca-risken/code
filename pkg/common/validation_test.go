@@ -3,24 +3,17 @@ package common
 import (
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/google/go-github/v44/github"
 )
 
-func TestValidateRepository(t *testing.T) {
+func TestValidateRepositoryBasic(t *testing.T) {
 	baseURL := "https://api.github.com/"
-	now := time.Unix(1700000000, 0)
 
 	validRepo := &github.Repository{
-		ID:         github.Int64(1),
-		Name:       github.String("repo"),
-		FullName:   github.String("owner/repo"),
-		Visibility: github.String("private"),
-		CloneURL:   github.String("https://github.com/owner/repo.git"),
-		CreatedAt:  &github.Timestamp{Time: now},
-		PushedAt:   &github.Timestamp{Time: now},
-		HTMLURL:    github.String("https://github.com/owner/repo"),
+		Name:     github.String("repo"),
+		FullName: github.String("owner/repo"),
+		CloneURL: github.String("https://github.com/owner/repo.git"),
 	}
 
 	tests := []struct {
@@ -33,74 +26,61 @@ func TestValidateRepository(t *testing.T) {
 			repo: validRepo,
 		},
 		{
-			name: "missing repository id",
+			name: "missing html url is allowed in basic validation",
 			repo: &github.Repository{
-				Name:       github.String("repo"),
-				FullName:   github.String("owner/repo"),
-				Visibility: github.String("private"),
-				CloneURL:   github.String("https://github.com/owner/repo.git"),
-				CreatedAt:  &github.Timestamp{Time: now},
-				PushedAt:   &github.Timestamp{Time: now},
-				HTMLURL:    github.String("https://github.com/owner/repo"),
+				Name:     github.String("repo"),
+				FullName: github.String("owner/repo"),
+				CloneURL: github.String("https://github.com/owner/repo.git"),
 			},
-			wantErr: "repository id must be > 0",
 		},
 		{
-			name: "negative repository id",
+			name: "missing timestamps are allowed in basic validation",
 			repo: &github.Repository{
-				ID:         github.Int64(-1),
-				Name:       github.String("repo"),
-				FullName:   github.String("owner/repo"),
-				Visibility: github.String("private"),
-				CloneURL:   github.String("https://github.com/owner/repo.git"),
-				CreatedAt:  &github.Timestamp{Time: now},
-				PushedAt:   &github.Timestamp{Time: now},
-				HTMLURL:    github.String("https://github.com/owner/repo"),
+				Name:     github.String("repo"),
+				FullName: github.String("owner/repo"),
+				CloneURL: github.String("https://github.com/owner/repo.git"),
 			},
-			wantErr: "repository id must be > 0",
 		},
 		{
 			name: "repository name contains path separator",
 			repo: &github.Repository{
-				ID:         github.Int64(1),
-				Name:       github.String("../../repo"),
-				FullName:   github.String("owner/repo"),
-				Visibility: github.String("private"),
-				CloneURL:   github.String("https://github.com/owner/repo.git"),
-				CreatedAt:  &github.Timestamp{Time: now},
-				PushedAt:   &github.Timestamp{Time: now},
-				HTMLURL:    github.String("https://github.com/owner/repo"),
+				Name:     github.String("../../repo"),
+				FullName: github.String("owner/repo"),
+				CloneURL: github.String("https://github.com/owner/repo.git"),
 			},
 			wantErr: "name must not contain path separators or traversal segments",
 		},
 		{
 			name: "repository name does not match full name",
 			repo: &github.Repository{
-				ID:         github.Int64(1),
-				Name:       github.String("other"),
-				FullName:   github.String("owner/repo"),
-				Visibility: github.String("private"),
-				CloneURL:   github.String("https://github.com/owner/repo.git"),
-				CreatedAt:  &github.Timestamp{Time: now},
-				PushedAt:   &github.Timestamp{Time: now},
-				HTMLURL:    github.String("https://github.com/owner/repo"),
+				Name:     github.String("other"),
+				FullName: github.String("owner/repo"),
+				CloneURL: github.String("https://github.com/owner/repo.git"),
 			},
 			wantErr: "name does not match repository full_name",
+		},
+		{
+			name: "missing clone url",
+			repo: &github.Repository{
+				Name:     github.String("repo"),
+				FullName: github.String("owner/repo"),
+			},
+			wantErr: "clone_url is required",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateRepository(tt.repo, baseURL)
+			err := ValidateRepositoryBasic(tt.repo, baseURL)
 			if tt.wantErr == "" && err != nil {
-				t.Fatalf("ValidateRepository() unexpected error = %v", err)
+				t.Fatalf("ValidateRepositoryBasic() unexpected error = %v", err)
 			}
 			if tt.wantErr != "" {
 				if err == nil {
-					t.Fatalf("ValidateRepository() expected error containing %q, got nil", tt.wantErr)
+					t.Fatalf("ValidateRepositoryBasic() expected error containing %q, got nil", tt.wantErr)
 				}
 				if !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("ValidateRepository() error = %v, want substring %q", err, tt.wantErr)
+					t.Fatalf("ValidateRepositoryBasic() error = %v, want substring %q", err, tt.wantErr)
 				}
 			}
 		})

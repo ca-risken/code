@@ -227,7 +227,7 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 
 func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository, githubBaseURL string) error {
 	for _, r := range repos {
-		if err := common.ValidateRepository(r, githubBaseURL); err != nil {
+		if err := validateRepositoryForGitleaks(r, githubBaseURL); err != nil {
 			repoFullName := ""
 			if r != nil {
 				repoFullName = r.GetFullName()

@@ -109,7 +109,7 @@ func TestValidateRepository(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := common.ValidateRepository(tt.repo, tt.baseURL)
+			err := validateRepositoryForGitleaks(tt.repo, tt.baseURL)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -223,7 +223,7 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := common.ValidateRepository(tt.repo, tt.baseURL)
+			err := validateRepositoryForGitleaks(tt.repo, tt.baseURL)
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}
@@ -271,7 +271,7 @@ func TestValidateRepository_TimestampValidation(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := common.ValidateRepository(tt.repo, "")
+			err := validateRepositoryForGitleaks(tt.repo, "")
 			if tt.wantErr && err == nil {
 				t.Fatal("expected error, got nil")
 			}

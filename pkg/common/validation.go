@@ -9,12 +9,9 @@ import (
 	"github.com/google/go-github/v44/github"
 )
 
-func ValidateRepository(repo *github.Repository, githubBaseURL string) error {
+func ValidateRepositoryBasic(repo *github.Repository, githubBaseURL string) error {
 	if repo == nil {
 		return fmt.Errorf("invalid repository metadata: repository is nil")
-	}
-	if repo.GetID() <= 0 {
-		return fmt.Errorf("invalid repository metadata: repository id must be > 0, repository_id=%d", repo.GetID())
 	}
 	if repo.Name == nil || strings.TrimSpace(*repo.Name) == "" {
 		return fmt.Errorf("invalid repository metadata: name is required")
@@ -27,36 +24,18 @@ func ValidateRepository(repo *github.Repository, githubBaseURL string) error {
 	if err := validateRepositoryName(name, fullName); err != nil {
 		return err
 	}
-	if repo.Visibility == nil || strings.TrimSpace(*repo.Visibility) == "" {
-		return fmt.Errorf("invalid repository metadata: visibility is required, repository=%s", fullName)
-	}
 	if repo.CloneURL == nil || strings.TrimSpace(*repo.CloneURL) == "" {
 		return fmt.Errorf("invalid repository metadata: clone_url is required, repository=%s", fullName)
 	}
 	cloneURL := strings.TrimSpace(*repo.CloneURL)
-	if repo.CreatedAt == nil {
-		return fmt.Errorf("invalid repository metadata: queue message repository.created_at is required (>0 unix time), repository=%s", fullName)
-	}
-	if repo.CreatedAt.Unix() <= 0 {
-		return fmt.Errorf("invalid repository metadata: queue message repository.created_at must be >0 unix time, repository=%s, created_at=%d", fullName, repo.CreatedAt.Unix())
-	}
-	if repo.PushedAt == nil {
-		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at is required (>0 unix time), repository=%s", fullName)
-	}
-	if repo.PushedAt.Unix() <= 0 {
-		return fmt.Errorf("invalid repository metadata: queue message repository.pushed_at must be >0 unix time, repository=%s, pushed_at=%d", fullName, repo.PushedAt.Unix())
-	}
-	if repo.HTMLURL == nil || strings.TrimSpace(*repo.HTMLURL) == "" {
-		return fmt.Errorf("invalid repository metadata: html_url is required, repository=%s", fullName)
-	}
-	htmlURL := strings.TrimSpace(*repo.HTMLURL)
 	if err := validateCloneURL(cloneURL, fullName, githubBaseURL); err != nil {
 		return err
 	}
-	if err := validateHTMLURL(htmlURL, fullName, githubBaseURL); err != nil {
-		return err
-	}
 	return nil
+}
+
+func ValidateRepositoryHTMLURL(htmlURL, repoFullName, githubBaseURL string) error {
+	return validateHTMLURL(htmlURL, repoFullName, githubBaseURL)
 }
 
 func validateRepositoryName(name, fullName string) error {
