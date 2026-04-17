@@ -282,6 +282,33 @@ func TestValidateRepository_TimestampValidation(t *testing.T) {
 	}
 }
 
+func TestScanDiffRepositories_DoesNotUpdateErrorStatusOnValidationFailure(t *testing.T) {
+	ctx := context.Background()
+	mockCode := mocks.CodeServiceClient{}
+	s := sqsHandler{
+		codeClient: &mockCode,
+		logger:     logging.NewLogger(),
+	}
+
+	msg := &message.CodeQueueMessage{
+		ProjectID:       1,
+		GitHubSettingID: 2,
+	}
+	repos := []*github.Repository{
+		{
+			Name:     github.String("repo"),
+			FullName: github.String("owner/repo"),
+		},
+	}
+
+	err := s.scanDiffRepositories(ctx, msg, "token", repos, "")
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+
+	mockCode.AssertNotCalled(t, "PutGitleaksRepository", mock.Anything, mock.Anything, mock.Anything)
+}
+
 func TestSkipScan(t *testing.T) {
 	now := time.Now()
 	type args struct {
