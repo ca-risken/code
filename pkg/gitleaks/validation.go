@@ -20,6 +20,9 @@ func validateRepositoryForGitleaks(repo *github.Repository, githubBaseURL string
 	if repo.HTMLURL == nil || strings.TrimSpace(repo.GetHTMLURL()) == "" {
 		return fmt.Errorf("invalid repository metadata: html_url is required, repository=%s", fullName)
 	}
+	if err := common.ValidateRepositoryHTMLURL(strings.TrimSpace(repo.GetHTMLURL()), fullName, githubBaseURL); err != nil {
+		return err
+	}
 	if repo.CreatedAt == nil {
 		return fmt.Errorf("invalid repository metadata: queue message repository.created_at is required (>0 unix time), repository=%s", fullName)
 	}

@@ -34,6 +34,10 @@ func ValidateRepositoryBasic(repo *github.Repository, githubBaseURL string) erro
 	return nil
 }
 
+func ValidateRepositoryHTMLURL(htmlURL, repoFullName, githubBaseURL string) error {
+	return validateHTMLURL(htmlURL, repoFullName, githubBaseURL)
+}
+
 func validateRepositoryName(name, fullName string) error {
 	if strings.ContainsAny(name, `/\`) || name == "." || name == ".." {
 		return fmt.Errorf("invalid repository metadata: name must not contain path separators or traversal segments: name=%s", name)
@@ -70,6 +74,35 @@ func validateCloneURL(cloneURL, repoFullName, githubBaseURL string) error {
 	normalizedPath = strings.TrimSuffix(normalizedPath, ".git")
 	if normalizedPath != repoFullName {
 		return fmt.Errorf("invalid repository metadata: clone_url path does not match repository full_name: clone_url=%s, repository_full_name=%s", cloneURL, repoFullName)
+	}
+	return nil
+}
+
+func validateHTMLURL(htmlURL, repoFullName, githubBaseURL string) error {
+	htmlURL = strings.TrimSpace(htmlURL)
+	repoFullName = strings.TrimSpace(repoFullName)
+	u, err := url.Parse(htmlURL)
+	if err != nil {
+		return fmt.Errorf("invalid repository metadata: html_url parse error: html_url=%s, err=%w", htmlURL, err)
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("invalid repository metadata: html_url scheme must be https: html_url=%s", htmlURL)
+	}
+	if u.Host == "" {
+		return fmt.Errorf("invalid repository metadata: html_url host is required: html_url=%s", htmlURL)
+	}
+
+	allowedHosts, err := allowedCloneHosts(githubBaseURL)
+	if err != nil {
+		return err
+	}
+	if _, ok := allowedHosts[strings.ToLower(u.Hostname())]; !ok {
+		return fmt.Errorf("invalid repository metadata: html_url host is not allowed: html_url=%s, allowed_hosts=%v", htmlURL, keys(allowedHosts))
+	}
+
+	normalizedPath := strings.TrimPrefix(u.EscapedPath(), "/")
+	if normalizedPath != repoFullName {
+		return fmt.Errorf("invalid repository metadata: html_url path does not match repository full_name: html_url=%s, repository_full_name=%s", htmlURL, repoFullName)
 	}
 	return nil
 }

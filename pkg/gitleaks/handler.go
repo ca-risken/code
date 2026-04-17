@@ -156,6 +156,36 @@ func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, last
 	return false
 }
 
+func formatValidationMetadata(repo *github.Repository) string {
+	if repo == nil {
+		return "repository=nil"
+	}
+	return fmt.Sprintf(
+		"name=%s, full_name=%s, clone_url=%s, visibility=%s, html_url=%s, created_at=%s, pushed_at=%s",
+		formatOptionalString(repo.Name),
+		formatOptionalString(repo.FullName),
+		formatOptionalString(repo.CloneURL),
+		formatOptionalString(repo.Visibility),
+		formatOptionalString(repo.HTMLURL),
+		formatOptionalTimestamp(repo.CreatedAt),
+		formatOptionalTimestamp(repo.PushedAt),
+	)
+}
+
+func formatOptionalString(value *string) string {
+	if value == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%q", strings.TrimSpace(*value))
+}
+
+func formatOptionalTimestamp(value *github.Timestamp) string {
+	if value == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%d", value.Unix())
+}
+
 func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
 	data, err := s.codeClient.GetGitHubSetting(ctx, &code.GetGitHubSettingRequest{
 		ProjectId:       projectID,
@@ -233,7 +263,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 			if r != nil {
 				repoFullName = r.GetFullName()
 			}
-			s.logger.Warnf(ctx, "Skip scan due to invalid repository metadata: repository_full_name=%s, err=%+v", repoFullName, err)
+			s.logger.Warnf(ctx, "Skip scan due to invalid repository metadata: repository_full_name=%s, metadata={%s}, err=%+v", repoFullName, formatValidationMetadata(r), err)
 			continue
 		}
 		// Get LastScannedAt

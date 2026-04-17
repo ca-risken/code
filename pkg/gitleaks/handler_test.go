@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -222,6 +223,32 @@ func TestSkipScan(t *testing.T) {
 				t.Errorf("skipScan() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFormatValidationMetadata(t *testing.T) {
+	now := time.Unix(123, 0)
+	got := formatValidationMetadata(&github.Repository{
+		Name:       github.String(" repo "),
+		FullName:   github.String("owner/repo"),
+		CloneURL:   github.String("https://github.com/owner/repo.git"),
+		Visibility: github.String(""),
+		HTMLURL:    nil,
+		CreatedAt:  &github.Timestamp{Time: now},
+	})
+
+	for _, want := range []string{
+		`name="repo"`,
+		`full_name="owner/repo"`,
+		`clone_url="https://github.com/owner/repo.git"`,
+		`visibility=""`,
+		`html_url=<nil>`,
+		`created_at=123`,
+		`pushed_at=<nil>`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("formatValidationMetadata() missing %q in %q", want, got)
+		}
 	}
 }
 
