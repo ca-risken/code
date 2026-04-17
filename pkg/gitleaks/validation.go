@@ -14,6 +14,9 @@ func validateRepositoryForGitleaks(repo *github.Repository, githubBaseURL string
 	}
 
 	fullName := strings.TrimSpace(repo.GetFullName())
+	if repo.Visibility == nil || strings.TrimSpace(repo.GetVisibility()) == "" {
+		return fmt.Errorf("invalid repository metadata: visibility is required, repository=%s", fullName)
+	}
 	if repo.CreatedAt == nil {
 		return fmt.Errorf("invalid repository metadata: queue message repository.created_at is required (>0 unix time), repository=%s", fullName)
 	}

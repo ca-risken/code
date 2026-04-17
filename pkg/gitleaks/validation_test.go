@@ -26,6 +26,7 @@ func TestValidateRepository(t *testing.T) {
 				Name:       github.String("repo"),
 				FullName:   github.String("owner/repo"),
 				CloneURL:   github.String("https://github.com/owner/repo.git"),
+				Visibility: github.String("private"),
 				CreatedAt: &github.Timestamp{
 					Time: now.Add(-1 * time.Hour),
 				},
@@ -37,11 +38,12 @@ func TestValidateRepository(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "missing optional metadata",
+			name: "missing html_url is allowed",
 			repo: &github.Repository{
 				Name:       github.String("repo"),
 				FullName:   github.String("owner/repo"),
 				CloneURL:   github.String("https://github.com/owner/repo.git"),
+				Visibility: github.String("private"),
 				CreatedAt: &github.Timestamp{
 					Time: now.Add(-1 * time.Hour),
 				},
@@ -51,6 +53,22 @@ func TestValidateRepository(t *testing.T) {
 			},
 			baseURL: "",
 			wantErr: false,
+		},
+		{
+			name: "missing visibility",
+			repo: &github.Repository{
+				Name:     github.String("repo"),
+				FullName: github.String("owner/repo"),
+				CloneURL: github.String("https://github.com/owner/repo.git"),
+				CreatedAt: &github.Timestamp{
+					Time: now.Add(-1 * time.Hour),
+				},
+				PushedAt: &github.Timestamp{
+					Time: now,
+				},
+			},
+			baseURL: "",
+			wantErr: true,
 		},
 	}
 
@@ -72,6 +90,7 @@ func TestValidateRepository_CloneURLValidation(t *testing.T) {
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
 		CloneURL:   github.String("https://github.com/owner/repo.git"),
+		Visibility: github.String("private"),
 		CreatedAt:  &github.Timestamp{Time: time.Now().Add(-1 * time.Hour)},
 		PushedAt:   &github.Timestamp{Time: time.Now()},
 	}
@@ -152,6 +171,7 @@ func TestValidateRepository_TimestampValidation(t *testing.T) {
 		Name:       github.String("repo"),
 		FullName:   github.String("owner/repo"),
 		CloneURL:   github.String("https://github.com/owner/repo.git"),
+		Visibility: github.String("private"),
 		CreatedAt:  &github.Timestamp{Time: time.Now().Add(-1 * time.Hour)},
 		PushedAt:   &github.Timestamp{Time: time.Now()},
 	}
