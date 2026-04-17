@@ -240,5 +240,5 @@ func TestScanDiffRepositories_DoesNotUpdateErrorStatusOnValidationFailure(t *tes
 		t.Fatal("expected error, got nil")
 	}
 
-	mockCode.AssertNotCalled(t, "PutGitleaksRepository", mock.Anything, mock.Anything, mock.Anything)
+	mockCode.AssertNotCalled(t, "PutGitleaksRepository", mock.Anything, mock.Anything)
 }
