@@ -290,6 +290,9 @@ func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueM
 func (s *sqsHandler) postScanProcessing(ctx context.Context, msg *message.CodeQueueMessage, successfullyScannedRepos []string, requestID string) error {
 	s.logger.Infof(ctx, "end Scan, RequestID=%s", requestID)
 	s.logger.Infof(ctx, "scanned repositories count=%d", len(successfullyScannedRepos))
+	if len(successfullyScannedRepos) == 0 {
+		s.logger.Warnf(ctx, "No repositories were scanned successfully: project_id=%d, github_setting_id=%d", msg.ProjectID, msg.GitHubSettingID)
+	}
 
 	if msg.ScanOnly {
 		return nil

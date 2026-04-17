@@ -226,6 +226,7 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 }
 
 func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository, githubBaseURL string) error {
+	successfullyScannedCount := 0
 	for _, r := range repos {
 		if err := validateRepositoryForGitleaks(r, githubBaseURL); err != nil {
 			repoFullName := ""
@@ -291,6 +292,10 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
 			s.logger.Warnf(ctx, "Failed to update repository status success: repository_full_name=%s, err=%+v", repoFullName, err)
 		}
+		successfullyScannedCount++
+	}
+	if len(repos) > 0 && successfullyScannedCount == 0 {
+		s.logger.Warnf(ctx, "No repositories were scanned successfully: project_id=%d, github_setting_id=%d, repository_count=%d", msg.ProjectID, msg.GitHubSettingID, len(repos))
 	}
 	return nil
 }

@@ -39,6 +39,24 @@ func TestValidateRepository(t *testing.T) {
 			baseURL: "",
 			wantErr: false,
 		},
+		{
+			name: "missing repository id",
+			repo: &github.Repository{
+				Name:       github.String("repo"),
+				FullName:   github.String("owner/repo"),
+				CloneURL:   github.String("https://github.com/owner/repo.git"),
+				Visibility: github.String("private"),
+				HTMLURL:    github.String("https://github.com/owner/repo"),
+				CreatedAt: &github.Timestamp{
+					Time: now.Add(-1 * time.Hour),
+				},
+				PushedAt: &github.Timestamp{
+					Time: now,
+				},
+			},
+			baseURL: "",
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
