@@ -216,7 +216,7 @@ func TestValidateRepository_TimestampValidation(t *testing.T) {
 	}
 }
 
-func TestScanDiffRepositories_DoesNotUpdateErrorStatusOnValidationFailure(t *testing.T) {
+func TestScanDiffRepositories_SkipsValidationFailureWithoutUpdatingErrorStatus(t *testing.T) {
 	ctx := context.Background()
 	mockCode := mocks.CodeServiceClient{}
 	s := sqsHandler{
@@ -236,8 +236,8 @@ func TestScanDiffRepositories_DoesNotUpdateErrorStatusOnValidationFailure(t *tes
 	}
 
 	err := s.scanDiffRepositories(ctx, msg, "token", repos, "")
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	if err != nil {
+		t.Fatalf("unexpected error: %+v", err)
 	}
 
 	mockCode.AssertNotCalled(t, "PutGitleaksRepository", mock.Anything, mock.Anything)

@@ -220,7 +220,7 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 				repoFullName = r.GetFullName()
 			}
 			s.logger.Warnf(ctx, "Skip scan due to invalid repository metadata: repository_name=%s, err=%+v", repoFullName, err)
-			return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
+			continue
 		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
 			continue

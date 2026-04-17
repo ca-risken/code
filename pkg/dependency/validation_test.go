@@ -1,10 +1,17 @@
 package dependency
 
 import (
+	"context"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/ca-risken/common/pkg/logging"
+	"github.com/ca-risken/datasource-api/pkg/message"
+	"github.com/ca-risken/datasource-api/proto/code"
+	"github.com/ca-risken/datasource-api/proto/code/mocks"
 	"github.com/google/go-github/v44/github"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestValidateRepositoryForDependency(t *testing.T) {
@@ -71,4 +78,37 @@ func TestValidateRepositoryForDependency(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScanAllRepositories_SkipsValidationFailureWithoutUpdatingErrorStatus(t *testing.T) {
+	ctx := context.Background()
+	mockCode := mocks.CodeServiceClient{}
+	s := sqsHandler{
+		codeClient: &mockCode,
+		logger:     logging.NewLogger(),
+	}
+
+	msg := &message.CodeQueueMessage{
+		ProjectID:       1,
+		GitHubSettingID: 2,
+	}
+	setting := &code.GitHubSetting{
+		BaseUrl: "",
+	}
+	repos := []*github.Repository{
+		{
+			Name:     github.String("repo"),
+			FullName: github.String("owner/repo"),
+		},
+	}
+
+	got, err := s.scanAllRepositories(ctx, msg, setting, time.Now(), repos)
+	if err != nil {
+		t.Fatalf("unexpected error: %+v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("unexpected scanned repositories: %+v", got)
+	}
+
+	mockCode.AssertNotCalled(t, "PutDependencyRepository", mock.Anything, mock.Anything)
 }
