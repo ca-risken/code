@@ -8,13 +8,15 @@ import (
 
 func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 	tests := []struct {
-		name         string
-		msg          *message.CodeQueueMessage
-		wantLen      int
-		wantID       int64
-		wantName     string
-		wantFullName string
-		wantCloneURL string
+		name             string
+		msg              *message.CodeQueueMessage
+		wantLen          int
+		wantID           int64
+		wantName         string
+		wantFullName     string
+		wantCloneURL     string
+		wantCreatedAtNil bool
+		wantPushedAtNil  bool
 	}{
 		{
 			name: "repository metadata exists",
@@ -28,11 +30,13 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 					HTMLURL:    " https://github.com/owner/repo ",
 				},
 			},
-			wantLen:      1,
-			wantID:       12345,
-			wantName:     "repo",
-			wantFullName: "owner/repo",
-			wantCloneURL: "https://github.com/owner/repo.git",
+			wantLen:          1,
+			wantID:           12345,
+			wantName:         "repo",
+			wantFullName:     "owner/repo",
+			wantCloneURL:     "https://github.com/owner/repo.git",
+			wantCreatedAtNil: true,
+			wantPushedAtNil:  true,
 		},
 		{
 			name:    "repository metadata is nil",
@@ -48,7 +52,12 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 					CloneURL: "https://github.com/owner/repo.git",
 				},
 			},
-			wantLen: 0,
+			wantLen:          1,
+			wantName:         "",
+			wantFullName:     "owner/repo",
+			wantCloneURL:     "https://github.com/owner/repo.git",
+			wantCreatedAtNil: true,
+			wantPushedAtNil:  true,
 		},
 		{
 			name: "repository metadata has empty full_name",
@@ -59,7 +68,12 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 					CloneURL: "https://github.com/owner/repo.git",
 				},
 			},
-			wantLen: 0,
+			wantLen:          1,
+			wantName:         "repo",
+			wantFullName:     "",
+			wantCloneURL:     "https://github.com/owner/repo.git",
+			wantCreatedAtNil: true,
+			wantPushedAtNil:  true,
 		},
 		{
 			name: "repository metadata has empty clone_url",
@@ -70,7 +84,32 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 					CloneURL: "",
 				},
 			},
-			wantLen: 0,
+			wantLen:          1,
+			wantName:         "repo",
+			wantFullName:     "owner/repo",
+			wantCloneURL:     "",
+			wantCreatedAtNil: true,
+			wantPushedAtNil:  true,
+		},
+		{
+			name: "negative timestamps are ignored",
+			msg: &message.CodeQueueMessage{
+				Repository: &message.RepositoryMetadata{
+					ID:        12345,
+					Name:      "repo",
+					FullName:  "owner/repo",
+					CloneURL:  "https://github.com/owner/repo.git",
+					CreatedAt: -1,
+					PushedAt:  -1,
+				},
+			},
+			wantLen:          1,
+			wantID:           12345,
+			wantName:         "repo",
+			wantFullName:     "owner/repo",
+			wantCloneURL:     "https://github.com/owner/repo.git",
+			wantCreatedAtNil: true,
+			wantPushedAtNil:  true,
 		},
 	}
 
@@ -94,6 +133,12 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 			}
 			if got[0].GetCloneURL() != tt.wantCloneURL {
 				t.Errorf("CloneURL: got %q want %q", got[0].GetCloneURL(), tt.wantCloneURL)
+			}
+			if (got[0].CreatedAt == nil) != tt.wantCreatedAtNil {
+				t.Errorf("CreatedAt nil: got %v want %v", got[0].CreatedAt == nil, tt.wantCreatedAtNil)
+			}
+			if (got[0].PushedAt == nil) != tt.wantPushedAtNil {
+				t.Errorf("PushedAt nil: got %v want %v", got[0].PushedAt == nil, tt.wantPushedAtNil)
 			}
 		})
 	}
