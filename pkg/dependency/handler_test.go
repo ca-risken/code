@@ -81,8 +81,12 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 					CloneURL: "https://github.com/owner/repo.git",
 				},
 			},
-			wantLen: 0,
-			want:    nil,
+			wantLen: 1,
+			want: &wantRepository{
+				fullName: "",
+				cloneURL: "https://github.com/owner/repo.git",
+				id:       0,
+			},
 		},
 		{
 			name: "repository metadata has empty name",
@@ -93,8 +97,12 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 					CloneURL: "https://github.com/owner/repo.git",
 				},
 			},
-			wantLen: 0,
-			want:    nil,
+			wantLen: 1,
+			want: &wantRepository{
+				fullName: "owner/repo",
+				cloneURL: "https://github.com/owner/repo.git",
+				id:       0,
+			},
 		},
 		{
 			name: "repository metadata has empty clone_url",
@@ -105,8 +113,12 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 					CloneURL: "",
 				},
 			},
-			wantLen: 0,
-			want:    nil,
+			wantLen: 1,
+			want: &wantRepository{
+				fullName: "owner/repo",
+				cloneURL: "",
+				id:       0,
+			},
 		},
 	}
 
