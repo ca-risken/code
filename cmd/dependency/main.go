@@ -49,8 +49,7 @@ type AppConfig struct {
 	WaitTimeSecond          int32  `split_words:"true" default:"20"`
 
 	// dependency
-	GithubDefaultToken string `required:"true" split_words:"true" default:"your-token-here"`
-	TrivyPath          string `split_words:"true" default:"/usr/local/bin/trivy"`
+	TrivyPath string `split_words:"true" default:"/usr/local/bin/trivy"`
 
 	// scan settings
 	LimitRepositorySizeKb int `required:"true" split_words:"true" default:"500000"` // 500MB
@@ -130,7 +129,6 @@ func main() {
 		cc,
 		vc,
 		conf.CodeDataKey,
-		conf.GithubDefaultToken,
 		conf.TrivyPath,
 		conf.LimitRepositorySizeKb,
 		appLogger,

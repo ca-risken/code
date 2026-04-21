@@ -40,7 +40,6 @@ func NewHandler(
 	cc code.CodeServiceClient,
 	vulnClient *vulnsdk.Client,
 	codeDataKey string,
-	githubDefaultToken string,
 	trivyPath string,
 	limitRepositorySizeKb int,
 	l logging.Logger,
@@ -180,7 +179,9 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			}
 			if repoFullName != "" {
 				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
-			} else if updateErr := s.updateDependencySettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
+				return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
+			}
+			if updateErr := s.updateDependencySettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
 				s.logger.Warnf(ctx, "Failed to update dependency setting status error: github_setting_id=%d, err=%+v", msg.GitHubSettingID, updateErr)
 			}
 			return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
