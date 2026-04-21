@@ -143,6 +143,9 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	repos := common.GetRepositoriesFromCodeQueueMessage(msg)
 	if len(repos) == 0 {
 		err := fmt.Errorf("repository metadata is required in queue message")
+		if updateErr := s.updateDependencySettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
+			s.logger.Warnf(ctx, "Failed to update dependency setting status error: github_setting_id=%d, err=%+v", msg.GitHubSettingID, updateErr)
+		}
 		s.logger.Warnf(ctx, "Missing repository metadata in queue message: project_id=%d, github_setting_id=%d", msg.ProjectID, msg.GitHubSettingID)
 		return mimosasqs.WrapNonRetryable(err)
 	}
