@@ -143,43 +143,6 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
-func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
-	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
-}
-
-func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {
-	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
-}
-
-func (s *sqsHandler) updateRepositoryStatusSuccess(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
-	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_OK, "")
-}
-
-func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string, status code.Status, statusDetail string) error {
-	resp, err := s.codeClient.PutDependencyRepository(ctx, &code.PutDependencyRepositoryRequest{
-		ProjectId: projectID,
-		DependencyRepository: &code.DependencyRepositoryForUpsert{
-			GithubSettingId:    githubSettingID,
-			RepositoryFullName: repositoryFullName,
-			Status:             status,
-			StatusDetail:       sanitizeStatusDetail(status, statusDetail),
-			ScanAt:             time.Now().Unix(),
-		},
-	})
-	if err != nil {
-		return err
-	}
-	s.logger.Infof(ctx, "Success to update repository scan status, repository=%s, status=%v, response=%+v", repositoryFullName, status, resp)
-	return nil
-}
-
-// updateRepositoryStatusErrorWithWarn updates repository status to ERROR and logs a warning if the update fails
-func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) {
-	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
-		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
-	}
-}
-
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, requestID string) error {
 	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
 	if err != nil {
@@ -304,4 +267,65 @@ func sanitizeStatusDetail(status code.Status, statusDetail string) string {
 	statusDetail = common.CutString(statusDetail, 200)
 	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
 	return strings.ToValidUTF8(statusDetail, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
+}
+
+func (s *sqsHandler) updateRepositoryStatusSuccess(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
+	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_OK, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string, status code.Status, statusDetail string) error {
+	resp, err := s.codeClient.PutDependencyRepository(ctx, &code.PutDependencyRepositoryRequest{
+		ProjectId: projectID,
+		DependencyRepository: &code.DependencyRepositoryForUpsert{
+			GithubSettingId:    githubSettingID,
+			RepositoryFullName: repositoryFullName,
+			Status:             status,
+			StatusDetail:       sanitizeStatusDetail(status, statusDetail),
+			ScanAt:             time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	s.logger.Infof(ctx, "Success to update repository scan status, repository=%s, status=%v, response=%+v", repositoryFullName, status, resp)
+	return nil
+}
+
+// updateRepositoryStatusErrorWithWarn updates repository status to ERROR and logs a warning if the update fails
+func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) {
+	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
+	}
+}
+
+func (s *sqsHandler) updateDependencySettingStatusError(ctx context.Context, gitHubSetting *code.GitHubSetting, statusDetail string) error {
+	if gitHubSetting == nil || gitHubSetting.DependencySetting == nil {
+		return fmt.Errorf("dependency setting is required")
+	}
+	resp, err := s.codeClient.PutDependencySetting(ctx, &code.PutDependencySettingRequest{
+		ProjectId: gitHubSetting.DependencySetting.ProjectId,
+		DependencySetting: &code.DependencySettingForUpsert{
+			GithubSettingId:   gitHubSetting.DependencySetting.GithubSettingId,
+			CodeDataSourceId:  gitHubSetting.DependencySetting.CodeDataSourceId,
+			ProjectId:         gitHubSetting.DependencySetting.ProjectId,
+			RepositoryPattern: gitHubSetting.DependencySetting.RepositoryPattern,
+			Status:            code.Status_ERROR,
+			StatusDetail:      sanitizeStatusDetail(code.Status_ERROR, statusDetail),
+			ScanAt:            time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	s.logger.Infof(ctx, "Success to update dependency setting status, github_setting_id=%d, status=%v, response=%+v",
+		gitHubSetting.DependencySetting.GithubSettingId, code.Status_ERROR, resp)
+	return nil
 }
