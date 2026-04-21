@@ -180,6 +180,30 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	}
 }
 
+func (s *sqsHandler) updateDependencySettingStatusError(ctx context.Context, gitHubSetting *code.GitHubSetting, statusDetail string) error {
+	if gitHubSetting == nil || gitHubSetting.DependencySetting == nil {
+		return fmt.Errorf("dependency setting is required")
+	}
+	resp, err := s.codeClient.PutDependencySetting(ctx, &code.PutDependencySettingRequest{
+		ProjectId: gitHubSetting.DependencySetting.ProjectId,
+		DependencySetting: &code.DependencySettingForUpsert{
+			GithubSettingId:   gitHubSetting.DependencySetting.GithubSettingId,
+			CodeDataSourceId:  gitHubSetting.DependencySetting.CodeDataSourceId,
+			ProjectId:         gitHubSetting.DependencySetting.ProjectId,
+			RepositoryPattern: gitHubSetting.DependencySetting.RepositoryPattern,
+			Status:            code.Status_ERROR,
+			StatusDetail:      sanitizeStatusDetail(code.Status_ERROR, statusDetail),
+			ScanAt:            time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	s.logger.Infof(ctx, "Success to update dependency setting status, github_setting_id=%d, status=%v, response=%+v",
+		gitHubSetting.DependencySetting.GithubSettingId, code.Status_ERROR, resp)
+	return nil
+}
+
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, requestID string) error {
 	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
 	if err != nil {
