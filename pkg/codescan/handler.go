@@ -79,23 +79,20 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	}
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 
-	// Use unified scan logic (handles both organization and repository scans)
 	return s.handleRepositoryScan(ctx, msg, gitHubSetting, token)
 }
 
-// handleRepositoryScan handles scanning for repositories (all or single based on RepositoryName)
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string) error {
-	// Get repositories (will return all repos or single repo based on RepositoryName)
-	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
-	if err != nil {
-		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
-		// Update repository status to ERROR if repository_name is specified
-		if msg.RepositoryName != "" {
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, msg.RepositoryName, err.Error())
+	repos := common.GetRepositoriesFromCodeQueueMessage(msg)
+	if len(repos) == 0 {
+		err := fmt.Errorf("repository metadata is required in queue message")
+		if updateErr := s.updateCodeScanSettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
+			s.logger.Warnf(ctx, "Failed to update code scan setting status error: github_setting_id=%d, err=%+v", msg.GitHubSettingID, updateErr)
 		}
+		s.logger.Warnf(ctx, "Missing repository metadata in queue message: project_id=%d, github_setting_id=%d", msg.ProjectID, msg.GitHubSettingID)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
+	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s, repository_name=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, msg.RepositoryName)
 
 	// Filtered By Visibility
@@ -135,6 +132,16 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 	successfullyScannedRepos := []string{}
 
 	for _, r := range repos {
+		if err := common.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
+			if r == nil || r.GetFullName() == "" {
+				if updateErr := s.updateCodeScanSettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
+					s.logger.Warnf(ctx, "Failed to update code scan setting status error: github_setting_id=%d, err=%+v", msg.GitHubSettingID, updateErr)
+				}
+				return semgrepFindings, successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
+			}
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, r.GetFullName(), err.Error())
+			return semgrepFindings, successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
+		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
 			continue
 		}
@@ -285,6 +292,33 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
 		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
 	}
+}
+
+func (s *sqsHandler) updateCodeScanSettingStatusError(ctx context.Context, gitHubSetting *code.GitHubSetting, statusDetail string) error {
+	if gitHubSetting == nil || gitHubSetting.CodeScanSetting == nil {
+		return fmt.Errorf("code scan setting is required")
+	}
+	resp, err := s.codeClient.PutCodeScanSetting(ctx, &code.PutCodeScanSettingRequest{
+		ProjectId: gitHubSetting.CodeScanSetting.ProjectId,
+		CodeScanSetting: &code.CodeScanSettingForUpsert{
+			GithubSettingId:   gitHubSetting.CodeScanSetting.GithubSettingId,
+			CodeDataSourceId:  gitHubSetting.CodeScanSetting.CodeDataSourceId,
+			ProjectId:         gitHubSetting.CodeScanSetting.ProjectId,
+			RepositoryPattern: gitHubSetting.CodeScanSetting.RepositoryPattern,
+			ScanPublic:        gitHubSetting.CodeScanSetting.ScanPublic,
+			ScanInternal:      gitHubSetting.CodeScanSetting.ScanInternal,
+			ScanPrivate:       gitHubSetting.CodeScanSetting.ScanPrivate,
+			Status:            code.Status_ERROR,
+			StatusDetail:      sanitizeStatusDetail(code.Status_ERROR, statusDetail),
+			ScanAt:            time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		return err
+	}
+	s.logger.Infof(ctx, "Success to update code scan setting status, github_setting_id=%d, status=%v, response=%+v",
+		gitHubSetting.CodeScanSetting.GithubSettingId, code.Status_ERROR, resp)
+	return nil
 }
 
 func sanitizeStatusDetail(status code.Status, statusDetail string) string {
