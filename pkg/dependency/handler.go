@@ -150,9 +150,8 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 		return mimosasqs.WrapNonRetryable(err)
 	}
 
-	s.logger.Infof(ctx, "Repository source=queue_message, count=%d, request_id=%s", len(repos), requestID)
-	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
+	s.logger.Infof(ctx, "Got repositories from queue message: request_id=%s, count=%d, baseURL=%s, target=%s",
+		requestID, len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 	repos = common.FilterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
 
 	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, repos, requestID)
@@ -176,17 +175,13 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 	successfullyScannedRepos := []string{}
 	for _, r := range repos {
 		if err := common.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
-			repoFullName := ""
-			if r != nil {
-				repoFullName = r.GetFullName()
-			}
-			if repoFullName != "" {
-				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			if r == nil || r.GetFullName() == "" {
+				if updateErr := s.updateDependencySettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
+					s.logger.Warnf(ctx, "Failed to update dependency setting status error: github_setting_id=%d, err=%+v", msg.GitHubSettingID, updateErr)
+				}
 				return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
 			}
-			if updateErr := s.updateDependencySettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
-				s.logger.Warnf(ctx, "Failed to update dependency setting status error: github_setting_id=%d, err=%+v", msg.GitHubSettingID, updateErr)
-			}
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, r.GetFullName(), err.Error())
 			return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
 		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
