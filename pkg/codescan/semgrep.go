@@ -17,6 +17,11 @@ import (
 )
 
 func (s *sqsHandler) scanForRepository(ctx context.Context, r *github.Repository, token, githubBaseURL string) ([]*SemgrepFinding, error) {
+	defaultBranch := strings.TrimSpace(r.GetDefaultBranch())
+	if defaultBranch == "" {
+		return nil, fmt.Errorf("failed to scan: repo=%s default_branch is required", r.GetFullName())
+	}
+
 	// Clone repository
 	dir, err := common.CreateCloneDir(*r.Name)
 	if err != nil {
@@ -30,7 +35,7 @@ func (s *sqsHandler) scanForRepository(ctx context.Context, r *github.Repository
 	}
 
 	// Scemgrep
-	findings, err := s.semgrepScan(ctx, dir, *r.FullName, *r.DefaultBranch, githubBaseURL)
+	findings, err := s.semgrepScan(ctx, dir, *r.FullName, defaultBranch, githubBaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan: repo=%s  err=%w", *r.FullName, err)
 	}
