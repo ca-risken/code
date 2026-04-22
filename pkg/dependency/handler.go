@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/ca-risken/code/pkg/common"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
-	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
@@ -25,7 +24,6 @@ import (
 
 type sqsHandler struct {
 	cipherBlock           cipher.Block
-	githubClient          githubcli.GithubServiceClient
 	dependencyClient      dependencyServiceClient
 	findingClient         finding.FindingServiceClient
 	alertClient           alert.AlertServiceClient
@@ -42,7 +40,6 @@ func NewHandler(
 	cc code.CodeServiceClient,
 	vulnClient *vulnsdk.Client,
 	codeDataKey string,
-	githubDefaultToken string,
 	trivyPath string,
 	limitRepositorySizeKb int,
 	l logging.Logger,
@@ -58,7 +55,6 @@ func NewHandler(
 	return &sqsHandler{
 		cipherBlock:           block,
 		dependencyClient:      newDependencyClient(dependencyConf, l),
-		githubClient:          githubcli.NewGithubClient(githubDefaultToken, l),
 		findingClient:         fc,
 		alertClient:           ac,
 		codeClient:            cc,
@@ -144,17 +140,18 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 }
 
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, requestID string) error {
-	repos, err := s.githubClient.ListRepository(ctx, gitHubSetting, msg.RepositoryName)
-	if err != nil {
-		s.logger.Errorf(ctx, "Failed to list repositories: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, msg.RepositoryName, err)
-		if msg.RepositoryName != "" {
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, msg.RepositoryName, err.Error())
+	repos := common.GetRepositoriesFromCodeQueueMessage(msg)
+	if len(repos) == 0 {
+		err := fmt.Errorf("repository metadata is required in queue message")
+		if updateErr := s.updateDependencySettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
+			s.logger.Warnf(ctx, "Failed to update dependency setting status error: github_setting_id=%d, err=%+v", msg.GitHubSettingID, updateErr)
 		}
+		s.logger.Warnf(ctx, "Missing repository metadata in queue message: project_id=%d, github_setting_id=%d", msg.ProjectID, msg.GitHubSettingID)
 		return mimosasqs.WrapNonRetryable(err)
 	}
 
-	s.logger.Infof(ctx, "Got repositories, count=%d, baseURL=%s, target=%s, repository_name=%s",
-		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource, msg.RepositoryName)
+	s.logger.Infof(ctx, "Got repositories from queue message: request_id=%s, count=%d, baseURL=%s, target=%s",
+		requestID, len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 	repos = common.FilterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
 
 	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, repos, requestID)
@@ -177,6 +174,16 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
 	successfullyScannedRepos := []string{}
 	for _, r := range repos {
+		if err := common.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
+			if r == nil || r.GetFullName() == "" {
+				if updateErr := s.updateDependencySettingStatusError(ctx, gitHubSetting, err.Error()); updateErr != nil {
+					s.logger.Warnf(ctx, "Failed to update dependency setting status error: github_setting_id=%d, err=%+v", msg.GitHubSettingID, updateErr)
+				}
+				return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
+			}
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, r.GetFullName(), err.Error())
+			return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
+		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
 			continue
 		}
