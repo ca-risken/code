@@ -22,7 +22,6 @@ type GithubServiceClient interface {
 	ResolveInstallationToken(ctx context.Context, config *code.GitHubSetting, repoName string) (string, error)
 }
 
-// AppAuthConfig is the server-side GitHub App credential set.
 type AppAuthConfig = githubappauth.Config
 
 type riskenGitHubClient struct {
@@ -33,7 +32,6 @@ type riskenGitHubClient struct {
 }
 
 func NewGithubClient(defaultToken string, logger logging.Logger) *riskenGitHubClient {
-	// githubappauth.NewClient(nil) does not return an error today; keep PAT-only behavior if that changes.
 	client, err := NewGithubClientWithAppAuth(defaultToken, nil, logger)
 	if err != nil {
 		logger.Warnf(context.Background(), "failed to initialize GitHub App auth; using PAT-only client: %+v", err)
