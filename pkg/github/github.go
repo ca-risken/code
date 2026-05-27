@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ca-risken/common/pkg/githubappauth"
@@ -101,6 +102,9 @@ func (g *riskenGitHubClient) ResolveInstallationToken(ctx context.Context, confi
 	}
 	if config.InstallationId == 0 {
 		return "", errors.New("installation_id is required")
+	}
+	if strings.TrimSpace(repoName) == "" {
+		return "", errors.New("repo_name is required")
 	}
 	return g.appAuth.ResolveInstallationToken(ctx, &githubappauth.InstallationTokenConfig{
 		BaseURL:        config.BaseUrl,

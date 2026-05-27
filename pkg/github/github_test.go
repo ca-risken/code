@@ -192,8 +192,44 @@ func TestResolveInstallationToken(t *testing.T) {
 }
 
 func TestResolveInstallationTokenError(t *testing.T) {
-	client := NewGithubClient("default-token", logging.NewLogger())
-	if _, err := client.ResolveInstallationToken(context.Background(), &code.GitHubSetting{InstallationId: 12345}, ""); err == nil {
-		t.Fatal("Expected error but got none")
+	privateKeyPEM := generateRSAPrivateKeyPEM(t)
+	clientWithAppAuth, err := NewGithubClientWithAppAuth("default-token", &AppAuthConfig{
+		AppID:      "12345",
+		PrivateKey: privateKeyPEM,
+	}, logging.NewLogger())
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	cases := []struct {
+		name   string
+		client *riskenGitHubClient
+		config *code.GitHubSetting
+		repo   string
+	}{
+		{
+			name:   "app auth not configured",
+			client: NewGithubClient("default-token", logging.NewLogger()),
+			config: &code.GitHubSetting{InstallationId: 12345},
+		},
+		{
+			name:   "empty repo name",
+			client: clientWithAppAuth,
+			config: &code.GitHubSetting{InstallationId: 12345},
+		},
+		{
+			name:   "whitespace repo name",
+			client: clientWithAppAuth,
+			config: &code.GitHubSetting{InstallationId: 12345},
+			repo:   " ",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := c.client.ResolveInstallationToken(context.Background(), c.config, c.repo); err == nil {
+				t.Fatal("Expected error but got none")
+			}
+		})
 	}
 }
