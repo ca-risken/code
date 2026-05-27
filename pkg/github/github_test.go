@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -102,26 +103,51 @@ func TestNewGithubClientWithAppAuth(t *testing.T) {
 
 func TestResolveInstallationToken(t *testing.T) {
 	privateKeyPEM := generateRSAPrivateKeyPEM(t)
-	var gotAuthorization string
-	var gotRepositories []string
+	var handlerState struct {
+		mu               sync.Mutex
+		err              error
+		gotAuthorization string
+		gotRepositories  []string
+	}
+	recordHandlerError := func(format string, args ...any) {
+		handlerState.mu.Lock()
+		defer handlerState.mu.Unlock()
+		if handlerState.err == nil {
+			handlerState.err = fmt.Errorf(format, args...)
+		}
+	}
+
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/app/installations/12345/access_tokens" {
-			t.Fatalf("Unexpected path: %s", r.URL.Path)
+			recordHandlerError("unexpected path: %s", r.URL.Path)
+			http.Error(w, "unexpected path", http.StatusBadRequest)
+			return
 		}
 		if r.Method != http.MethodPost {
-			t.Fatalf("Unexpected method: %s", r.Method)
+			recordHandlerError("unexpected method: %s", r.Method)
+			http.Error(w, "unexpected method", http.StatusMethodNotAllowed)
+			return
 		}
-		gotAuthorization = r.Header.Get("Authorization")
+		handlerState.mu.Lock()
+		handlerState.gotAuthorization = r.Header.Get("Authorization")
+		handlerState.mu.Unlock()
+
 		var body struct {
 			Repositories []string `json:"repositories"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("decode request body: %v", err)
+			recordHandlerError("decode request body: %v", err)
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
 		}
-		gotRepositories = body.Repositories
+		handlerState.mu.Lock()
+		handlerState.gotRepositories = body.Repositories
+		handlerState.mu.Unlock()
+
 		w.Header().Set("Content-Type", "application/json")
 		if _, err := w.Write([]byte(`{"token":"installation-token"}`)); err != nil {
-			t.Fatalf("write response: %v", err)
+			recordHandlerError("write response: %v", err)
+			return
 		}
 	}))
 	defer server.Close()
@@ -145,6 +171,14 @@ func TestResolveInstallationToken(t *testing.T) {
 	}, "owner/repo")
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
+	}
+	handlerState.mu.Lock()
+	handlerErr := handlerState.err
+	gotAuthorization := handlerState.gotAuthorization
+	gotRepositories := handlerState.gotRepositories
+	handlerState.mu.Unlock()
+	if handlerErr != nil {
+		t.Fatalf("handler error: %v", handlerErr)
 	}
 	if got != "installation-token" {
 		t.Fatalf("Unexpected token: %s", got)

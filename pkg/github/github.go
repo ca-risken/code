@@ -33,7 +33,17 @@ type riskenGitHubClient struct {
 }
 
 func NewGithubClient(defaultToken string, logger logging.Logger) *riskenGitHubClient {
-	client, _ := NewGithubClientWithAppAuth(defaultToken, nil, logger)
+	// githubappauth.NewClient(nil) does not return an error today; keep PAT-only behavior if that changes.
+	client, err := NewGithubClientWithAppAuth(defaultToken, nil, logger)
+	if err != nil {
+		logger.Warnf(context.Background(), "failed to initialize GitHub App auth; using PAT-only client: %+v", err)
+		retry := RETRY_NUM
+		return &riskenGitHubClient{
+			defaultToken: defaultToken,
+			retryer:      backoff.WithMaxRetries(backoff.NewExponentialBackOff(), retry),
+			logger:       logger,
+		}
+	}
 	return client
 }
 
