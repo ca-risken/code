@@ -213,6 +213,12 @@ func TestResolveInstallationTokenError(t *testing.T) {
 			config: &code.GitHubSetting{InstallationId: 12345},
 		},
 		{
+			name:   "nil github setting",
+			client: clientWithAppAuth,
+			config: nil,
+			repo:   "owner/repo",
+		},
+		{
 			name:   "empty repo name",
 			client: clientWithAppAuth,
 			config: &code.GitHubSetting{InstallationId: 12345},
