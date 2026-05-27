@@ -92,39 +92,56 @@ func TestResolveInstallationTokenError(t *testing.T) {
 	}
 
 	cases := []struct {
-		name   string
-		client *riskenGitHubClient
-		config *code.GitHubSetting
-		repo   string
+		name    string
+		client  *riskenGitHubClient
+		config  *code.GitHubSetting
+		repo    string
+		wantErr string
 	}{
 		{
-			name:   "app auth not configured",
-			client: NewGithubClient("default-token", logging.NewLogger()),
-			config: &code.GitHubSetting{InstallationId: 12345},
+			name:    "app auth not configured",
+			client:  NewGithubClient("default-token", logging.NewLogger()),
+			config:  &code.GitHubSetting{InstallationId: 12345},
+			repo:    "owner/repo",
+			wantErr: "github app auth is not configured",
 		},
 		{
-			name:   "nil github setting",
-			client: clientWithAppAuth,
-			config: nil,
-			repo:   "owner/repo",
+			name:    "nil github setting",
+			client:  clientWithAppAuth,
+			config:  nil,
+			repo:    "owner/repo",
+			wantErr: "github setting is required",
 		},
 		{
-			name:   "empty repo name",
-			client: clientWithAppAuth,
-			config: &code.GitHubSetting{InstallationId: 12345},
+			name:    "missing installation id",
+			client:  clientWithAppAuth,
+			config:  &code.GitHubSetting{},
+			repo:    "owner/repo",
+			wantErr: "installation_id is required",
 		},
 		{
-			name:   "whitespace repo name",
-			client: clientWithAppAuth,
-			config: &code.GitHubSetting{InstallationId: 12345},
-			repo:   " ",
+			name:    "empty repo name",
+			client:  clientWithAppAuth,
+			config:  &code.GitHubSetting{InstallationId: 12345},
+			wantErr: "repo_name is required",
+		},
+		{
+			name:    "whitespace repo name",
+			client:  clientWithAppAuth,
+			config:  &code.GitHubSetting{InstallationId: 12345},
+			repo:    " ",
+			wantErr: "repo_name is required",
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if _, err := c.client.ResolveInstallationToken(context.Background(), c.config, c.repo); err == nil {
+			_, err := c.client.ResolveInstallationToken(context.Background(), c.config, c.repo)
+			if err == nil {
 				t.Fatal("Expected error but got none")
+			}
+			if c.wantErr != "" && err.Error() != c.wantErr {
+				t.Fatalf("Unexpected error: got %q want %q", err.Error(), c.wantErr)
 			}
 		})
 	}
