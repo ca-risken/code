@@ -51,6 +51,7 @@ type AppConfig struct {
 
 	// dependency
 	TrivyPath                    string   `split_words:"true" default:"/usr/local/bin/trivy"`
+	GithubDefaultToken           string   `required:"true" split_words:"true" default:"your-token-here"`
 	GithubAppID                  string   `split_words:"true"`
 	GithubAppPrivateKey          string   `split_words:"true"`
 	GithubAppAllowedBaseURLHosts []string `split_words:"true"`
@@ -133,6 +134,7 @@ func main() {
 		cc,
 		vc,
 		conf.CodeDataKey,
+		conf.GithubDefaultToken,
 		&githubcli.AppAuthConfig{
 			AppID:               conf.GithubAppID,
 			PrivateKey:          conf.GithubAppPrivateKey,

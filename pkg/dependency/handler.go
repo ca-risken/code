@@ -42,6 +42,7 @@ func NewHandler(
 	cc code.CodeServiceClient,
 	vulnClient *vulnsdk.Client,
 	codeDataKey string,
+	githubDefaultToken string,
 	appAuth *githubcli.AppAuthConfig,
 	trivyPath string,
 	limitRepositorySizeKb int,
@@ -55,7 +56,7 @@ func NewHandler(
 	dependencyConf := &dependencyConfig{
 		trivyPath: trivyPath,
 	}
-	githubClient, err := githubcli.NewGithubClientWithAppAuth("", appAuth, l)
+	githubClient, err := githubcli.NewGithubClientWithAppAuth(githubDefaultToken, appAuth, l)
 	if err != nil {
 		return nil, err
 	}
@@ -197,11 +198,18 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 		}
 		repoFullName := r.GetFullName()
 
+		token, err := s.githubClient.ResolveAccessToken(ctx, gitHubSetting, repoFullName, gitHubSetting.PersonalAccessToken)
+		if err != nil {
+			s.logger.Errorf(ctx, "Failed to resolve GitHub access token: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			continue
+		}
+
 		if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
 			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_name=%s, err=%+v", repoFullName, err)
 		}
 
-		if err := s.scanRepository(ctx, msg, gitHubSetting, beforeScanAt, r); err != nil {
+		if err := s.scanRepository(ctx, msg, gitHubSetting, beforeScanAt, r, token); err != nil {
 			return successfullyScannedRepos, err
 		}
 		successfullyScannedRepos = append(successfullyScannedRepos, repoFullName)
@@ -209,15 +217,8 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 	return successfullyScannedRepos, nil
 }
 
-func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, r *github.Repository) error {
+func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, r *github.Repository, token string) error {
 	repoFullName := r.GetFullName()
-	token, err := s.githubClient.ResolveAccessToken(ctx, gitHubSetting, repoFullName, gitHubSetting.PersonalAccessToken)
-	if err != nil {
-		s.logger.Errorf(ctx, "Failed to resolve GitHub access token: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
-		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
-		return mimosasqs.WrapNonRetryable(err)
-	}
-
 	resultFilePath := fmt.Sprintf("/tmp/%v_%v_%s_%v.json", msg.ProjectID, msg.GitHubSettingID, *r.Name, time.Now().Unix())
 	result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, token, resultFilePath)
 	if err != nil {
