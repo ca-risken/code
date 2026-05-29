@@ -12,6 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/ca-risken/code/pkg/common"
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
+	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
 	"github.com/ca-risken/core/proto/alert"
@@ -25,6 +26,7 @@ import (
 type sqsHandler struct {
 	cipherBlock           cipher.Block
 	dependencyClient      dependencyServiceClient
+	githubClient          githubcli.GithubServiceClient
 	findingClient         finding.FindingServiceClient
 	alertClient           alert.AlertServiceClient
 	codeClient            code.CodeServiceClient
@@ -40,6 +42,7 @@ func NewHandler(
 	cc code.CodeServiceClient,
 	vulnClient *vulnsdk.Client,
 	codeDataKey string,
+	appAuth *githubcli.AppAuthConfig,
 	trivyPath string,
 	limitRepositorySizeKb int,
 	l logging.Logger,
@@ -52,9 +55,14 @@ func NewHandler(
 	dependencyConf := &dependencyConfig{
 		trivyPath: trivyPath,
 	}
+	githubClient, err := githubcli.NewGithubClientWithAppAuth("", appAuth, l)
+	if err != nil {
+		return nil, err
+	}
 	return &sqsHandler{
 		cipherBlock:           block,
 		dependencyClient:      newDependencyClient(dependencyConf, l),
+		githubClient:          githubClient,
 		findingClient:         fc,
 		alertClient:           ac,
 		codeClient:            cc,
@@ -121,7 +129,7 @@ func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSett
 	if data == nil || data.GithubSetting == nil || data.GithubSetting.DependencySetting == nil {
 		return nil, fmt.Errorf("no data for dependency scan, project_id=%d, github_setting_id=%d", projectID, GitHubSettingID)
 	}
-	if data.GithubSetting.PersonalAccessToken == "" {
+	if data.GithubSetting.AuthMode == code.GitHubAuthModeGitHubApp || data.GithubSetting.PersonalAccessToken == "" {
 		return data.GithubSetting, nil
 	}
 	token, err := codecrypto.DecryptWithBase64(&s.cipherBlock, data.GithubSetting.PersonalAccessToken)
@@ -203,9 +211,15 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 
 func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, r *github.Repository) error {
 	repoFullName := r.GetFullName()
+	token, err := s.githubClient.ResolveAccessToken(ctx, gitHubSetting, repoFullName, gitHubSetting.PersonalAccessToken)
+	if err != nil {
+		s.logger.Errorf(ctx, "Failed to resolve GitHub access token: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
+		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		return mimosasqs.WrapNonRetryable(err)
+	}
 
 	resultFilePath := fmt.Sprintf("/tmp/%v_%v_%s_%v.json", msg.ProjectID, msg.GitHubSettingID, *r.Name, time.Now().Unix())
-	result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, gitHubSetting.PersonalAccessToken, resultFilePath)
+	result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, token, resultFilePath)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())

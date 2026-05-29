@@ -146,3 +146,57 @@ func TestResolveInstallationTokenError(t *testing.T) {
 		})
 	}
 }
+
+func TestResolveAccessToken(t *testing.T) {
+	client := NewGithubClient("default-token", logging.NewLogger())
+	cases := []struct {
+		name     string
+		config   *code.GitHubSetting
+		patToken string
+		want     string
+	}{
+		{
+			name:     "personal access token",
+			config:   &code.GitHubSetting{AuthMode: code.GitHubAuthModePersonalAccessToken},
+			patToken: "pat-token",
+			want:     "pat-token",
+		},
+		{
+			name:   "default token fallback",
+			config: &code.GitHubSetting{AuthMode: code.GitHubAuthModePersonalAccessToken},
+			want:   "default-token",
+		},
+		{
+			name:     "empty auth mode keeps pat behavior",
+			config:   &code.GitHubSetting{},
+			patToken: "pat-token",
+			want:     "pat-token",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := client.ResolveAccessToken(context.Background(), c.config, "owner/repo", c.patToken)
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if got != c.want {
+				t.Fatalf("Unexpected token: want=%s, got=%s", c.want, got)
+			}
+		})
+	}
+}
+
+func TestResolveAccessTokenGitHubAppRequiresAppAuth(t *testing.T) {
+	client := NewGithubClient("default-token", logging.NewLogger())
+	_, err := client.ResolveAccessToken(context.Background(), &code.GitHubSetting{
+		AuthMode:       code.GitHubAuthModeGitHubApp,
+		InstallationId: 12345,
+	}, "owner/repo", "pat-token")
+	if err == nil {
+		t.Fatal("Expected error but got none")
+	}
+	if err.Error() != "github app auth is not configured" {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+}

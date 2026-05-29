@@ -44,6 +44,7 @@ func NewHandler(
 	cc code.CodeServiceClient,
 	codeDataKey string,
 	githubDefaultToken string,
+	appAuth *githubcli.AppAuthConfig,
 	redact bool,
 	gitleaksConfigPath string,
 	limitRepositorySizeKb int,
@@ -59,9 +60,13 @@ func NewHandler(
 		redact:             redact,
 		configPath:         gitleaksConfigPath,
 	}
+	githubClient, err := githubcli.NewGithubClientWithAppAuth(githubDefaultToken, appAuth, l)
+	if err != nil {
+		return nil, err
+	}
 	return &sqsHandler{
 		cipherBlock:           block,
-		githubClient:          githubcli.NewGithubClient(githubDefaultToken, l),
+		githubClient:          githubClient,
 		gitleaksClient:        newGitleaksClient(gitleaksConf),
 		findingClient:         fc,
 		alertClient:           ac,
@@ -91,7 +96,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		s.logger.Errorf(ctx, "Failed to get scan setting: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	token, err := codecrypto.DecryptWithBase64(&s.cipherBlock, gitHubSetting.PersonalAccessToken)
+	token, err := s.decryptPersonalAccessToken(gitHubSetting)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to decrypt personal access token: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
@@ -112,6 +117,13 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		return mimosasqs.WrapNonRetryable(err)
 	}
 	return nil
+}
+
+func (s *sqsHandler) decryptPersonalAccessToken(gitHubSetting *code.GitHubSetting) (string, error) {
+	if gitHubSetting == nil || gitHubSetting.AuthMode == code.GitHubAuthModeGitHubApp {
+		return "", nil
+	}
+	return codecrypto.DecryptWithBase64(&s.cipherBlock, gitHubSetting.PersonalAccessToken)
 }
 
 func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.Time, limitRepositorySize int) bool {
@@ -222,12 +234,12 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 
-	return s.scanDiffRepositories(ctx, msg, token, repos, gitHubSetting.BaseUrl)
+	return s.scanDiffRepositories(ctx, msg, gitHubSetting, token, repos)
 }
 
-func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, token string, repos []*github.Repository, githubBaseURL string) error {
+func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, repos []*github.Repository) error {
 	for _, r := range repos {
-		if err := common.ValidateRepository(r, githubBaseURL); err != nil {
+		if err := common.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
 			repoFullName := ""
 			if r != nil {
 				repoFullName = r.GetFullName()
@@ -255,6 +267,12 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		}
 
 		repoFullName := r.GetFullName()
+		token, err := s.githubClient.ResolveAccessToken(ctx, gitHubSetting, repoFullName, personalAccessToken)
+		if err != nil {
+			s.logger.Errorf(ctx, "Failed to resolve GitHub access token: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			return mimosasqs.WrapNonRetryable(err)
+		}
 
 		// Update repository status to IN_PROGRESS
 		if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
