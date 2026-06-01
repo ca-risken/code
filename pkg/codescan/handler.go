@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/ca-risken/code/pkg/common"
-	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
@@ -77,7 +76,7 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		s.logger.Errorf(ctx, "Failed to get scan setting: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
-	token, err := s.decryptPersonalAccessToken(gitHubSetting)
+	token, err := common.DecryptGitHubPersonalAccessToken(&s.cipherBlock, gitHubSetting)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to decrypt personal access token: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
@@ -85,13 +84,6 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 
 	return s.handleRepositoryScan(ctx, msg, gitHubSetting, token)
-}
-
-func (s *sqsHandler) decryptPersonalAccessToken(gitHubSetting *code.GitHubSetting) (string, error) {
-	if gitHubSetting == nil || gitHubSetting.AuthMode == code.GitHubAuthModeGitHubApp {
-		return "", nil
-	}
-	return codecrypto.DecryptWithBase64(&s.cipherBlock, gitHubSetting.PersonalAccessToken)
 }
 
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string) error {

@@ -11,7 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/ca-risken/code/pkg/common"
-	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
@@ -130,10 +129,7 @@ func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSett
 	if data == nil || data.GithubSetting == nil || data.GithubSetting.DependencySetting == nil {
 		return nil, fmt.Errorf("no data for dependency scan, project_id=%d, github_setting_id=%d", projectID, GitHubSettingID)
 	}
-	if data.GithubSetting.AuthMode == code.GitHubAuthModeGitHubApp || data.GithubSetting.PersonalAccessToken == "" {
-		return data.GithubSetting, nil
-	}
-	token, err := codecrypto.DecryptWithBase64(&s.cipherBlock, data.GithubSetting.PersonalAccessToken)
+	token, err := common.DecryptGitHubPersonalAccessToken(&s.cipherBlock, data.GithubSetting)
 	if err != nil {
 		return nil, err
 	}

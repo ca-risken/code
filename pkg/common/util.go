@@ -1,11 +1,14 @@
 package common
 
 import (
+	"crypto/cipher"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	codecrypto "github.com/ca-risken/code/pkg/crypto"
+	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/google/go-github/v44/github"
 )
 
@@ -60,4 +63,11 @@ func CreateCloneDir(repoName string) (string, error) {
 	}
 
 	return dir, nil
+}
+
+func DecryptGitHubPersonalAccessToken(block *cipher.Block, gitHubSetting *code.GitHubSetting) (string, error) {
+	if gitHubSetting == nil || gitHubSetting.AuthMode == code.GitHubAuthModeGitHubApp || gitHubSetting.PersonalAccessToken == "" {
+		return "", nil
+	}
+	return codecrypto.DecryptWithBase64(block, gitHubSetting.PersonalAccessToken)
 }

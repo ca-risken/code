@@ -1,10 +1,12 @@
 package common
 
 import (
+	"crypto/aes"
 	"os"
 	"reflect"
 	"testing"
 
+	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/google/go-github/v44/github"
 )
 
@@ -297,6 +299,66 @@ func TestCreateCloneDir(t *testing.T) {
 			}
 			if err == nil {
 				os.RemoveAll(dir)
+			}
+		})
+	}
+}
+
+func TestDecryptGitHubPersonalAccessToken(t *testing.T) {
+	block, err := aes.NewCipher([]byte("12345678901234567890123456789012"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tests := []struct {
+		name          string
+		gitHubSetting *code.GitHubSetting
+		want          string
+		wantErr       bool
+	}{
+		{
+			name: "nil setting returns empty token",
+			want: "",
+		},
+		{
+			name: "github app mode ignores personal access token",
+			gitHubSetting: &code.GitHubSetting{
+				AuthMode:            code.GitHubAuthModeGitHubApp,
+				PersonalAccessToken: "encrypted-token",
+			},
+			want: "",
+		},
+		{
+			name: "empty personal access token returns empty token",
+			gitHubSetting: &code.GitHubSetting{
+				AuthMode: code.GitHubAuthModePersonalAccessToken,
+			},
+			want: "",
+		},
+		{
+			name: "invalid encrypted token returns error",
+			gitHubSetting: &code.GitHubSetting{
+				AuthMode:            code.GitHubAuthModePersonalAccessToken,
+				PersonalAccessToken: "not base64",
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := DecryptGitHubPersonalAccessToken(&block, tt.gitHubSetting)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("got %q, want %q", got, tt.want)
 			}
 		})
 	}
