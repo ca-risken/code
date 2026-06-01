@@ -134,6 +134,7 @@ func TestHandleRepositoryScan(t *testing.T) {
 					GithubSettingId:  2,
 					CodeDataSourceId: 3,
 				}},
+				"",
 				"req-1",
 			)
 			if tt.wantErr {
@@ -215,7 +216,7 @@ func TestScanAllRepositories(t *testing.T) {
 				},
 			}
 
-			_, err := s.scanAllRepositories(ctx, msg, setting, time.Now(), tt.repos)
+			_, err := s.scanAllRepositories(ctx, msg, setting, "", time.Now(), tt.repos)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

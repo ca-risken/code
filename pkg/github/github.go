@@ -20,6 +20,7 @@ const RETRY_NUM uint64 = 3
 type GithubServiceClient interface {
 	Clone(ctx context.Context, token string, cloneURL string, dstDir string) error
 	SupportsGitHubApp() bool
+	ResolveAccessToken(ctx context.Context, config *code.GitHubSetting, repoName, personalAccessToken string) (string, error)
 	ResolveInstallationToken(ctx context.Context, config *code.GitHubSetting, repoName string) (string, error)
 }
 
@@ -91,6 +92,13 @@ func (g *riskenGitHubClient) Clone(ctx context.Context, token string, cloneURL s
 
 func (g *riskenGitHubClient) SupportsGitHubApp() bool {
 	return g.appAuth != nil && g.appAuth.Enabled()
+}
+
+func (g *riskenGitHubClient) ResolveAccessToken(ctx context.Context, config *code.GitHubSetting, repoName, personalAccessToken string) (string, error) {
+	if config != nil && config.AuthMode == code.GitHubAuthModeGitHubApp {
+		return g.ResolveInstallationToken(ctx, config, repoName)
+	}
+	return getToken(personalAccessToken, g.defaultToken), nil
 }
 
 func (g *riskenGitHubClient) ResolveInstallationToken(ctx context.Context, config *code.GitHubSetting, repoName string) (string, error) {

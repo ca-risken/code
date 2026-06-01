@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/ca-risken/code/pkg/codescan"
+	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/code/pkg/grpc"
 	"github.com/ca-risken/code/pkg/sqs"
 	"github.com/ca-risken/common/pkg/logging"
@@ -46,7 +47,10 @@ type AppConfig struct {
 	WaitTimeSecond        int32  `split_words:"true" default:"20"`
 
 	// codescan
-	GithubDefaultToken string `required:"true" split_words:"true" default:"your-token-here"`
+	GithubDefaultToken           string   `required:"true" split_words:"true" default:"your-token-here"`
+	GithubAppID                  string   `split_words:"true"`
+	GithubAppPrivateKey          string   `split_words:"true"`
+	GithubAppAllowedBaseURLHosts []string `split_words:"true"`
 
 	// scan settings
 	LimitRepositorySizeKb int `required:"true" split_words:"true" default:"500000"` // 500MB
@@ -115,6 +119,11 @@ func main() {
 		cc,
 		conf.CodeDataKey,
 		conf.GithubDefaultToken,
+		&githubcli.AppAuthConfig{
+			AppID:               conf.GithubAppID,
+			PrivateKey:          conf.GithubAppPrivateKey,
+			AllowedBaseURLHosts: conf.GithubAppAllowedBaseURLHosts,
+		},
 		conf.LimitRepositorySizeKb,
 		appLogger,
 	)

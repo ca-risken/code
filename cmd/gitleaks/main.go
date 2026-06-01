@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/code/pkg/gitleaks"
 	"github.com/ca-risken/code/pkg/grpc"
 	"github.com/ca-risken/code/pkg/sqs"
@@ -48,9 +49,12 @@ type AppConfig struct {
 	WaitTimeSecond        int32  `split_words:"true" default:"20"`
 
 	// gitleaks
-	GithubDefaultToken string `required:"true" split_words:"true" default:"your-token-here"`
-	Redact             bool   `split_words:"true" default:"true"`
-	GitleaksConfigPath string `split_words:"true"`
+	GithubDefaultToken           string   `required:"true" split_words:"true" default:"your-token-here"`
+	GithubAppID                  string   `split_words:"true"`
+	GithubAppPrivateKey          string   `split_words:"true"`
+	GithubAppAllowedBaseURLHosts []string `split_words:"true"`
+	Redact                       bool     `split_words:"true" default:"true"`
+	GitleaksConfigPath           string   `split_words:"true"`
 
 	// scan settings
 	LimitRepositorySizeKb int `required:"true" split_words:"true" default:"500000"` // 500MB
@@ -119,6 +123,11 @@ func main() {
 		cc,
 		conf.CodeDataKey,
 		conf.GithubDefaultToken,
+		&githubcli.AppAuthConfig{
+			AppID:               conf.GithubAppID,
+			PrivateKey:          conf.GithubAppPrivateKey,
+			AllowedBaseURLHosts: conf.GithubAppAllowedBaseURLHosts,
+		},
 		conf.Redact,
 		conf.GitleaksConfigPath,
 		conf.LimitRepositorySizeKb,
