@@ -92,8 +92,14 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 		s.logger.Errorf(ctx, "Failed to get scan setting: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		return mimosasqs.WrapNonRetryable(err)
 	}
+	token, err := common.DecryptGitHubPersonalAccessToken(&s.cipherBlock, gitHubSetting)
+	if err != nil {
+		s.logger.Errorf(ctx, "Failed to decrypt personal access token: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+		return mimosasqs.WrapNonRetryable(err)
+	}
+	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 
-	return s.handleRepositoryScan(ctx, msg, gitHubSetting, requestID)
+	return s.handleRepositoryScan(ctx, msg, gitHubSetting, token, requestID)
 }
 
 func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, limitRepositorySize int) bool {
@@ -129,11 +135,6 @@ func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSett
 	if data == nil || data.GithubSetting == nil || data.GithubSetting.DependencySetting == nil {
 		return nil, fmt.Errorf("no data for dependency scan, project_id=%d, github_setting_id=%d", projectID, GitHubSettingID)
 	}
-	token, err := common.DecryptGitHubPersonalAccessToken(&s.cipherBlock, data.GithubSetting)
-	if err != nil {
-		return nil, err
-	}
-	data.GithubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 	return data.GithubSetting, nil
 }
 
@@ -144,7 +145,7 @@ func (s *sqsHandler) analyzeAlert(ctx context.Context, projectID uint32) error {
 	return err
 }
 
-func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, requestID string) error {
+func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, requestID string) error {
 	repos := common.GetRepositoriesFromCodeQueueMessage(msg)
 	if len(repos) == 0 {
 		err := fmt.Errorf("repository metadata is required in queue message")
@@ -159,14 +160,14 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 		requestID, len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 	repos = common.FilterByNamePattern(repos, gitHubSetting.DependencySetting.RepositoryPattern)
 
-	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, repos, requestID)
+	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, personalAccessToken, repos, requestID)
 }
 
-func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, repos []*github.Repository, requestID string) error {
+func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, repos []*github.Repository, requestID string) error {
 	beforeScanAt := time.Now()
 
 	// Step 1: Scan repositories (includes per-repo find/put/clear)
-	successfullyScannedRepos, err := s.scanAllRepositories(ctx, msg, gitHubSetting, beforeScanAt, repos)
+	successfullyScannedRepos, err := s.scanAllRepositories(ctx, msg, gitHubSetting, personalAccessToken, beforeScanAt, repos)
 	if err != nil {
 		return err
 	}
@@ -176,7 +177,7 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 }
 
 // scanAllRepositories scans all repositories and returns successfully scanned repository names
-func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
+func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, beforeScanAt time.Time, repos []*github.Repository) ([]string, error) {
 	successfullyScannedRepos := []string{}
 	for _, r := range repos {
 		if err := common.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
@@ -194,7 +195,7 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 		}
 		repoFullName := r.GetFullName()
 
-		token, err := s.githubClient.ResolveAccessToken(ctx, gitHubSetting, repoFullName, gitHubSetting.PersonalAccessToken)
+		token, err := s.githubClient.ResolveAccessToken(ctx, gitHubSetting, repoFullName, personalAccessToken)
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to resolve GitHub access token: github_setting_id=%d, repository_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
@@ -206,7 +207,7 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 		}
 
 		if err := s.scanRepository(ctx, msg, gitHubSetting, beforeScanAt, r, token); err != nil {
-			return successfullyScannedRepos, err
+			continue
 		}
 		successfullyScannedRepos = append(successfullyScannedRepos, repoFullName)
 	}
