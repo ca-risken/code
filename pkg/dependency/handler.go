@@ -207,7 +207,7 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 		}
 
 		if err := s.scanRepository(ctx, msg, gitHubSetting, beforeScanAt, r, token); err != nil {
-			continue
+			return successfullyScannedRepos, err
 		}
 		successfullyScannedRepos = append(successfullyScannedRepos, repoFullName)
 	}
