@@ -8,7 +8,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o /go/bin/codescan cmd/co
 
 FROM public.ecr.aws/risken/base/risken-base:v0.0.1 AS riskenbase
 
-FROM returntocorp/semgrep:1.46.0
+FROM semgrep/semgrep:1.170.0
 COPY --from=builder /go/bin/codescan /usr/local/codescan/bin/
 COPY --from=riskenbase /usr/local/bin/env-injector /usr/local/bin/
 RUN apk add git
