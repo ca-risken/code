@@ -128,6 +128,36 @@ func TestGetScoreSemgrep(t *testing.T) {
 			want: 0.1,
 		},
 		{
+			name: "CRITICAL",
+			input: &args{
+				serverity: "CRITICAL",
+			},
+			want: 0.9,
+		},
+		{
+			name: "HIGH(impact: HIGH, likelihood: HIGH)",
+			input: &args{
+				serverity:  "HIGH",
+				likelihood: "HIGH",
+				impact:     "HIGH",
+			},
+			want: 0.8,
+		},
+		{
+			name: "MEDIUM",
+			input: &args{
+				serverity: "MEDIUM",
+			},
+			want: 0.3,
+		},
+		{
+			name: "LOW",
+			input: &args{
+				serverity: "LOW",
+			},
+			want: 0.1,
+		},
+		{
 			name: "UNKNOWN",
 			input: &args{
 				serverity: "UNKNOWN",

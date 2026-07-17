@@ -106,27 +106,26 @@ func extractSemgrepMetadata(metadata any) *SemgrepMetadata {
 
 func GetScoreSemgrep(serverity, likelihood, impact string) float32 {
 	switch serverity {
-	case "WARNING":
+	case "CRITICAL":
+		return 0.9
+	case "MEDIUM", "WARNING":
 		return 0.3
-	case "INFO":
+	case "LOW", "INFO":
 		return 0.1
-	}
-	if serverity != "ERROR" {
+	case "HIGH", "ERROR":
+		if impact == "HIGH" && likelihood == "HIGH" {
+			return 0.8
+		} else if impact == "HIGH" {
+			return 0.6
+		} else if impact == "MEDIUM" {
+			return 0.5
+		} else if impact == "LOW" {
+			return 0.4
+		}
+		return 0.6
+	default:
 		return 0.0
 	}
-
-	// severity "ERROR"
-	// Fine-grained scoring
-	if impact == "HIGH" && likelihood == "HIGH" {
-		return 0.8
-	} else if impact == "HIGH" {
-		return 0.6
-	} else if impact == "MEDIUM" {
-		return 0.5
-	} else if impact == "LOW" {
-		return 0.4
-	}
-	return 0.6 // default ERROR score
 }
 
 func GenerateDataSourceIDForSemgrep(f *SemgrepFinding) string {
