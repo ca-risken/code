@@ -147,8 +147,9 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			return semgrepFindings, successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
 		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
-			if err := s.refreshCodeScanSettingStatus(ctx, msg.ProjectID, msg.GitHubSettingID); err != nil {
-				s.logger.Warnf(ctx, "Failed to refresh code scan setting status after skip: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+			repoFullName := r.GetFullName()
+			if err := s.updateRepositoryStatus(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, code.Status_CONFIGURED, ""); err != nil {
+				s.logger.Warnf(ctx, "Failed to update repository status after skip: repository_name=%s, err=%+v", repoFullName, err)
 			}
 			continue
 		}
@@ -305,14 +306,6 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
 		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
 	}
-}
-
-func (s *sqsHandler) refreshCodeScanSettingStatus(ctx context.Context, projectID, githubSettingID uint32) error {
-	_, err := s.codeClient.RefreshCodeScanSettingStatus(ctx, &code.RefreshCodeScanSettingStatusRequest{
-		ProjectId:       projectID,
-		GithubSettingId: githubSettingID,
-	})
-	return err
 }
 
 func (s *sqsHandler) updateCodeScanSettingStatusError(ctx context.Context, gitHubSetting *code.GitHubSetting, statusDetail string) error {

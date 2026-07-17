@@ -422,7 +422,7 @@ func TestSkipScan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := sqsHandler{logger: logging.NewLogger()}
-			if got := s.skipScan(tt.args.ctx, tt.args.repo, tt.args.lastScannedAt, tt.args.limitRepositorySize); got != tt.want {
+			if got, _ := s.skipScan(tt.args.ctx, tt.args.repo, tt.args.lastScannedAt, tt.args.limitRepositorySize); got != tt.want {
 				t.Errorf("skipScan() = %v, want %v", got, tt.want)
 			}
 		})
