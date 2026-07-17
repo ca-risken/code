@@ -191,11 +191,8 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			return successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
 		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
-			// PutDependencyRepository also recalculates parent; skip must not leave parent IN_PROGRESS.
-			if repoFullName := r.GetFullName(); repoFullName != "" {
-				if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-					s.logger.Warnf(ctx, "Failed to update repository status success after skip: repository_name=%s, err=%+v", repoFullName, err)
-				}
+			if err := s.refreshDependencySettingStatus(ctx, msg.ProjectID, msg.GitHubSettingID); err != nil {
+				s.logger.Warnf(ctx, "Failed to refresh dependency setting status after skip: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			}
 			continue
 		}
@@ -329,6 +326,14 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
 		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
 	}
+}
+
+func (s *sqsHandler) refreshDependencySettingStatus(ctx context.Context, projectID, githubSettingID uint32) error {
+	_, err := s.codeClient.RefreshDependencySettingStatus(ctx, &code.RefreshDependencySettingStatusRequest{
+		ProjectId:       projectID,
+		GithubSettingId: githubSettingID,
+	})
+	return err
 }
 
 func (s *sqsHandler) updateDependencySettingStatusError(ctx context.Context, gitHubSetting *code.GitHubSetting, statusDetail string) error {

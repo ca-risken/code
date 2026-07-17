@@ -217,6 +217,14 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	}
 }
 
+func (s *sqsHandler) refreshGitleaksSettingStatus(ctx context.Context, projectID, githubSettingID uint32) error {
+	_, err := s.codeClient.RefreshGitleaksSettingStatus(ctx, &code.RefreshGitleaksSettingStatusRequest{
+		ProjectId:       projectID,
+		GithubSettingId: githubSettingID,
+	})
+	return err
+}
+
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string, messageRepos []*github.Repository) error {
 	repos := messageRepos
 	if len(repos) == 0 {
@@ -255,11 +263,8 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		}
 
 		if s.skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
-			// PutGitleaksRepository also recalculates parent; skip must not leave parent IN_PROGRESS.
-			if repoFullName := r.GetFullName(); repoFullName != "" {
-				if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-					s.logger.Warnf(ctx, "Failed to update repository status success after skip: repository_full_name=%s, err=%+v", repoFullName, err)
-				}
+			if err := s.refreshGitleaksSettingStatus(ctx, msg.ProjectID, msg.GitHubSettingID); err != nil {
+				s.logger.Warnf(ctx, "Failed to refresh gitleaks setting status after skip: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 			}
 			continue
 		}
