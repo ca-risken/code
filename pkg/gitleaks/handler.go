@@ -255,6 +255,12 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		}
 
 		if s.skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
+			// PutGitleaksRepository also recalculates parent; skip must not leave parent IN_PROGRESS.
+			if repoFullName := r.GetFullName(); repoFullName != "" {
+				if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
+					s.logger.Warnf(ctx, "Failed to update repository status success after skip: repository_full_name=%s, err=%+v", repoFullName, err)
+				}
+			}
 			continue
 		}
 

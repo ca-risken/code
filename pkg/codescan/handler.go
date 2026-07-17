@@ -147,6 +147,12 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			return semgrepFindings, successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
 		}
 		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
+			// PutCodeScanRepository also recalculates parent; skip must not leave parent IN_PROGRESS.
+			if repoFullName := r.GetFullName(); repoFullName != "" {
+				if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
+					s.logger.Warnf(ctx, "Failed to update repository status success after skip: repository_name=%s, err=%+v", repoFullName, err)
+				}
+			}
 			continue
 		}
 
