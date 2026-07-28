@@ -506,6 +506,60 @@ func TestFinalizeSkippedRepositoryStatus(t *testing.T) {
 	}
 }
 
+func TestUpdateGitleaksCache(t *testing.T) {
+	scanAt := time.Unix(1710000000, 0)
+	tests := []struct {
+		name        string
+		prepareMock func(*mocks.CodeServiceClient)
+		wantErr     bool
+	}{
+		{
+			name: "cache successful scan time",
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutGitleaksCache", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksCacheRequest) bool {
+						return req.ProjectId == 1 &&
+							req.GitleaksCache.GithubSettingId == 2 &&
+							req.GitleaksCache.RepositoryFullName == "owner/repo" &&
+							req.GitleaksCache.ScanAt == scanAt.Unix()
+					})).
+					Return(&code.PutGitleaksCacheResponse{}, nil).
+					Once()
+			},
+		},
+		{
+			name: "return cache API error",
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutGitleaksCache", mock.Anything, mock.Anything).
+					Return(nil, errors.New("cache error")).
+					Once()
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCode := mocks.CodeServiceClient{}
+			tt.prepareMock(&mockCode)
+			s := sqsHandler{codeClient: &mockCode}
+
+			err := s.updateGitleaksCache(
+				context.Background(),
+				&message.CodeQueueMessage{ProjectID: 1, GitHubSettingID: 2},
+				&github.Repository{FullName: github.String("owner/repo")},
+				scanAt,
+			)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("updateGitleaksCache() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			mockCode.AssertExpectations(t)
+		})
+	}
+}
+
 func TestGetLastScannedAt(t *testing.T) {
 	type GetGitleaksCacheResponse struct {
 		Resp *code.GetGitleaksCacheResponse

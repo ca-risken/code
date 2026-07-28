@@ -80,6 +80,45 @@ func TestFinalizeSkippedRepositoryStatus(t *testing.T) {
 	}
 }
 
+func TestUpdateRepositoryStatusInProgress(t *testing.T) {
+	tests := []struct {
+		name        string
+		prepareMock func(*mocks.CodeServiceClient)
+		wantErr     bool
+	}{
+		{
+			name: "update to IN_PROGRESS",
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutDependencyRepository", mock.Anything, mock.MatchedBy(func(req *code.PutDependencyRepositoryRequest) bool {
+						return req.ProjectId == 1 &&
+							req.DependencyRepository.GithubSettingId == 2 &&
+							req.DependencyRepository.RepositoryFullName == "owner/repo" &&
+							req.DependencyRepository.Status == code.Status_IN_PROGRESS &&
+							req.DependencyRepository.StatusDetail == ""
+					})).
+					Return(&emptypb.Empty{}, nil).
+					Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCode := mocks.CodeServiceClient{}
+			tt.prepareMock(&mockCode)
+			s := sqsHandler{codeClient: &mockCode, logger: logging.NewLogger()}
+
+			err := s.updateRepositoryStatusInProgress(context.Background(), 1, 2, "owner/repo")
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("updateRepositoryStatusInProgress() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			mockCode.AssertExpectations(t)
+		})
+	}
+}
+
 func TestUpdateDependencySettingStatusError(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -203,6 +242,7 @@ func TestHandleRepositoryScan(t *testing.T) {
 				}},
 				"",
 				"req-1",
+				1,
 			)
 			if tt.wantErr {
 				if err == nil {
@@ -283,7 +323,7 @@ func TestScanAllRepositories(t *testing.T) {
 				},
 			}
 
-			_, err := s.scanAllRepositories(ctx, msg, setting, "", time.Now(), tt.repos)
+			_, err := s.scanAllRepositories(ctx, msg, setting, "", time.Now(), tt.repos, 1)
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")

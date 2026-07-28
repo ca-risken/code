@@ -288,7 +288,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		}
 
 		// Scan per repository
-		results, err := s.scanRepository(ctx, r, token, lastScannedAt, msg)
+		results, scanAt, err := s.scanRepository(ctx, r, token, lastScannedAt, msg)
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
@@ -305,6 +305,10 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 				return mimosasqs.WrapNonRetryable(err)
 			}
+			if err := s.updateGitleaksCache(ctx, msg, r, scanAt); err != nil {
+				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+				return mimosasqs.WrapNonRetryable(err)
+			}
 			if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
 				s.logger.Warnf(ctx, "Failed to update repository status success: repository_full_name=%s, err=%+v", repoFullName, err)
 			}
@@ -318,6 +322,11 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
+		if err := s.updateGitleaksCache(ctx, msg, r, scanAt); err != nil {
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			return mimosasqs.WrapNonRetryable(err)
+		}
+
 		// Update repository status to OK
 		if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
 			s.logger.Warnf(ctx, "Failed to update repository status success: repository_full_name=%s, err=%+v", repoFullName, err)
@@ -326,18 +335,18 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 	return nil
 }
 
-func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, msg *message.CodeQueueMessage) ([]report.Finding, error) {
+func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, msg *message.CodeQueueMessage) ([]report.Finding, time.Time, error) {
 	// Clone repository
 	dir, err := common.CreateCloneDir(*r.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create directory to clone %s: %w", *r.FullName, err)
+		return nil, time.Time{}, fmt.Errorf("failed to create directory to clone %s: %w", *r.FullName, err)
 	}
 	defer os.RemoveAll(dir)
 
 	cloneDate := time.Now()
 	err = s.githubClient.Clone(ctx, token, *r.CloneURL, dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to clone %s: %w", *r.FullName, err)
+		return nil, time.Time{}, fmt.Errorf("failed to clone %s: %w", *r.FullName, err)
 	}
 
 	// Scan repository
@@ -348,21 +357,25 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 	duration := getScanDuration(from, r.PushedAt.Time)
 	results, err := s.gitleaksClient.scan(ctx, dir, duration)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan %s: %w", *r.FullName, err)
+		return nil, time.Time{}, fmt.Errorf("failed to scan %s: %w", *r.FullName, err)
 	}
+	return results, cloneDate, nil
+}
 
-	// Caching scanned time
+// Cache the scan only after its resources or findings have been stored successfully.
+// Otherwise a failed registration would be skipped as already scanned on the next run.
+func (s *sqsHandler) updateGitleaksCache(ctx context.Context, msg *message.CodeQueueMessage, r *github.Repository, scanAt time.Time) error {
 	if _, err := s.codeClient.PutGitleaksCache(ctx, &code.PutGitleaksCacheRequest{
 		ProjectId: msg.ProjectID,
 		GitleaksCache: &code.GitleaksCacheForUpsert{
 			GithubSettingId:    msg.GitHubSettingID,
 			RepositoryFullName: *r.FullName,
-			ScanAt:             cloneDate.Unix(),
+			ScanAt:             scanAt.Unix(),
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("failed to cache time %s: %w", *r.FullName, err)
+		return fmt.Errorf("failed to cache time %s: %w", *r.FullName, err)
 	}
-	return results, nil
+	return nil
 }
 
 func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resourceName string) error {
