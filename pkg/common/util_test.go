@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ca-risken/datasource-api/proto/code"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/google/go-github/v44/github"
 )
 
@@ -374,15 +375,15 @@ func TestIsRetryableGitHubAppRepositoryNotFound(t *testing.T) {
 		wantIsRetryable bool
 	}{
 		{
-			name:            "GitHub App repository not found",
+			name:            "GitHub App go-git repository not found",
 			gitHubSetting:   &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
-			err:             errors.New("failed to clone: repository not found"),
+			err:             fmt.Errorf("failed to clone: %w", gittransport.ErrRepositoryNotFound),
 			wantIsRetryable: true,
 		},
 		{
-			name:            "GitHub App wrapped repository not found",
+			name:            "GitHub App Trivy repository not found",
 			gitHubSetting:   &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
-			err:             fmt.Errorf("failed to scan: %w", errors.New("Repository Not Found")),
+			err:             fmt.Errorf("failed to scan: %w", ErrGitHubRepositoryNotFound),
 			wantIsRetryable: true,
 		},
 		{
@@ -393,7 +394,7 @@ func TestIsRetryableGitHubAppRepositoryNotFound(t *testing.T) {
 		{
 			name:          "GitHub App other error",
 			gitHubSetting: &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
-			err:           errors.New("connection reset"),
+			err:           errors.New("response mentioned repository not found"),
 		},
 		{
 			name:          "nil error",

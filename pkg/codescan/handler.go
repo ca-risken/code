@@ -112,14 +112,14 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 	beforeScanAt := time.Now()
 
 	// Step 1: Scan all repositories
-	semgrepFindings, successfullyScannedRepos, err := s.scanAllRepositories(ctx, msg, gitHubSetting, personalAccessToken, repos)
-	if err != nil {
-		return err
-	}
+	semgrepFindings, successfullyScannedRepos, scanErr := s.scanAllRepositories(ctx, msg, gitHubSetting, personalAccessToken, repos)
 
 	// Step 2: Save findings
 	if err := s.saveFindings(ctx, msg, semgrepFindings, successfullyScannedRepos); err != nil {
 		return err
+	}
+	if scanErr != nil {
+		return scanErr
 	}
 
 	// Step 3: Post-scan processing (clear scores and analyze alerts)

@@ -7,11 +7,13 @@ import (
 
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"k8s.io/utils/exec"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/cenkalti/backoff/v4"
 )
@@ -99,7 +101,10 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 	cmd.SetStderr(&stderr)
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s, stderr=%s", err, cloneURL, stderr.String())
+		if strings.Contains(strings.ToLower(stderr.String()), "repository not found") {
+			return fmt.Errorf("%w: failed to execute trivy: err=%v, cloneURL=%s", common.ErrGitHubRepositoryNotFound, err, cloneURL)
+		}
+		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)
 	}
 	return nil
 }

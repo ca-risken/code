@@ -9,8 +9,11 @@ import (
 
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	"github.com/ca-risken/datasource-api/proto/code"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/google/go-github/v44/github"
 )
+
+var ErrGitHubRepositoryNotFound = errors.New("github repository not found")
 
 func FilterByNamePattern(repos []*github.Repository, pattern string) []*github.Repository {
 	var filteredRepos []*github.Repository
@@ -76,5 +79,6 @@ func IsRetryableGitHubAppRepositoryNotFound(gitHubSetting *code.GitHubSetting, e
 	if gitHubSetting == nil || gitHubSetting.AuthMode != code.GitHubAuthModeGitHubApp || err == nil {
 		return false
 	}
-	return strings.Contains(strings.ToLower(err.Error()), "repository not found")
+	return errors.Is(err, gittransport.ErrRepositoryNotFound) ||
+		errors.Is(err, ErrGitHubRepositoryNotFound)
 }
