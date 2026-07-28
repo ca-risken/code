@@ -91,6 +91,10 @@ func GetApproximateReceiveCount(attributes map[string]string) int {
 	return count
 }
 
+func ShouldUpdateRepositoryStatusInProgress(receiveCount int) bool {
+	return receiveCount > 1
+}
+
 func ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting *code.GitHubSetting, err error, receiveCount int) bool {
 	return receiveCount < MaxGitHubAppRepositoryNotFoundReceiveCount &&
 		IsRetryableGitHubAppRepositoryNotFound(gitHubSetting, err)

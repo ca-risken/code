@@ -203,10 +203,6 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			continue
 		}
 
-		if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_name=%s, err=%+v", repoFullName, err)
-		}
-
 		if err := s.scanRepository(ctx, msg, gitHubSetting, beforeScanAt, r, token); err != nil {
 			return successfullyScannedRepos, err
 		}
@@ -299,10 +295,6 @@ func sanitizeStatusDetail(status code.Status, statusDetail string) string {
 	statusDetail = common.CutString(statusDetail, 200)
 	// Re-sanitize after CutString to prevent invalid UTF-8 from byte-level truncation
 	return strings.ToValidUTF8(statusDetail, "")
-}
-
-func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
-	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
 }
 
 func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {

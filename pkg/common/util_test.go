@@ -426,6 +426,26 @@ func TestGetApproximateReceiveCount(t *testing.T) {
 	}
 }
 
+func TestShouldUpdateRepositoryStatusInProgress(t *testing.T) {
+	tests := []struct {
+		name         string
+		receiveCount int
+		want         bool
+	}{
+		{name: "initial delivery is already initialized", receiveCount: 1, want: false},
+		{name: "second delivery restores in progress", receiveCount: 2, want: true},
+		{name: "third delivery restores in progress", receiveCount: 3, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ShouldUpdateRepositoryStatusInProgress(tt.receiveCount); got != tt.want {
+				t.Fatalf("ShouldUpdateRepositoryStatusInProgress() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestShouldRetryGitHubAppRepositoryNotFound(t *testing.T) {
 	gitHubAppSetting := &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp}
 	repositoryNotFound := fmt.Errorf("failed to clone: %w", gittransport.ErrRepositoryNotFound)
