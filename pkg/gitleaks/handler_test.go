@@ -423,7 +423,7 @@ func TestSkipScan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := sqsHandler{logger: logging.NewLogger()}
-			if got := s.skipScan(tt.args.ctx, tt.args.repo, tt.args.lastScannedAt, tt.args.limitRepositorySize); got != tt.want {
+			if got, _, _ := s.skipScan(tt.args.ctx, tt.args.repo, tt.args.lastScannedAt, tt.args.limitRepositorySize); got != tt.want {
 				t.Errorf("skipScan() = %v, want %v", got, tt.want)
 			}
 		})
@@ -432,13 +432,17 @@ func TestSkipScan(t *testing.T) {
 
 func TestFinalizeSkippedRepositoryStatus(t *testing.T) {
 	tests := []struct {
-		name        string
-		repo        *github.Repository
-		prepareMock func(*mocks.CodeServiceClient)
+		name         string
+		repo         *github.Repository
+		status       code.Status
+		statusDetail string
+		prepareMock  func(*mocks.CodeServiceClient)
 	}{
 		{
-			name: "update status to OK",
-			repo: &github.Repository{FullName: github.String("owner/repo")},
+			name:         "update status to OK",
+			repo:         &github.Repository{FullName: github.String("owner/repo")},
+			status:       code.Status_OK,
+			statusDetail: "Skipped: repository was already scanned",
 			prepareMock: func(mockCode *mocks.CodeServiceClient) {
 				mockCode.
 					On("PutGitleaksRepository", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksRepositoryRequest) bool {
@@ -448,15 +452,32 @@ func TestFinalizeSkippedRepositoryStatus(t *testing.T) {
 						return req.ProjectId == 1 &&
 							req.GitleaksRepository.GithubSettingId == 2 &&
 							req.GitleaksRepository.RepositoryFullName == "owner/repo" &&
-							req.GitleaksRepository.Status == code.Status_OK
+							req.GitleaksRepository.Status == code.Status_OK &&
+							req.GitleaksRepository.StatusDetail == "Skipped: repository was already scanned"
 					})).
 					Return(&emptypb.Empty{}, nil).
 					Once()
 			},
 		},
 		{
-			name: "no update for repository without full name",
-			repo: nil,
+			name:   "no update for repository without full name",
+			repo:   nil,
+			status: code.Status_OK,
+		},
+		{
+			name:         "update size limit skip to ERROR",
+			repo:         &github.Repository{FullName: github.String("owner/repo")},
+			status:       code.Status_ERROR,
+			statusDetail: "Skipped: repository size exceeds limit",
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutGitleaksRepository", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksRepositoryRequest) bool {
+						return req.GitleaksRepository.Status == code.Status_ERROR &&
+							req.GitleaksRepository.StatusDetail == "Skipped: repository size exceeds limit"
+					})).
+					Return(&emptypb.Empty{}, nil).
+					Once()
+			},
 		},
 		{
 			name: "API error is only logged",
@@ -478,7 +499,7 @@ func TestFinalizeSkippedRepositoryStatus(t *testing.T) {
 			}
 			s := sqsHandler{codeClient: &mockCode, logger: logging.NewLogger()}
 
-			s.finalizeSkippedRepositoryStatus(context.Background(), 1, 2, tt.repo)
+			s.finalizeSkippedRepositoryStatus(context.Background(), 1, 2, tt.repo, tt.status, tt.statusDetail)
 
 			mockCode.AssertExpectations(t)
 		})

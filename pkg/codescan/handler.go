@@ -147,7 +147,8 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, r.GetFullName(), err.Error())
 			return semgrepFindings, successfullyScannedRepos, mimosasqs.WrapNonRetryable(err)
 		}
-		if s.skipScan(ctx, r, s.limitRepositorySizeKb) {
+		if skip, status, statusDetail := s.skipScan(ctx, r, s.limitRepositorySizeKb); skip {
+			s.finalizeSkippedRepositoryStatus(ctx, msg.ProjectID, msg.GitHubSettingID, r, status, statusDetail)
 			continue
 		}
 
@@ -224,10 +225,10 @@ func (s *sqsHandler) postScanProcessing(ctx context.Context, msg *message.CodeQu
 	return nil
 }
 
-func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, limitRepositorySize int) bool {
+func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, limitRepositorySize int) (bool, code.Status, string) {
 	if repo == nil {
 		s.logger.Warnf(ctx, "Skip scan repository(data not found)")
-		return true
+		return true, code.Status_ERROR, "Skipped: repository data not found"
 	}
 
 	repoName := ""
@@ -236,27 +237,27 @@ func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, limi
 	}
 	if repo.Archived != nil && *repo.Archived {
 		s.logger.Infof(ctx, "Skip scan for %s repository(archived)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository is archived"
 	}
 	if repo.Fork != nil && *repo.Fork {
 		s.logger.Infof(ctx, "Skip scan for %s repository(fork repo)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository is a fork"
 	}
 	if repo.Disabled != nil && *repo.Disabled {
 		s.logger.Infof(ctx, "Skip scan for %s repository(disabled)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository is disabled"
 	}
 	if repo.Size != nil && *repo.Size < 1 {
 		s.logger.Infof(ctx, "Skip scan for %s repository(empty)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository is empty"
 	}
 
 	// Hard limit size
 	if repo.Size != nil && *repo.Size > limitRepositorySize {
 		s.logger.Warnf(ctx, "Skip scan for %s repository(too big size, limit=%dkb, size(kb)=%dkb)", repoName, limitRepositorySize, *repo.Size)
-		return true
+		return true, code.Status_ERROR, fmt.Sprintf("Skipped: repository size exceeds limit (limit=%dKB, size=%dKB)", limitRepositorySize, *repo.Size)
 	}
-	return false
+	return false, code.Status_UNKNOWN, ""
 }
 
 func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
@@ -307,6 +308,18 @@ func (s *sqsHandler) updateRepositoryStatus(ctx context.Context, projectID, gith
 func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) {
 	if err := s.updateRepositoryStatusError(ctx, projectID, githubSettingID, repositoryFullName, statusDetail); err != nil {
 		s.logger.Warnf(ctx, "Failed to update repository status error: repository_name=%s, err=%+v", repositoryFullName, err)
+	}
+}
+
+// Repositories are initialized to IN_PROGRESS before enqueueing, so a skipped repository must be
+// finalized here. Otherwise it stays IN_PROGRESS and the parent setting never leaves IN_PROGRESS.
+func (s *sqsHandler) finalizeSkippedRepositoryStatus(ctx context.Context, projectID, githubSettingID uint32, repo *github.Repository, status code.Status, statusDetail string) {
+	repositoryFullName := repo.GetFullName()
+	if repositoryFullName == "" {
+		return
+	}
+	if err := s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, status, statusDetail); err != nil {
+		s.logger.Warnf(ctx, "Failed to finalize skipped repository status: repository_name=%s, err=%+v", repositoryFullName, err)
 	}
 }
 
