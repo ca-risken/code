@@ -218,6 +218,18 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	}
 }
 
+// Repositories are initialized to IN_PROGRESS before enqueueing, so a skipped repository must be
+// finalized here. Otherwise it stays IN_PROGRESS and the parent setting never leaves IN_PROGRESS.
+func (s *sqsHandler) finalizeSkippedRepositoryStatus(ctx context.Context, projectID, githubSettingID uint32, repo *github.Repository) {
+	repositoryFullName := repo.GetFullName()
+	if repositoryFullName == "" {
+		return
+	}
+	if err := s.updateRepositoryStatusSuccess(ctx, projectID, githubSettingID, repositoryFullName); err != nil {
+		s.logger.Warnf(ctx, "Failed to finalize skipped repository status: repository_full_name=%s, err=%+v", repositoryFullName, err)
+	}
+}
+
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string, messageRepos []*github.Repository, receiveCount int) error {
 	repos := messageRepos
 	if len(repos) == 0 {
@@ -256,6 +268,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		}
 
 		if s.skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
+			s.finalizeSkippedRepositoryStatus(ctx, msg.ProjectID, msg.GitHubSettingID, r)
 			continue
 		}
 
