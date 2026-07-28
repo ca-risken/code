@@ -80,6 +80,9 @@ func ParseSemgrepResult(dir, scanResult, repository, masterBranch, githubBaseURL
 	}
 	findings := make([]*SemgrepFinding, 0, len(results.Results))
 	for _, r := range results.Results {
+		if r == nil || r.Start == nil || r.End == nil || r.Extra == nil {
+			return nil, fmt.Errorf("invalid semgrep result: start, end, and extra are required")
+		}
 		r.Repository = repository
 		r.Path = strings.ReplaceAll(r.Path, dir+"/", "") // remove dir prefix
 		r.GitHubURL = GenerateGitHubURL(githubBaseURL, masterBranch, r)

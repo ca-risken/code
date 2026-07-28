@@ -51,6 +51,30 @@ func TestDecryptWithBase64(t *testing.T) {
 			plainText: "plain text",
 			wantErr:   true,
 		},
+		{
+			name: "NG ciphertext is not block aligned",
+			encoder: func(block *cipher.Block, input string) (string, error) {
+				return base64.RawStdEncoding.EncodeToString(make([]byte, aes.BlockSize+1)), nil
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG ciphertext has no encrypted block",
+			encoder: func(block *cipher.Block, input string) (string, error) {
+				return base64.RawStdEncoding.EncodeToString(make([]byte, aes.BlockSize)), nil
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG invalid padding",
+			encoder: func(block *cipher.Block, input string) (string, error) {
+				plain := make([]byte, aes.BlockSize)
+				encrypted := make([]byte, aes.BlockSize+len(plain))
+				cipher.NewCBCEncrypter(*block, encrypted[:aes.BlockSize]).CryptBlocks(encrypted[aes.BlockSize:], plain)
+				return base64.RawStdEncoding.EncodeToString(encrypted), nil
+			},
+			wantErr: true,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

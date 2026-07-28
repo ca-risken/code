@@ -5,12 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
 	"github.com/ca-risken/datasource-api/proto/code"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/google/go-github/v44/github"
 )
+
+const MaxGitHubAppRepositoryNotFoundReceiveCount = 3
 
 func FilterByNamePattern(repos []*github.Repository, pattern string) []*github.Repository {
 	var filteredRepos []*github.Repository
@@ -70,4 +74,24 @@ func DecryptGitHubPersonalAccessToken(block *cipher.Block, gitHubSetting *code.G
 		return "", nil
 	}
 	return codecrypto.DecryptWithBase64(block, gitHubSetting.PersonalAccessToken)
+}
+
+func IsRetryableGitHubAppRepositoryNotFound(gitHubSetting *code.GitHubSetting, err error) bool {
+	if gitHubSetting == nil || gitHubSetting.AuthMode != code.GitHubAuthModeGitHubApp || err == nil {
+		return false
+	}
+	return errors.Is(err, gittransport.ErrRepositoryNotFound)
+}
+
+func GetApproximateReceiveCount(attributes map[string]string) int {
+	count, err := strconv.Atoi(attributes["ApproximateReceiveCount"])
+	if err != nil || count < 1 {
+		return 1
+	}
+	return count
+}
+
+func ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting *code.GitHubSetting, err error, receiveCount int) bool {
+	return receiveCount < MaxGitHubAppRepositoryNotFoundReceiveCount &&
+		IsRetryableGitHubAppRepositoryNotFound(gitHubSetting, err)
 }

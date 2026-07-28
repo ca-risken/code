@@ -2,11 +2,14 @@ package common
 
 import (
 	"crypto/aes"
+	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
 
 	"github.com/ca-risken/datasource-api/proto/code"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/google/go-github/v44/github"
 )
 
@@ -359,6 +362,91 @@ func TestDecryptGitHubPersonalAccessToken(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsRetryableGitHubAppRepositoryNotFound(t *testing.T) {
+	tests := []struct {
+		name            string
+		gitHubSetting   *code.GitHubSetting
+		err             error
+		wantIsRetryable bool
+	}{
+		{
+			name:            "GitHub App go-git repository not found",
+			gitHubSetting:   &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
+			err:             fmt.Errorf("failed to clone: %w", gittransport.ErrRepositoryNotFound),
+			wantIsRetryable: true,
+		},
+		{
+			name:          "PAT repository not found",
+			gitHubSetting: &code.GitHubSetting{AuthMode: code.GitHubAuthModePersonalAccessToken},
+			err:           errors.New("repository not found"),
+		},
+		{
+			name:          "GitHub App other error",
+			gitHubSetting: &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
+			err:           errors.New("response mentioned repository not found"),
+		},
+		{
+			name:          "nil error",
+			gitHubSetting: &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsRetryableGitHubAppRepositoryNotFound(tt.gitHubSetting, tt.err); got != tt.wantIsRetryable {
+				t.Fatalf("IsRetryableGitHubAppRepositoryNotFound() = %v, want %v", got, tt.wantIsRetryable)
+			}
+		})
+	}
+}
+
+func TestGetApproximateReceiveCount(t *testing.T) {
+	tests := []struct {
+		name       string
+		attributes map[string]string
+		want       int
+	}{
+		{name: "valid count", attributes: map[string]string{"ApproximateReceiveCount": "2"}, want: 2},
+		{name: "missing count", attributes: map[string]string{}, want: 1},
+		{name: "invalid count", attributes: map[string]string{"ApproximateReceiveCount": "invalid"}, want: 1},
+		{name: "non-positive count", attributes: map[string]string{"ApproximateReceiveCount": "0"}, want: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetApproximateReceiveCount(tt.attributes); got != tt.want {
+				t.Fatalf("GetApproximateReceiveCount() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestShouldRetryGitHubAppRepositoryNotFound(t *testing.T) {
+	gitHubAppSetting := &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp}
+	repositoryNotFound := fmt.Errorf("failed to clone: %w", gittransport.ErrRepositoryNotFound)
+	tests := []struct {
+		name         string
+		setting      *code.GitHubSetting
+		err          error
+		receiveCount int
+		want         bool
+	}{
+		{name: "first receive retries", setting: gitHubAppSetting, err: repositoryNotFound, receiveCount: 1, want: true},
+		{name: "second receive retries", setting: gitHubAppSetting, err: repositoryNotFound, receiveCount: 2, want: true},
+		{name: "third receive stops", setting: gitHubAppSetting, err: repositoryNotFound, receiveCount: 3, want: false},
+		{name: "PAT does not retry", setting: &code.GitHubSetting{AuthMode: code.GitHubAuthModePersonalAccessToken}, err: repositoryNotFound, receiveCount: 1, want: false},
+		{name: "other error does not retry", setting: gitHubAppSetting, err: errors.New("temporary error"), receiveCount: 1, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ShouldRetryGitHubAppRepositoryNotFound(tt.setting, tt.err, tt.receiveCount); got != tt.want {
+				t.Fatalf("ShouldRetryGitHubAppRepositoryNotFound() = %v, want %v", got, tt.want)
 			}
 		})
 	}

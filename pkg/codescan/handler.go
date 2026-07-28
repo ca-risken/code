@@ -83,10 +83,11 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	}
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 
-	return s.handleRepositoryScan(ctx, msg, gitHubSetting, token)
+	receiveCount := common.GetApproximateReceiveCount(sqsMsg.Attributes)
+	return s.handleRepositoryScan(ctx, msg, gitHubSetting, token, receiveCount)
 }
 
-func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string) error {
+func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, receiveCount int) error {
 	repos := common.GetRepositoriesFromCodeQueueMessage(msg)
 	if len(repos) == 0 {
 		err := fmt.Errorf("repository metadata is required in queue message")
@@ -105,14 +106,14 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	repos = common.FilterByNamePattern(repos, gitHubSetting.CodeScanSetting.RepositoryPattern)
 
 	// Orchestrate repository scanning process
-	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, personalAccessToken, repos)
+	return s.orchestrateScanningProcess(ctx, msg, gitHubSetting, personalAccessToken, repos, receiveCount)
 }
 
-func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, repos []*github.Repository) error {
+func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, repos []*github.Repository, receiveCount int) error {
 	beforeScanAt := time.Now()
 
 	// Step 1: Scan all repositories
-	semgrepFindings, successfullyScannedRepos, err := s.scanAllRepositories(ctx, msg, gitHubSetting, personalAccessToken, repos)
+	semgrepFindings, successfullyScannedRepos, err := s.scanAllRepositories(ctx, msg, gitHubSetting, personalAccessToken, repos, receiveCount)
 	if err != nil {
 		return err
 	}
@@ -131,7 +132,7 @@ func (s *sqsHandler) orchestrateScanningProcess(ctx context.Context, msg *messag
 }
 
 // scanAllRepositories scans all repositories and returns findings and successfully scanned repository names
-func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, repos []*github.Repository) ([]*SemgrepFinding, []string, error) {
+func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, repos []*github.Repository, receiveCount int) ([]*SemgrepFinding, []string, error) {
 	semgrepFindings := []*SemgrepFinding{}
 	successfullyScannedRepos := []string{}
 
@@ -169,6 +170,9 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			// Scan failed - update status to ERROR
 			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			if common.ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting, err, receiveCount) {
+				return semgrepFindings, successfullyScannedRepos, err
+			}
 			// Continue to next repository instead of returning error
 			continue
 		}

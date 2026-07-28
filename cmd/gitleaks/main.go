@@ -49,7 +49,7 @@ type AppConfig struct {
 	WaitTimeSecond        int32  `split_words:"true" default:"20"`
 
 	// gitleaks
-	GithubDefaultToken           string   `required:"true" split_words:"true" default:"your-token-here"`
+	GithubDefaultToken           string   `required:"true" split_words:"true"`
 	GithubAppID                  string   `split_words:"true"`
 	GithubAppPrivateKey          string   `split_words:"true"`
 	GithubAppAllowedBaseURLHosts []string `split_words:"true"`

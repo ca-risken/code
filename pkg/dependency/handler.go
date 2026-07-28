@@ -5,6 +5,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -216,7 +217,19 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 
 func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, r *github.Repository, token string) error {
 	repoFullName := r.GetFullName()
-	resultFilePath := fmt.Sprintf("/tmp/%v_%v_%s_%v.json", msg.ProjectID, msg.GitHubSettingID, *r.Name, time.Now().Unix())
+	resultFile, err := os.CreateTemp("", "dependency-*.json")
+	if err != nil {
+		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		return mimosasqs.WrapNonRetryable(fmt.Errorf("failed to create dependency scan result file: %w", err))
+	}
+	resultFilePath := resultFile.Name()
+	if err := resultFile.Close(); err != nil {
+		os.Remove(resultFilePath)
+		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		return mimosasqs.WrapNonRetryable(fmt.Errorf("failed to close dependency scan result file: %w", err))
+	}
+	defer os.Remove(resultFilePath)
+
 	result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, token, resultFilePath)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)

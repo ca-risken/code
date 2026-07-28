@@ -223,9 +223,10 @@ func TestParseSemgrepResult(t *testing.T) {
 		githubBaseURL string
 	}
 	cases := []struct {
-		name  string
-		input *args
-		want  []*SemgrepFinding
+		name    string
+		input   *args
+		want    []*SemgrepFinding
+		wantErr bool
 	}{
 		{
 			name: "OK",
@@ -258,12 +259,45 @@ func TestParseSemgrepResult(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "NG missing start",
+			input: &args{
+				dir:          "/tmp",
+				scanResult:   `{"results":[{"path":"/tmp/aaa.go","end":{"line":3},"extra":{"message":"message"}}]}`,
+				masterBranch: "main",
+				repository:   "org/repo",
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG missing end",
+			input: &args{
+				dir:          "/tmp",
+				scanResult:   `{"results":[{"path":"/tmp/aaa.go","start":{"line":1},"extra":{"message":"message"}}]}`,
+				masterBranch: "main",
+				repository:   "org/repo",
+			},
+			wantErr: true,
+		},
+		{
+			name: "NG missing extra",
+			input: &args{
+				dir:          "/tmp",
+				scanResult:   `{"results":[{"path":"/tmp/aaa.go","start":{"line":1},"end":{"line":3}}]}`,
+				masterBranch: "main",
+				repository:   "org/repo",
+			},
+			wantErr: true,
+		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got, err := ParseSemgrepResult(c.input.dir, c.input.scanResult, c.input.repository, c.input.masterBranch, c.input.githubBaseURL)
-			if err != nil {
-				t.Fatalf("Unexpected error: %s", err)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("ParseSemgrepResult() error = %v, wantErr %v", err, c.wantErr)
+			}
+			if c.wantErr {
+				return
 			}
 			if len(got) != len(c.want) {
 				t.Fatalf("Unexpected data length: want=%d, got=%d", len(c.want), len(got))
