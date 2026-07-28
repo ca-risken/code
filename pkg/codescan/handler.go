@@ -159,9 +159,11 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			continue
 		}
 
-		// Update repository status to IN_PROGRESS
-		if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_name=%s, err=%+v", repoFullName, err)
+		// Initial delivery was already initialized before enqueueing. Restore IN_PROGRESS only when retrying.
+		if common.ShouldUpdateRepositoryStatusInProgress(receiveCount) {
+			if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
+				s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_name=%s, err=%+v", repoFullName, err)
+			}
 		}
 
 		// Scan source code
