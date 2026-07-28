@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
@@ -22,10 +23,11 @@ func (f *fakeTrivyClient) Scan(ctx context.Context, cloneURL, token, filePath st
 	return f.err
 }
 
-func makeFakeOutput(output string, err error) fakeexec.FakeAction {
+func makeFakeOutput(output, errorOutput string, err error) fakeexec.FakeAction {
 	o := output
+	e := errorOutput
 	return func() ([]byte, []byte, error) {
-		return []byte(o), nil, err
+		return []byte(o), []byte(e), err
 	}
 }
 
@@ -133,27 +135,37 @@ func TestGetResult(t *testing.T) {
 
 func TestScan(t *testing.T) {
 	cases := []struct {
-		name       string
-		cloneURL   string
-		token      string
-		filePath   string
-		execScript ExecArgs
-		scanResult string
-		scanError  error
-		want       []byte
-		wantErr    bool
+		name           string
+		cloneURL       string
+		token          string
+		filePath       string
+		execScript     ExecArgs
+		scanResult     string
+		scanError      error
+		wantErrContain string
+		want           []byte
+		wantErr        bool
 	}{
 		{
-			name:       "OK",
-			wantErr:    false,
-			cloneURL:   "test",
-			execScript: ExecArgs{"/usr/local/bin/trivy", []string{"repository", "--security-checks", "vuln", "--output", "path", "--format", "json", "url"}, "", nil},
+			name:     "OK",
+			wantErr:  false,
+			cloneURL: "test",
+			execScript: ExecArgs{
+				command: "/usr/local/bin/trivy",
+				args:    []string{"repository", "--security-checks", "vuln", "--output", "path", "--format", "json", "url"},
+			},
 		},
 		{
-			name:       "NG scan error",
-			wantErr:    true,
-			cloneURL:   "test",
-			execScript: ExecArgs{"/usr/local/bin/trivy", []string{"repository", "--security-checks", "vuln", "--output", "path", "--format", "json", "url"}, "", errors.New("something occurs")},
+			name:           "NG scan error includes stderr",
+			wantErr:        true,
+			wantErrContain: "repository not found",
+			cloneURL:       "test",
+			execScript: ExecArgs{
+				command:     "/usr/local/bin/trivy",
+				args:        []string{"repository", "--security-checks", "vuln", "--output", "path", "--format", "json", "url"},
+				errorOutput: "repository not found",
+				err:         errors.New("something occurs"),
+			},
 		},
 	}
 	for _, c := range cases {
@@ -162,7 +174,7 @@ func TestScan(t *testing.T) {
 			fakeExec := &fakeexec.FakeExec{}
 			fakeCmd := &fakeexec.FakeCmd{}
 			cmdAction := makeFakeCmd(fakeCmd, c.execScript.command, c.execScript.args...)
-			outputAction := makeFakeOutput(c.execScript.output, c.execScript.err)
+			outputAction := makeFakeOutput(c.execScript.output, c.execScript.errorOutput, c.execScript.err)
 			fakeCmd.RunScript = append(fakeCmd.RunScript, outputAction)
 			var stderr bytes.Buffer
 			var stdout bytes.Buffer
@@ -179,13 +191,17 @@ func TestScan(t *testing.T) {
 			if !c.wantErr && err != nil {
 				t.Fatalf("Unexpected error occured, err=%+v", err)
 			}
+			if c.wantErrContain != "" && (err == nil || !strings.Contains(err.Error(), c.wantErrContain)) {
+				t.Fatalf("error = %v, want it to contain %q", err, c.wantErrContain)
+			}
 		})
 	}
 }
 
 type ExecArgs struct {
-	command string
-	args    []string
-	output  string
-	err     error
+	command     string
+	args        []string
+	output      string
+	errorOutput string
+	err         error
 }

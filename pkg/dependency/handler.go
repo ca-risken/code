@@ -221,6 +221,9 @@ func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueM
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
 		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+		if common.IsRetryableGitHubAppRepositoryNotFound(gitHubSetting, err) {
+			return err
+		}
 		return mimosasqs.WrapNonRetryable(err)
 	}
 

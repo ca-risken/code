@@ -71,3 +71,10 @@ func DecryptGitHubPersonalAccessToken(block *cipher.Block, gitHubSetting *code.G
 	}
 	return codecrypto.DecryptWithBase64(block, gitHubSetting.PersonalAccessToken)
 }
+
+func IsRetryableGitHubAppRepositoryNotFound(gitHubSetting *code.GitHubSetting, err error) bool {
+	if gitHubSetting == nil || gitHubSetting.AuthMode != code.GitHubAuthModeGitHubApp || err == nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(err.Error()), "repository not found")
+}

@@ -99,7 +99,7 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 	cmd.SetStderr(&stderr)
 	err := cmd.Run()
 	if err != nil {
-		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)
+		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s, stderr=%s", err, cloneURL, stderr.String())
 	}
 	return nil
 }

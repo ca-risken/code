@@ -2,6 +2,8 @@ package common
 
 import (
 	"crypto/aes"
+	"errors"
+	"fmt"
 	"os"
 	"reflect"
 	"testing"
@@ -359,6 +361,50 @@ func TestDecryptGitHubPersonalAccessToken(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Fatalf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsRetryableGitHubAppRepositoryNotFound(t *testing.T) {
+	tests := []struct {
+		name            string
+		gitHubSetting   *code.GitHubSetting
+		err             error
+		wantIsRetryable bool
+	}{
+		{
+			name:            "GitHub App repository not found",
+			gitHubSetting:   &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
+			err:             errors.New("failed to clone: repository not found"),
+			wantIsRetryable: true,
+		},
+		{
+			name:            "GitHub App wrapped repository not found",
+			gitHubSetting:   &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
+			err:             fmt.Errorf("failed to scan: %w", errors.New("Repository Not Found")),
+			wantIsRetryable: true,
+		},
+		{
+			name:          "PAT repository not found",
+			gitHubSetting: &code.GitHubSetting{AuthMode: code.GitHubAuthModePersonalAccessToken},
+			err:           errors.New("repository not found"),
+		},
+		{
+			name:          "GitHub App other error",
+			gitHubSetting: &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
+			err:           errors.New("connection reset"),
+		},
+		{
+			name:          "nil error",
+			gitHubSetting: &code.GitHubSetting{AuthMode: code.GitHubAuthModeGitHubApp},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsRetryableGitHubAppRepositoryNotFound(tt.gitHubSetting, tt.err); got != tt.wantIsRetryable {
+				t.Fatalf("IsRetryableGitHubAppRepositoryNotFound() = %v, want %v", got, tt.wantIsRetryable)
 			}
 		})
 	}

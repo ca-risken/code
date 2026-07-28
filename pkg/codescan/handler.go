@@ -169,6 +169,9 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			// Scan failed - update status to ERROR
 			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			if common.IsRetryableGitHubAppRepositoryNotFound(gitHubSetting, err) {
+				return semgrepFindings, successfullyScannedRepos, err
+			}
 			// Continue to next repository instead of returning error
 			continue
 		}
