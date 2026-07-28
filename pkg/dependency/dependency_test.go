@@ -156,9 +156,9 @@ func TestScan(t *testing.T) {
 			},
 		},
 		{
-			name:           "NG scan error includes stderr",
+			name:           "NG scan error",
 			wantErr:        true,
-			wantErrContain: "repository not found",
+			wantErrContain: "something occurs",
 			cloneURL:       "test",
 			execScript: ExecArgs{
 				command:     "/usr/local/bin/trivy",

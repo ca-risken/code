@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	codecrypto "github.com/ca-risken/code/pkg/crypto"
@@ -13,7 +14,7 @@ import (
 	"github.com/google/go-github/v44/github"
 )
 
-var ErrGitHubRepositoryNotFound = errors.New("github repository not found")
+const MaxGitHubAppRepositoryNotFoundReceiveCount = 3
 
 func FilterByNamePattern(repos []*github.Repository, pattern string) []*github.Repository {
 	var filteredRepos []*github.Repository
@@ -79,6 +80,18 @@ func IsRetryableGitHubAppRepositoryNotFound(gitHubSetting *code.GitHubSetting, e
 	if gitHubSetting == nil || gitHubSetting.AuthMode != code.GitHubAuthModeGitHubApp || err == nil {
 		return false
 	}
-	return errors.Is(err, gittransport.ErrRepositoryNotFound) ||
-		errors.Is(err, ErrGitHubRepositoryNotFound)
+	return errors.Is(err, gittransport.ErrRepositoryNotFound)
+}
+
+func GetApproximateReceiveCount(attributes map[string]string) int {
+	count, err := strconv.Atoi(attributes["ApproximateReceiveCount"])
+	if err != nil || count < 1 {
+		return 1
+	}
+	return count
+}
+
+func ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting *code.GitHubSetting, err error, receiveCount int) bool {
+	return receiveCount < MaxGitHubAppRepositoryNotFoundReceiveCount &&
+		IsRetryableGitHubAppRepositoryNotFound(gitHubSetting, err)
 }

@@ -103,8 +103,9 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	gitHubSetting.PersonalAccessToken = token // Set the plaintext so that the value is still decipherable next processes.
 
 	messageRepos := common.GetRepositoriesFromCodeQueueMessage(msg)
+	receiveCount := common.GetApproximateReceiveCount(sqsMsg.Attributes)
 
-	if err := s.handleRepositoryScan(ctx, msg, gitHubSetting, token, requestID, messageRepos); err != nil {
+	if err := s.handleRepositoryScan(ctx, msg, gitHubSetting, token, requestID, messageRepos, receiveCount); err != nil {
 		return err
 	}
 	s.logger.Infof(ctx, "end Scan, RequestID=%s", requestID)
@@ -217,7 +218,7 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	}
 }
 
-func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string, messageRepos []*github.Repository) error {
+func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string, messageRepos []*github.Repository, receiveCount int) error {
 	repos := messageRepos
 	if len(repos) == 0 {
 		return mimosasqs.WrapNonRetryable(fmt.Errorf("repository metadata is required in queue message"))
@@ -226,10 +227,10 @@ func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.Code
 	s.logger.Infof(ctx, "Got repositories from queue message, count=%d, baseURL=%s, target=%s",
 		len(repos), gitHubSetting.BaseUrl, gitHubSetting.TargetResource)
 
-	return s.scanDiffRepositories(ctx, msg, gitHubSetting, token, repos)
+	return s.scanDiffRepositories(ctx, msg, gitHubSetting, token, repos, receiveCount)
 }
 
-func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, repos []*github.Repository) error {
+func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, personalAccessToken string, repos []*github.Repository, receiveCount int) error {
 	for _, r := range repos {
 		if err := common.ValidateRepository(r, gitHubSetting.BaseUrl); err != nil {
 			repoFullName := ""
@@ -276,7 +277,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
-			if common.IsRetryableGitHubAppRepositoryNotFound(gitHubSetting, err) {
+			if common.ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting, err, receiveCount) {
 				return err
 			}
 			return mimosasqs.WrapNonRetryable(err)
