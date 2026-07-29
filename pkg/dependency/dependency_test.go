@@ -277,6 +277,108 @@ func TestScanGitHubAppRepositoryNotFoundRetry(t *testing.T) {
 	}
 }
 
+func TestScanRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
+	fakeExec := &fakeexec.FakeExec{}
+	fakeCmd := &fakeexec.FakeCmd{}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	fakeCmd.Stdout = &stdout
+	fakeCmd.Stderr = &stderr
+	fakeExec.CommandScript = append(fakeExec.CommandScript, makeFakeCmd(fakeCmd, "trivy"))
+	fakeCmd.RunScript = append(fakeCmd.RunScript, makeFakeOutput("", "Repository not found", errors.New("exit 1")))
+
+	client := newTrivyClient("trivy", fakeExec, nil, logging.NewLogger()).(*trivyClient)
+	client.wait = func(context.Context, time.Duration) error { return context.Canceled }
+
+	err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
+	if !errors.Is(err, gittransport.ErrRepositoryNotFound) {
+		t.Fatalf("Scan() error = %v, want repository not found classification", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Scan() error = %v, want context canceled", err)
+	}
+}
+
+func TestResetTrivyOutput(t *testing.T) {
+	cases := []struct {
+		name    string
+		prepare func(*testing.T) string
+		wantErr bool
+	}{
+		{
+			name: "truncates existing file and keeps private permissions",
+			prepare: func(t *testing.T) string {
+				path := filepathForTest(t)
+				if err := os.WriteFile(path, []byte("partial"), 0644); err != nil {
+					t.Fatalf("WriteFile() error = %v", err)
+				}
+				return path
+			},
+		},
+		{
+			name: "rejects symlink",
+			prepare: func(t *testing.T) string {
+				target := filepathForTest(t)
+				link := target + "-link"
+				if err := os.Symlink(target, link); err != nil {
+					t.Fatalf("Symlink() error = %v", err)
+				}
+				t.Cleanup(func() { os.Remove(link) })
+				return link
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path := c.prepare(t)
+			err := resetTrivyOutput(path)
+			if c.wantErr {
+				if err == nil {
+					t.Fatal("resetTrivyOutput() error = nil, want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resetTrivyOutput() error = %v", err)
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatalf("Stat() error = %v", err)
+			}
+			if info.Size() != 0 {
+				t.Fatalf("resetTrivyOutput() size = %d, want 0", info.Size())
+			}
+			if got := info.Mode().Perm(); got != 0600 {
+				t.Fatalf("resetTrivyOutput() permissions = %o, want 600", got)
+			}
+		})
+	}
+}
+
+func TestIsRepositoryNotFoundOutput(t *testing.T) {
+	cases := []struct {
+		name   string
+		output string
+		want   bool
+	}{
+		{name: "exact message", output: "Repository not found.", want: true},
+		{name: "prefixed message", output: "failed to clone: Repository not found.", want: true},
+		{name: "multiple lines", output: "diagnostic\nremote: Repository not found.\n", want: true},
+		{name: "phrase embedded in diagnostic", output: "repository not found while parsing a local file path", want: false},
+		{name: "unrelated", output: "scanner initialization failed", want: false},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := isRepositoryNotFoundOutput(c.output); got != c.want {
+				t.Fatalf("isRepositoryNotFoundOutput(%q) = %v, want %v", c.output, got, c.want)
+			}
+		})
+	}
+}
+
 func filepathForTest(t *testing.T) string {
 	t.Helper()
 	f, err := os.CreateTemp("", "dependency-retry-*.json")

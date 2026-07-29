@@ -380,6 +380,42 @@ func TestPrepareCloneDestinationRejectsUnsafePaths(t *testing.T) {
 	}
 }
 
+func TestCloneRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
+	cases := []struct {
+		name    string
+		dstDir  func(*testing.T) string
+		waitErr error
+	}{
+		{
+			name:    "wait failure",
+			dstDir:  func(t *testing.T) string { return t.TempDir() },
+			waitErr: context.Canceled,
+		},
+		{
+			name:   "destination reset failure",
+			dstDir: func(*testing.T) string { return "relative/path" },
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			client := &riskenGitHubClient{
+				logger: logging.NewLogger(),
+				clone:  func(token, cloneURL, dstDir string) error { return gittransport.ErrRepositoryNotFound },
+				wait:   func(context.Context, time.Duration) error { return c.waitErr },
+			}
+
+			err := client.Clone(WithRepositoryNotFoundRetry(context.Background()), "token", "https://github.com/owner/repo.git", c.dstDir(t))
+			if !errors.Is(err, gittransport.ErrRepositoryNotFound) {
+				t.Fatalf("Clone() error = %v, want repository not found classification", err)
+			}
+			if c.waitErr != nil && !errors.Is(err, c.waitErr) {
+				t.Fatalf("Clone() error = %v, want %v", err, c.waitErr)
+			}
+		})
+	}
+}
+
 func TestCloneCleansDestinationBeforeRetry(t *testing.T) {
 	var attempts int
 	client := &riskenGitHubClient{

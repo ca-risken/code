@@ -139,10 +139,10 @@ func (g *riskenGitHubClient) retryClone(ctx context.Context, token, cloneURL, ds
 		}
 		g.newRetryLogger(ctx, "github clone")(err, interval)
 		if waitErr := g.wait(ctx, interval); waitErr != nil {
-			return fmt.Errorf("failed to clone %s to %s: %w", cloneURL, dstDir, waitErr)
+			return fmt.Errorf("failed to clone %s to %s: %w", cloneURL, dstDir, errors.Join(err, waitErr))
 		}
 		if prepareErr := prepareCloneDestination(dstDir); prepareErr != nil {
-			return prepareErr
+			return errors.Join(err, prepareErr)
 		}
 		err = g.clone(token, cloneURL, dstDir)
 		if err == nil {
