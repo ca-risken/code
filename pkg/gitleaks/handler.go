@@ -119,10 +119,10 @@ func (s *sqsHandler) HandleMessage(ctx context.Context, sqsMsg *types.Message) e
 	return nil
 }
 
-func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.Time, limitRepositorySize int) bool {
+func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, lastScannedAt *time.Time, limitRepositorySize int) (bool, code.Status, string) {
 	if repo == nil {
 		s.logger.Warnf(ctx, "Skip scan repository(data not found)")
-		return true
+		return true, code.Status_ERROR, "Skipped: repository data not found"
 	}
 
 	repoName := ""
@@ -131,34 +131,34 @@ func (s *sqsHandler) skipScan(ctx context.Context, repo *github.Repository, last
 	}
 	if repo.Archived != nil && *repo.Archived {
 		s.logger.Infof(ctx, "Skip scan for %s repository(archived)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository is archived"
 	}
 	if repo.Fork != nil && *repo.Fork {
 		s.logger.Infof(ctx, "Skip scan for %s repository(fork repo)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository is a fork"
 	}
 	if repo.Disabled != nil && *repo.Disabled {
 		s.logger.Infof(ctx, "Skip scan for %s repository(disabled)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository is disabled"
 	}
 	if repo.Size != nil && *repo.Size < 1 {
 		s.logger.Infof(ctx, "Skip scan for %s repository(empty)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository is empty"
 	}
 
 	// Hard limit size
 	if repo.Size != nil && *repo.Size > limitRepositorySize {
 		s.logger.Warnf(ctx, "Skip scan for %s repository(too big size, limit=%dkb, size(kb)=%dkb)", repoName, limitRepositorySize, *repo.Size)
-		return true
+		return true, code.Status_ERROR, fmt.Sprintf("Skipped: repository size exceeds limit (limit=%dKB, size=%dKB)", limitRepositorySize, *repo.Size)
 	}
 
 	// Check comparing pushedAt and lastScannedAt
 	if repo.PushedAt != nil && lastScannedAt != nil && repo.PushedAt.Unix() <= lastScannedAt.Unix() {
 		s.logger.Infof(ctx, "Skip scan for %s repository(already scanned)", repoName)
-		return true
+		return true, code.Status_OK, "Skipped: repository was already scanned"
 	}
 
-	return false
+	return false, code.Status_UNKNOWN, ""
 }
 
 func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSettingID uint32) (*code.GitHubSetting, error) {
@@ -218,6 +218,18 @@ func (s *sqsHandler) updateRepositoryStatusErrorWithWarn(ctx context.Context, pr
 	}
 }
 
+// Repositories are initialized to IN_PROGRESS before enqueueing, so a skipped repository must be
+// finalized here. Otherwise it stays IN_PROGRESS and the parent setting never leaves IN_PROGRESS.
+func (s *sqsHandler) finalizeSkippedRepositoryStatus(ctx context.Context, projectID, githubSettingID uint32, repo *github.Repository, status code.Status, statusDetail string) {
+	repositoryFullName := repo.GetFullName()
+	if repositoryFullName == "" {
+		return
+	}
+	if err := s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, status, statusDetail); err != nil {
+		s.logger.Warnf(ctx, "Failed to finalize skipped repository status: repository_full_name=%s, err=%+v", repositoryFullName, err)
+	}
+}
+
 func (s *sqsHandler) handleRepositoryScan(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, token string, requestID string, messageRepos []*github.Repository, receiveCount int) error {
 	repos := messageRepos
 	if len(repos) == 0 {
@@ -255,7 +267,8 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 			}
 		}
 
-		if s.skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb) {
+		if skip, status, statusDetail := s.skipScan(ctx, r, lastScannedAt, s.limitRepositorySizeKb); skip {
+			s.finalizeSkippedRepositoryStatus(ctx, msg.ProjectID, msg.GitHubSettingID, r, status, statusDetail)
 			continue
 		}
 
@@ -267,13 +280,15 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 			continue
 		}
 
-		// Update repository status to IN_PROGRESS
-		if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
-			s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_full_name=%s, err=%+v", repoFullName, err)
+		// Initial delivery was already initialized before enqueueing. Restore IN_PROGRESS only when retrying.
+		if common.ShouldUpdateRepositoryStatusInProgress(receiveCount) {
+			if err := s.updateRepositoryStatusInProgress(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
+				s.logger.Warnf(ctx, "Failed to update repository status to IN_PROGRESS: repository_full_name=%s, err=%+v", repoFullName, err)
+			}
 		}
 
 		// Scan per repository
-		results, err := s.scanRepository(ctx, r, token, lastScannedAt, msg)
+		results, scanAt, err := s.scanRepository(ctx, r, token, lastScannedAt, msg)
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
@@ -290,6 +305,10 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 				return mimosasqs.WrapNonRetryable(err)
 			}
+			if err := s.updateGitleaksCache(ctx, msg, r, scanAt); err != nil {
+				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+				return mimosasqs.WrapNonRetryable(err)
+			}
 			if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
 				s.logger.Warnf(ctx, "Failed to update repository status success: repository_full_name=%s, err=%+v", repoFullName, err)
 			}
@@ -303,6 +322,11 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
+		if err := s.updateGitleaksCache(ctx, msg, r, scanAt); err != nil {
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
+			return mimosasqs.WrapNonRetryable(err)
+		}
+
 		// Update repository status to OK
 		if err := s.updateRepositoryStatusSuccess(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName); err != nil {
 			s.logger.Warnf(ctx, "Failed to update repository status success: repository_full_name=%s, err=%+v", repoFullName, err)
@@ -311,18 +335,18 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 	return nil
 }
 
-func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, msg *message.CodeQueueMessage) ([]report.Finding, error) {
+func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, msg *message.CodeQueueMessage) ([]report.Finding, time.Time, error) {
 	// Clone repository
 	dir, err := common.CreateCloneDir(*r.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create directory to clone %s: %w", *r.FullName, err)
+		return nil, time.Time{}, fmt.Errorf("failed to create directory to clone %s: %w", *r.FullName, err)
 	}
 	defer os.RemoveAll(dir)
 
 	cloneDate := time.Now()
 	err = s.githubClient.Clone(ctx, token, *r.CloneURL, dir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to clone %s: %w", *r.FullName, err)
+		return nil, time.Time{}, fmt.Errorf("failed to clone %s: %w", *r.FullName, err)
 	}
 
 	// Scan repository
@@ -333,21 +357,25 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 	duration := getScanDuration(from, r.PushedAt.Time)
 	results, err := s.gitleaksClient.scan(ctx, dir, duration)
 	if err != nil {
-		return nil, fmt.Errorf("failed to scan %s: %w", *r.FullName, err)
+		return nil, time.Time{}, fmt.Errorf("failed to scan %s: %w", *r.FullName, err)
 	}
+	return results, cloneDate, nil
+}
 
-	// Caching scanned time
+// Cache the scan only after its resources or findings have been stored successfully.
+// Otherwise a failed registration would be skipped as already scanned on the next run.
+func (s *sqsHandler) updateGitleaksCache(ctx context.Context, msg *message.CodeQueueMessage, r *github.Repository, scanAt time.Time) error {
 	if _, err := s.codeClient.PutGitleaksCache(ctx, &code.PutGitleaksCacheRequest{
 		ProjectId: msg.ProjectID,
 		GitleaksCache: &code.GitleaksCacheForUpsert{
 			GithubSettingId:    msg.GitHubSettingID,
 			RepositoryFullName: *r.FullName,
-			ScanAt:             cloneDate.Unix(),
+			ScanAt:             scanAt.Unix(),
 		},
 	}); err != nil {
-		return nil, fmt.Errorf("failed to cache time %s: %w", *r.FullName, err)
+		return fmt.Errorf("failed to cache time %s: %w", *r.FullName, err)
 	}
-	return results, nil
+	return nil
 }
 
 func (s *sqsHandler) putResource(ctx context.Context, projectID uint32, resourceName string) error {

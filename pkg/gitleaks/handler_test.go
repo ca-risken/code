@@ -14,6 +14,7 @@ import (
 	"github.com/ca-risken/datasource-api/proto/code/mocks"
 	"github.com/google/go-github/v44/github"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
@@ -422,9 +423,139 @@ func TestSkipScan(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := sqsHandler{logger: logging.NewLogger()}
-			if got := s.skipScan(tt.args.ctx, tt.args.repo, tt.args.lastScannedAt, tt.args.limitRepositorySize); got != tt.want {
+			if got, _, _ := s.skipScan(tt.args.ctx, tt.args.repo, tt.args.lastScannedAt, tt.args.limitRepositorySize); got != tt.want {
 				t.Errorf("skipScan() = %v, want %v", got, tt.want)
 			}
+		})
+	}
+}
+
+func TestFinalizeSkippedRepositoryStatus(t *testing.T) {
+	tests := []struct {
+		name         string
+		repo         *github.Repository
+		status       code.Status
+		statusDetail string
+		prepareMock  func(*mocks.CodeServiceClient)
+	}{
+		{
+			name:         "update status to OK",
+			repo:         &github.Repository{FullName: github.String("owner/repo")},
+			status:       code.Status_OK,
+			statusDetail: "Skipped: repository was already scanned",
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutGitleaksRepository", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksRepositoryRequest) bool {
+						if req == nil || req.GitleaksRepository == nil {
+							return false
+						}
+						return req.ProjectId == 1 &&
+							req.GitleaksRepository.GithubSettingId == 2 &&
+							req.GitleaksRepository.RepositoryFullName == "owner/repo" &&
+							req.GitleaksRepository.Status == code.Status_OK &&
+							req.GitleaksRepository.StatusDetail == "Skipped: repository was already scanned"
+					})).
+					Return(&emptypb.Empty{}, nil).
+					Once()
+			},
+		},
+		{
+			name:   "no update for repository without full name",
+			repo:   nil,
+			status: code.Status_OK,
+		},
+		{
+			name:         "update size limit skip to ERROR",
+			repo:         &github.Repository{FullName: github.String("owner/repo")},
+			status:       code.Status_ERROR,
+			statusDetail: "Skipped: repository size exceeds limit",
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutGitleaksRepository", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksRepositoryRequest) bool {
+						return req.GitleaksRepository.Status == code.Status_ERROR &&
+							req.GitleaksRepository.StatusDetail == "Skipped: repository size exceeds limit"
+					})).
+					Return(&emptypb.Empty{}, nil).
+					Once()
+			},
+		},
+		{
+			name: "API error is only logged",
+			repo: &github.Repository{FullName: github.String("owner/repo")},
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutGitleaksRepository", mock.Anything, mock.Anything).
+					Return(nil, errors.New("something error")).
+					Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCode := mocks.CodeServiceClient{}
+			if tt.prepareMock != nil {
+				tt.prepareMock(&mockCode)
+			}
+			s := sqsHandler{codeClient: &mockCode, logger: logging.NewLogger()}
+
+			s.finalizeSkippedRepositoryStatus(context.Background(), 1, 2, tt.repo, tt.status, tt.statusDetail)
+
+			mockCode.AssertExpectations(t)
+		})
+	}
+}
+
+func TestUpdateGitleaksCache(t *testing.T) {
+	scanAt := time.Unix(1710000000, 0)
+	tests := []struct {
+		name        string
+		prepareMock func(*mocks.CodeServiceClient)
+		wantErr     bool
+	}{
+		{
+			name: "cache successful scan time",
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutGitleaksCache", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksCacheRequest) bool {
+						return req.ProjectId == 1 &&
+							req.GitleaksCache.GithubSettingId == 2 &&
+							req.GitleaksCache.RepositoryFullName == "owner/repo" &&
+							req.GitleaksCache.ScanAt == scanAt.Unix()
+					})).
+					Return(&code.PutGitleaksCacheResponse{}, nil).
+					Once()
+			},
+		},
+		{
+			name: "return cache API error",
+			prepareMock: func(mockCode *mocks.CodeServiceClient) {
+				mockCode.
+					On("PutGitleaksCache", mock.Anything, mock.Anything).
+					Return(nil, errors.New("cache error")).
+					Once()
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCode := mocks.CodeServiceClient{}
+			tt.prepareMock(&mockCode)
+			s := sqsHandler{codeClient: &mockCode}
+
+			err := s.updateGitleaksCache(
+				context.Background(),
+				&message.CodeQueueMessage{ProjectID: 1, GitHubSettingID: 2},
+				&github.Repository{FullName: github.String("owner/repo")},
+				scanAt,
+			)
+
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("updateGitleaksCache() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			mockCode.AssertExpectations(t)
 		})
 	}
 }
