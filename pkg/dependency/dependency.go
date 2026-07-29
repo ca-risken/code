@@ -16,7 +16,11 @@ import (
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/cenkalti/backoff/v4"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/config"
 	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
+	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/storage/memory"
 )
 
 const RETRY_NUM uint64 = 3
@@ -50,6 +54,7 @@ type trivyClient struct {
 	retryNum  uint64
 	logger    logging.Logger
 	wait      func(context.Context, time.Duration) error
+	checkRepo func(context.Context, string, string) error
 }
 
 func newTrivyClient(trivyPath string, exec exec.Interface, retryNum *uint64, l logging.Logger) trivyScanner {
@@ -63,6 +68,7 @@ func newTrivyClient(trivyPath string, exec exec.Interface, retryNum *uint64, l l
 		retryNum:  retry,
 		logger:    l,
 		wait:      waitForTrivyRetry,
+		checkRepo: checkRepository,
 	}
 }
 
@@ -181,11 +187,27 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 	err := cmd.Run()
 	if err != nil {
 		if isRepositoryNotFoundOutput(stderr.String()) {
-			return fmt.Errorf("failed to execute trivy: err=%v, cloneURL=%s: %w", err, cloneURL, gittransport.ErrRepositoryNotFound)
+			if checkErr := t.checkRepo(ctx, token, cloneURL); errors.Is(checkErr, gittransport.ErrRepositoryNotFound) {
+				return fmt.Errorf("failed to execute trivy: err=%v, cloneURL=%s: %w", err, cloneURL, gittransport.ErrRepositoryNotFound)
+			}
 		}
 		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)
 	}
 	return nil
+}
+
+func checkRepository(ctx context.Context, token, cloneURL string) error {
+	remote := git.NewRemote(memory.NewStorage(), &config.RemoteConfig{
+		Name: "origin",
+		URLs: []string{cloneURL},
+	})
+	_, err := remote.ListContext(ctx, &git.ListOptions{
+		Auth: &http.BasicAuth{
+			Username: "dummy", // anything except an empty string
+			Password: token,
+		},
+	})
+	return err
 }
 
 func isRepositoryNotFoundOutput(output string) bool {

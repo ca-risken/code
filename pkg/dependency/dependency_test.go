@@ -259,6 +259,9 @@ func TestScanGitHubAppRepositoryNotFoundRetry(t *testing.T) {
 			}
 			client := newTrivyClient("trivy", fakeExec, nil, logging.NewLogger()).(*trivyClient)
 			client.wait = func(context.Context, time.Duration) error { return nil }
+			client.checkRepo = func(context.Context, string, string) error {
+				return gittransport.ErrRepositoryNotFound
+			}
 
 			err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
 			if c.wantErr && err == nil {
@@ -289,6 +292,9 @@ func TestScanRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
 
 	client := newTrivyClient("trivy", fakeExec, nil, logging.NewLogger()).(*trivyClient)
 	client.wait = func(context.Context, time.Duration) error { return context.Canceled }
+	client.checkRepo = func(context.Context, string, string) error {
+		return gittransport.ErrRepositoryNotFound
+	}
 
 	err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
 	if !errors.Is(err, gittransport.ErrRepositoryNotFound) {
@@ -296,6 +302,71 @@ func TestScanRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Scan() error = %v, want context canceled", err)
+	}
+}
+
+func TestScanVerifiesRepositoryNotFound(t *testing.T) {
+	cases := []struct {
+		name           string
+		errorOutput    string
+		checkErr       error
+		wantRepoErr    bool
+		wantCheckCalls int
+	}{
+		{
+			name:           "classifies typed repository not found",
+			errorOutput:    "remote: Repository not found.",
+			checkErr:       gittransport.ErrRepositoryNotFound,
+			wantRepoErr:    true,
+			wantCheckCalls: 1,
+		},
+		{
+			name:           "does not classify when repository is reachable",
+			errorOutput:    "remote: Repository not found.",
+			wantCheckCalls: 1,
+		},
+		{
+			name:           "does not classify another authentication error",
+			errorOutput:    "remote: Repository not found.",
+			checkErr:       errors.New("authentication failed"),
+			wantCheckCalls: 1,
+		},
+		{
+			name:        "does not verify unrelated trivy error",
+			errorOutput: "scanner initialization failed",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fakeExec := &fakeexec.FakeExec{}
+			fakeCmd := &fakeexec.FakeCmd{}
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			fakeCmd.Stdout = &stdout
+			fakeCmd.Stderr = &stderr
+			fakeExec.CommandScript = append(fakeExec.CommandScript, makeFakeCmd(fakeCmd, "trivy"))
+			fakeCmd.RunScript = append(fakeCmd.RunScript, makeFakeOutput("", c.errorOutput, errors.New("exit 1")))
+
+			retryNum := uint64(0)
+			client := newTrivyClient("trivy", fakeExec, &retryNum, logging.NewLogger()).(*trivyClient)
+			checkCalls := 0
+			client.checkRepo = func(context.Context, string, string) error {
+				checkCalls++
+				return c.checkErr
+			}
+
+			err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
+			if err == nil {
+				t.Fatal("Scan() error = nil, want error")
+			}
+			if got := errors.Is(err, gittransport.ErrRepositoryNotFound); got != c.wantRepoErr {
+				t.Fatalf("Scan() repository not found = %v, want %v; err=%v", got, c.wantRepoErr, err)
+			}
+			if checkCalls != c.wantCheckCalls {
+				t.Fatalf("repository check calls = %d, want %d", checkCalls, c.wantCheckCalls)
+			}
+		})
 	}
 }
 
