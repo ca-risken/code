@@ -157,9 +157,14 @@ func resetTrivyOutput(outputPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to reset trivy output %s: %w", outputPath, err)
 	}
-	defer file.Close()
 	if err := file.Chmod(0600); err != nil {
-		return fmt.Errorf("failed to secure trivy output %s: %w", outputPath, err)
+		return errors.Join(
+			fmt.Errorf("failed to secure trivy output %s: %w", outputPath, err),
+			file.Close(),
+		)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close trivy output %s: %w", outputPath, err)
 	}
 	return nil
 }
