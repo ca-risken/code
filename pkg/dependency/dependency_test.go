@@ -8,9 +8,11 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
 	"github.com/ca-risken/common/pkg/logging"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 	"k8s.io/utils/exec"
 	fakeexec "k8s.io/utils/exec/testing"
 )
@@ -19,7 +21,7 @@ type fakeTrivyClient struct {
 	err error
 }
 
-func (f *fakeTrivyClient) Scan(ctx context.Context, cloneURL, token, filePath string) error {
+func (f *fakeTrivyClient) Scan(ctx context.Context, cloneURL, token, filePath string, retryRepositoryNotFound bool) error {
 	return f.err
 }
 
@@ -119,7 +121,7 @@ func TestGetResult(t *testing.T) {
 				t.Fatalf("Failed to close test result file. err: %+v", err)
 			}
 			defer os.Remove(f.Name())
-			got, err := client.getResult(ctx, c.cloneURL, c.token, f.Name())
+			got, err := client.getResult(ctx, c.cloneURL, c.token, f.Name(), false)
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
@@ -184,7 +186,7 @@ func TestScan(t *testing.T) {
 
 			retryNum := uint64(0)
 			client := newTrivyClient("trivyPath", fakeExec, &retryNum, logging.NewLogger())
-			err := client.Scan(ctx, c.cloneURL, c.token, c.filePath)
+			err := client.Scan(ctx, c.cloneURL, c.token, c.filePath, false)
 			if c.wantErr && err == nil {
 				t.Fatal("Unexpected no error")
 			}
@@ -196,6 +198,84 @@ func TestScan(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestScanGitHubAppRepositoryNotFoundRetry(t *testing.T) {
+	cases := []struct {
+		name         string
+		errorOutputs []string
+		runErrors    []error
+		wantErr      bool
+		wantAttempts int
+		wantRepoErr  bool
+	}{
+		{
+			name:         "recovers after repository not found",
+			errorOutputs: []string{"Repository not found", "Repository not found", ""},
+			runErrors:    []error{errors.New("exit 1"), errors.New("exit 1"), nil},
+			wantAttempts: 3,
+		},
+		{
+			name:         "exhausts repository not found retries",
+			errorOutputs: []string{"Repository not found", "Repository not found", "Repository not found", "Repository not found"},
+			runErrors:    []error{errors.New("exit 1"), errors.New("exit 1"), errors.New("exit 1"), errors.New("exit 1")},
+			wantErr:      true,
+			wantAttempts: 4,
+			wantRepoErr:  true,
+		},
+		{
+			name:         "keeps short retries for other errors",
+			errorOutputs: []string{"scanner initialization failed", "scanner initialization failed", "scanner initialization failed", "scanner initialization failed"},
+			runErrors:    []error{errors.New("exit 1"), errors.New("exit 1"), errors.New("exit 1"), errors.New("exit 1")},
+			wantErr:      true,
+			wantAttempts: 4,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			fakeExec := &fakeexec.FakeExec{}
+			fakeCmd := &fakeexec.FakeCmd{}
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+			fakeCmd.Stdout = &stdout
+			fakeCmd.Stderr = &stderr
+			for i := range c.runErrors {
+				fakeExec.CommandScript = append(fakeExec.CommandScript, makeFakeCmd(fakeCmd, "trivy"))
+				fakeCmd.RunScript = append(fakeCmd.RunScript, makeFakeOutput("", c.errorOutputs[i], c.runErrors[i]))
+			}
+			client := newTrivyClient("trivy", fakeExec, nil, logging.NewLogger()).(*trivyClient)
+			client.wait = func(context.Context, time.Duration) error { return nil }
+
+			err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
+			if c.wantErr && err == nil {
+				t.Fatal("Scan() error = nil, want error")
+			}
+			if !c.wantErr && err != nil {
+				t.Fatalf("Scan() error = %v", err)
+			}
+			if got := fakeExec.CommandCalls; got != c.wantAttempts {
+				t.Fatalf("Scan() attempts = %d, want %d", got, c.wantAttempts)
+			}
+			if c.wantRepoErr && !errors.Is(err, gittransport.ErrRepositoryNotFound) {
+				t.Fatalf("Scan() error = %v, want repository not found", err)
+			}
+		})
+	}
+}
+
+func filepathForTest(t *testing.T) string {
+	t.Helper()
+	f, err := os.CreateTemp("", "dependency-retry-*.json")
+	if err != nil {
+		t.Fatalf("CreateTemp() error = %v", err)
+	}
+	path := f.Name()
+	if err := f.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	t.Cleanup(func() { os.Remove(path) })
+	return path
 }
 
 type ExecArgs struct {

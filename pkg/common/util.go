@@ -15,6 +15,7 @@ import (
 )
 
 const MaxGitHubAppRepositoryNotFoundReceiveCount = 3
+const GitHubAppRepositoryNotFoundRetryStatusDetail = "Retrying: temporary GitHub authentication error"
 
 func FilterByNamePattern(repos []*github.Repository, pattern string) []*github.Repository {
 	var filteredRepos []*github.Repository

@@ -6,10 +6,17 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
+	"os"
+	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/datasource-api/proto/code"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 )
 
 func generateRSAPrivateKeyPEM(t *testing.T) string {
@@ -198,5 +205,125 @@ func TestResolveAccessTokenGitHubAppRequiresAppAuth(t *testing.T) {
 	}
 	if err.Error() != "github app auth is not configured" {
 		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestCloneRetryPolicy(t *testing.T) {
+	cases := []struct {
+		name        string
+		ctx         context.Context
+		cloneErr    error
+		wantAttempt int32
+	}{
+		{
+			name:        "GitHub App repository not found retries independently",
+			ctx:         WithRepositoryNotFoundRetry(context.Background()),
+			cloneErr:    gittransport.ErrRepositoryNotFound,
+			wantAttempt: 4,
+		},
+		{
+			name:        "repository not found without GitHub App retry",
+			ctx:         context.Background(),
+			cloneErr:    gittransport.ErrRepositoryNotFound,
+			wantAttempt: 4,
+		},
+		{
+			name:        "non retryable error",
+			ctx:         WithRepositoryNotFoundRetry(context.Background()),
+			cloneErr:    errors.New("permanent"),
+			wantAttempt: 4,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var attempts atomic.Int32
+			client := &riskenGitHubClient{
+				logger: logging.NewLogger(),
+				clone: func(token, cloneURL, dstDir string) error {
+					attempts.Add(1)
+					return c.cloneErr
+				},
+				wait: func(context.Context, time.Duration) error { return nil },
+			}
+			dir := t.TempDir()
+
+			err := client.Clone(c.ctx, "token", "https://github.com/owner/repo.git", dir)
+			if err == nil {
+				t.Fatal("Clone() error = nil, want error")
+			}
+			if got := attempts.Load(); got != c.wantAttempt {
+				t.Fatalf("Clone() attempts = %d, want %d", got, c.wantAttempt)
+			}
+		})
+	}
+}
+
+func TestCloneRetryIsolationUnderConcurrency(t *testing.T) {
+	const concurrentCalls = 10
+	var attempts atomic.Int32
+	client := &riskenGitHubClient{
+		logger: logging.NewLogger(),
+		clone: func(token, cloneURL, dstDir string) error {
+			attempts.Add(1)
+			return gittransport.ErrRepositoryNotFound
+		},
+		wait: func(context.Context, time.Duration) error { return nil },
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(concurrentCalls)
+	for range concurrentCalls {
+		go func() {
+			defer wg.Done()
+			err := client.Clone(
+				WithRepositoryNotFoundRetry(context.Background()),
+				"token",
+				"https://github.com/owner/repo.git",
+				t.TempDir(),
+			)
+			if err == nil {
+				t.Errorf("Clone() error = nil, want error")
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got, want := attempts.Load(), int32(concurrentCalls*(len(gitHubAppRepositoryNotFoundRetryIntervals)+1)); got != want {
+		t.Fatalf("Clone() total attempts = %d, want %d", got, want)
+	}
+}
+
+func TestCloneCleansDestinationBeforeRetry(t *testing.T) {
+	var attempts int
+	client := &riskenGitHubClient{
+		logger: logging.NewLogger(),
+		clone: func(token, cloneURL, dstDir string) error {
+			attempts++
+			partialPath := filepath.Join(dstDir, "partial")
+			if attempts == 1 {
+				if err := os.WriteFile(partialPath, []byte("partial"), 0600); err != nil {
+					t.Fatalf("WriteFile() error = %v", err)
+				}
+				return gittransport.ErrRepositoryNotFound
+			}
+			if _, err := os.Stat(partialPath); !os.IsNotExist(err) {
+				t.Fatalf("partial clone data remains before retry: err=%v", err)
+			}
+			return nil
+		},
+		wait: func(context.Context, time.Duration) error { return nil },
+	}
+
+	if err := client.Clone(
+		WithRepositoryNotFoundRetry(context.Background()),
+		"token",
+		"https://github.com/owner/repo.git",
+		t.TempDir(),
+	); err != nil {
+		t.Fatalf("Clone() error = %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("Clone() attempts = %d, want 2", attempts)
 	}
 }
