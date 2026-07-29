@@ -306,6 +306,7 @@ func TestScanRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
 }
 
 func TestScanVerifiesRepositoryNotFound(t *testing.T) {
+	trivyErr := errors.New("trivy exited")
 	cases := []struct {
 		name           string
 		errorOutput    string
@@ -346,7 +347,7 @@ func TestScanVerifiesRepositoryNotFound(t *testing.T) {
 			fakeCmd.Stdout = &stdout
 			fakeCmd.Stderr = &stderr
 			fakeExec.CommandScript = append(fakeExec.CommandScript, makeFakeCmd(fakeCmd, "trivy"))
-			fakeCmd.RunScript = append(fakeCmd.RunScript, makeFakeOutput("", c.errorOutput, errors.New("exit 1")))
+			fakeCmd.RunScript = append(fakeCmd.RunScript, makeFakeOutput("", c.errorOutput, trivyErr))
 
 			retryNum := uint64(0)
 			client := newTrivyClient("trivy", fakeExec, &retryNum, logging.NewLogger()).(*trivyClient)
@@ -362,6 +363,9 @@ func TestScanVerifiesRepositoryNotFound(t *testing.T) {
 			}
 			if got := errors.Is(err, gittransport.ErrRepositoryNotFound); got != c.wantRepoErr {
 				t.Fatalf("Scan() repository not found = %v, want %v; err=%v", got, c.wantRepoErr, err)
+			}
+			if !errors.Is(err, trivyErr) {
+				t.Fatalf("Scan() error = %v, want original trivy error", err)
 			}
 			if checkCalls != c.wantCheckCalls {
 				t.Fatalf("repository check calls = %d, want %d", checkCalls, c.wantCheckCalls)

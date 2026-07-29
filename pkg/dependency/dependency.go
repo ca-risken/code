@@ -21,6 +21,7 @@ import (
 	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 	"github.com/go-git/go-git/v5/storage/memory"
+	"golang.org/x/sys/unix"
 )
 
 const RETRY_NUM uint64 = 3
@@ -152,16 +153,16 @@ func (t *trivyClient) retry(ctx context.Context, cloneURL, token, outputPath str
 }
 
 func resetTrivyOutput(outputPath string) error {
-	info, err := os.Lstat(outputPath)
-	if err != nil {
-		return fmt.Errorf("failed to inspect trivy output %s: %w", outputPath, err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 {
-		return fmt.Errorf("refusing to reset symlinked trivy output: %s", outputPath)
-	}
-	file, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_TRUNC, 0600)
+	fd, err := unix.Open(outputPath, unix.O_WRONLY|unix.O_TRUNC|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to reset trivy output %s: %w", outputPath, err)
+	}
+	file := os.NewFile(uintptr(fd), outputPath)
+	if file == nil {
+		if closeErr := unix.Close(fd); closeErr != nil {
+			return fmt.Errorf("failed to open trivy output %s: %w", outputPath, closeErr)
+		}
+		return fmt.Errorf("failed to open trivy output %s", outputPath)
 	}
 	if err := file.Chmod(0600); err != nil {
 		return errors.Join(
@@ -188,7 +189,11 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 	if err != nil {
 		if isRepositoryNotFoundOutput(stderr.String()) {
 			if checkErr := t.checkRepo(ctx, token, cloneURL); errors.Is(checkErr, gittransport.ErrRepositoryNotFound) {
-				return fmt.Errorf("failed to execute trivy: err=%v, cloneURL=%s: %w", err, cloneURL, gittransport.ErrRepositoryNotFound)
+				return fmt.Errorf(
+					"failed to execute trivy for %s: %w",
+					cloneURL,
+					errors.Join(err, gittransport.ErrRepositoryNotFound),
+				)
 			}
 		}
 		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)

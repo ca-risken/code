@@ -159,6 +159,22 @@ func prepareCloneDestination(dstDir string) error {
 	if err != nil || !filepath.IsAbs(cleanedDstDir) || relativePath == "." || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(os.PathSeparator)) {
 		return fmt.Errorf("unsafe clone destination: %s", dstDir)
 	}
+	info, err := os.Lstat(cleanedDstDir)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("unsafe clone destination: %s", dstDir)
+	}
+	resolvedDstDir, err := filepath.EvalSymlinks(cleanedDstDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve clone destination %s: %w", dstDir, err)
+	}
+	resolvedTempDir, err := filepath.EvalSymlinks(tempDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve temporary directory %s: %w", tempDir, err)
+	}
+	resolvedRelativePath, err := filepath.Rel(resolvedTempDir, resolvedDstDir)
+	if err != nil || resolvedRelativePath == "." || resolvedRelativePath == ".." || strings.HasPrefix(resolvedRelativePath, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("unsafe resolved clone destination: %s", dstDir)
+	}
 	if err := os.RemoveAll(cleanedDstDir); err != nil {
 		return fmt.Errorf("failed to clean clone destination %s: %w", dstDir, err)
 	}

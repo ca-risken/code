@@ -364,17 +364,44 @@ func TestCloneRetryIsolationUnderConcurrency(t *testing.T) {
 func TestPrepareCloneDestinationRejectsUnsafePaths(t *testing.T) {
 	cases := []struct {
 		name string
-		path string
+		path func(*testing.T) string
 	}{
-		{name: "empty", path: ""},
-		{name: "relative", path: "relative/path"},
-		{name: "temporary directory root", path: os.TempDir()},
+		{name: "empty", path: func(*testing.T) string { return "" }},
+		{name: "relative", path: func(*testing.T) string { return "relative/path" }},
+		{name: "temporary directory root", path: func(*testing.T) string { return os.TempDir() }},
+		{
+			name: "regular file",
+			path: func(t *testing.T) string {
+				file, err := os.CreateTemp("", "clone-destination-file-*")
+				if err != nil {
+					t.Fatalf("CreateTemp() error = %v", err)
+				}
+				if err := file.Close(); err != nil {
+					t.Fatalf("Close() error = %v", err)
+				}
+				t.Cleanup(func() { os.Remove(file.Name()) })
+				return file.Name()
+			},
+		},
+		{
+			name: "symbolic link",
+			path: func(t *testing.T) string {
+				target := t.TempDir()
+				link := filepath.Join(os.TempDir(), "clone-destination-link-"+filepath.Base(target))
+				if err := os.Symlink(target, link); err != nil {
+					t.Fatalf("Symlink() error = %v", err)
+				}
+				t.Cleanup(func() { os.Remove(link) })
+				return link
+			},
+		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			if err := prepareCloneDestination(c.path); err == nil {
-				t.Fatalf("prepareCloneDestination(%q) error = nil, want error", c.path)
+			path := c.path(t)
+			if err := prepareCloneDestination(path); err == nil {
+				t.Fatalf("prepareCloneDestination(%q) error = nil, want error", path)
 			}
 		})
 	}
