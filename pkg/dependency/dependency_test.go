@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -259,9 +260,6 @@ func TestScanGitHubAppRepositoryNotFoundRetry(t *testing.T) {
 			}
 			client := newTrivyClient("trivy", fakeExec, nil, logging.NewLogger()).(*trivyClient)
 			client.wait = func(context.Context, time.Duration) error { return nil }
-			client.checkRepo = func(context.Context, string, string) error {
-				return gittransport.ErrRepositoryNotFound
-			}
 
 			err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
 			if c.wantErr && err == nil {
@@ -292,9 +290,6 @@ func TestScanRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
 
 	client := newTrivyClient("trivy", fakeExec, nil, logging.NewLogger()).(*trivyClient)
 	client.wait = func(context.Context, time.Duration) error { return context.Canceled }
-	client.checkRepo = func(context.Context, string, string) error {
-		return gittransport.ErrRepositoryNotFound
-	}
 
 	err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
 	if !errors.Is(err, gittransport.ErrRepositoryNotFound) {
@@ -305,32 +300,17 @@ func TestScanRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
 	}
 }
 
-func TestScanVerifiesRepositoryNotFound(t *testing.T) {
+func TestScanClassifiesRepositoryNotFound(t *testing.T) {
 	trivyErr := errors.New("trivy exited")
 	cases := []struct {
-		name           string
-		errorOutput    string
-		checkErr       error
-		wantRepoErr    bool
-		wantCheckCalls int
+		name        string
+		errorOutput string
+		wantRepoErr bool
 	}{
 		{
-			name:           "classifies typed repository not found",
-			errorOutput:    "remote: Repository not found.",
-			checkErr:       gittransport.ErrRepositoryNotFound,
-			wantRepoErr:    true,
-			wantCheckCalls: 1,
-		},
-		{
-			name:           "does not classify when repository is reachable",
-			errorOutput:    "remote: Repository not found.",
-			wantCheckCalls: 1,
-		},
-		{
-			name:           "does not classify another authentication error",
-			errorOutput:    "remote: Repository not found.",
-			checkErr:       errors.New("authentication failed"),
-			wantCheckCalls: 1,
+			name:        "classifies strict repository not found line",
+			errorOutput: "remote: Repository not found.",
+			wantRepoErr: true,
 		},
 		{
 			name:        "does not verify unrelated trivy error",
@@ -351,11 +331,6 @@ func TestScanVerifiesRepositoryNotFound(t *testing.T) {
 
 			retryNum := uint64(0)
 			client := newTrivyClient("trivy", fakeExec, &retryNum, logging.NewLogger()).(*trivyClient)
-			checkCalls := 0
-			client.checkRepo = func(context.Context, string, string) error {
-				checkCalls++
-				return c.checkErr
-			}
 
 			err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
 			if err == nil {
@@ -366,9 +341,6 @@ func TestScanVerifiesRepositoryNotFound(t *testing.T) {
 			}
 			if !errors.Is(err, trivyErr) {
 				t.Fatalf("Scan() error = %v, want original trivy error", err)
-			}
-			if checkCalls != c.wantCheckCalls {
-				t.Fatalf("repository check calls = %d, want %d", checkCalls, c.wantCheckCalls)
 			}
 		})
 	}
@@ -402,6 +374,12 @@ func TestResetTrivyOutput(t *testing.T) {
 				return link
 			},
 			wantErr: true,
+		},
+		{
+			name: "recreates missing file",
+			prepare: func(t *testing.T) string {
+				return filepath.Join(t.TempDir(), "missing.json")
+			},
 		},
 	}
 

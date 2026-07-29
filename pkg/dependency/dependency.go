@@ -16,11 +16,7 @@ import (
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/cenkalti/backoff/v4"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/config"
 	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
-	"github.com/go-git/go-git/v5/storage/memory"
 	"golang.org/x/sys/unix"
 )
 
@@ -55,7 +51,6 @@ type trivyClient struct {
 	retryNum  uint64
 	logger    logging.Logger
 	wait      func(context.Context, time.Duration) error
-	checkRepo func(context.Context, string, string) error
 }
 
 func newTrivyClient(trivyPath string, exec exec.Interface, retryNum *uint64, l logging.Logger) trivyScanner {
@@ -69,7 +64,6 @@ func newTrivyClient(trivyPath string, exec exec.Interface, retryNum *uint64, l l
 		retryNum:  retry,
 		logger:    l,
 		wait:      waitForTrivyRetry,
-		checkRepo: checkRepository,
 	}
 }
 
@@ -154,6 +148,9 @@ func (t *trivyClient) retry(ctx context.Context, cloneURL, token, outputPath str
 
 func resetTrivyOutput(outputPath string) error {
 	fd, err := unix.Open(outputPath, unix.O_WRONLY|unix.O_TRUNC|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
+	if errors.Is(err, unix.ENOENT) {
+		fd, err = unix.Open(outputPath, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
+	}
 	if err != nil {
 		return fmt.Errorf("failed to reset trivy output %s: %w", outputPath, err)
 	}
@@ -188,31 +185,15 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 	err := cmd.Run()
 	if err != nil {
 		if isRepositoryNotFoundOutput(stderr.String()) {
-			if checkErr := t.checkRepo(ctx, token, cloneURL); errors.Is(checkErr, gittransport.ErrRepositoryNotFound) {
-				return fmt.Errorf(
-					"failed to execute trivy for %s: %w",
-					cloneURL,
-					errors.Join(err, gittransport.ErrRepositoryNotFound),
-				)
-			}
+			return fmt.Errorf(
+				"failed to execute trivy for %s: %w",
+				cloneURL,
+				errors.Join(err, gittransport.ErrRepositoryNotFound),
+			)
 		}
 		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)
 	}
 	return nil
-}
-
-func checkRepository(ctx context.Context, token, cloneURL string) error {
-	remote := git.NewRemote(memory.NewStorage(), &config.RemoteConfig{
-		Name: "origin",
-		URLs: []string{cloneURL},
-	})
-	_, err := remote.ListContext(ctx, &git.ListOptions{
-		Auth: &http.BasicAuth{
-			Username: "dummy", // anything except an empty string
-			Password: token,
-		},
-	})
-	return err
 }
 
 func isRepositoryNotFoundOutput(output string) bool {
