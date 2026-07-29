@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -259,6 +260,72 @@ func TestCloneRetryPolicy(t *testing.T) {
 	}
 }
 
+func TestCloneRetryPolicyTransitions(t *testing.T) {
+	cases := []struct {
+		name      string
+		cloneErrs []error
+		wantErr   error
+		wantWaits []time.Duration
+	}{
+		{
+			name:      "generic error changes to repository not found without resetting retry budget",
+			cloneErrs: []error{errors.New("temporary"), gittransport.ErrRepositoryNotFound, gittransport.ErrRepositoryNotFound, gittransport.ErrRepositoryNotFound},
+			wantErr:   gittransport.ErrRepositoryNotFound,
+			wantWaits: []time.Duration{0, 3 * time.Second, 10 * time.Second},
+		},
+		{
+			name:      "repository not found changes to generic error without resetting retry budget",
+			cloneErrs: []error{gittransport.ErrRepositoryNotFound, errors.New("temporary"), errors.New("temporary"), errors.New("permanent")},
+			wantErr:   errors.New("permanent"),
+			wantWaits: []time.Duration{3 * time.Second, 0, 0},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var attempts int
+			var waits []time.Duration
+			client := &riskenGitHubClient{
+				logger: logging.NewLogger(),
+				clone: func(token, cloneURL, dstDir string) error {
+					err := c.cloneErrs[attempts]
+					attempts++
+					return err
+				},
+				wait: func(_ context.Context, interval time.Duration) error {
+					waits = append(waits, interval)
+					return nil
+				},
+			}
+
+			err := client.Clone(WithRepositoryNotFoundRetry(context.Background()), "token", "https://github.com/owner/repo.git", t.TempDir())
+			if err == nil {
+				t.Fatal("Clone() error = nil, want error")
+			}
+			if attempts != len(c.cloneErrs) {
+				t.Fatalf("Clone() attempts = %d, want %d", attempts, len(c.cloneErrs))
+			}
+			if !errors.Is(err, c.wantErr) && !strings.Contains(err.Error(), c.wantErr.Error()) {
+				t.Fatalf("Clone() error = %v, want %v", err, c.wantErr)
+			}
+			if len(waits) != len(c.wantWaits) {
+				t.Fatalf("Clone() waits = %v, want %v", waits, c.wantWaits)
+			}
+			for i, wantWait := range c.wantWaits {
+				if wantWait == 0 {
+					if waits[i] == 3*time.Second || waits[i] == 10*time.Second || waits[i] == 30*time.Second {
+						t.Fatalf("Clone() wait[%d] = %v, want short exponential backoff", i, waits[i])
+					}
+					continue
+				}
+				if waits[i] != wantWait {
+					t.Fatalf("Clone() wait[%d] = %v, want %v", i, waits[i], wantWait)
+				}
+			}
+		})
+	}
+}
+
 func TestCloneRetryIsolationUnderConcurrency(t *testing.T) {
 	const concurrentCalls = 10
 	var attempts atomic.Int32
@@ -291,6 +358,25 @@ func TestCloneRetryIsolationUnderConcurrency(t *testing.T) {
 
 	if got, want := attempts.Load(), int32(concurrentCalls*(len(gitHubAppRepositoryNotFoundRetryIntervals)+1)); got != want {
 		t.Fatalf("Clone() total attempts = %d, want %d", got, want)
+	}
+}
+
+func TestPrepareCloneDestinationRejectsUnsafePaths(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+	}{
+		{name: "empty", path: ""},
+		{name: "relative", path: "relative/path"},
+		{name: "temporary directory root", path: os.TempDir()},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if err := prepareCloneDestination(c.path); err == nil {
+				t.Fatalf("prepareCloneDestination(%q) error = nil, want error", c.path)
+			}
+		})
 	}
 }
 

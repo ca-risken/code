@@ -108,39 +108,28 @@ func (t *trivyClient) Scan(ctx context.Context, cloneURL, token string, outputPa
 	if err == nil {
 		return nil
 	}
-	if retryRepositoryNotFound && errors.Is(err, gittransport.ErrRepositoryNotFound) {
-		return t.retryRepositoryNotFound(ctx, cloneURL, token, outputPath, err)
-	}
-	return t.retryWithExponentialBackOff(ctx, cloneURL, token, outputPath, err, retryRepositoryNotFound)
+	return t.retry(ctx, cloneURL, token, outputPath, err, retryRepositoryNotFound)
 }
 
-func (t *trivyClient) retryRepositoryNotFound(ctx context.Context, cloneURL, token, outputPath string, initialErr error) error {
-	err := initialErr
-	for _, interval := range gitHubAppRepositoryNotFoundRetryIntervals {
-		t.newRetryLogger(ctx, "trivy scan")(err, interval)
-		if waitErr := t.wait(ctx, interval); waitErr != nil {
-			return waitErr
-		}
-		if cleanErr := cleanTrivyOutput(outputPath); cleanErr != nil {
-			return cleanErr
-		}
-		err = t.scan(ctx, cloneURL, token, outputPath)
-		if err == nil {
-			return nil
-		}
-		if !errors.Is(err, gittransport.ErrRepositoryNotFound) {
-			return err
-		}
-	}
-	return err
-}
-
-func (t *trivyClient) retryWithExponentialBackOff(ctx context.Context, cloneURL, token, outputPath string, initialErr error, retryRepositoryNotFound bool) error {
+func (t *trivyClient) retry(ctx context.Context, cloneURL, token, outputPath string, initialErr error, retryRepositoryNotFound bool) error {
 	err := initialErr
 	retryer := backoff.NewExponentialBackOff()
 	retryer.Reset()
+	repositoryNotFoundRetryIndex := 0
 	for range t.retryNum {
-		interval := retryer.NextBackOff()
+		var interval time.Duration
+		if retryRepositoryNotFound && errors.Is(err, gittransport.ErrRepositoryNotFound) {
+			if repositoryNotFoundRetryIndex >= len(gitHubAppRepositoryNotFoundRetryIntervals) {
+				break
+			}
+			interval = gitHubAppRepositoryNotFoundRetryIntervals[repositoryNotFoundRetryIndex]
+			repositoryNotFoundRetryIndex++
+		} else {
+			interval = retryer.NextBackOff()
+			if interval == backoff.Stop {
+				break
+			}
+		}
 		t.newRetryLogger(ctx, "trivy scan")(err, interval)
 		if waitErr := t.wait(ctx, interval); waitErr != nil {
 			return waitErr
@@ -151,9 +140,6 @@ func (t *trivyClient) retryWithExponentialBackOff(ctx context.Context, cloneURL,
 		err = t.scan(ctx, cloneURL, token, outputPath)
 		if err == nil {
 			return nil
-		}
-		if retryRepositoryNotFound && errors.Is(err, gittransport.ErrRepositoryNotFound) {
-			return t.retryRepositoryNotFound(ctx, cloneURL, token, outputPath, err)
 		}
 	}
 	return err

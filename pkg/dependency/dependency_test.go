@@ -235,6 +235,14 @@ func TestScanGitHubAppRepositoryNotFoundRetry(t *testing.T) {
 			wantErr:      true,
 			wantAttempts: 4,
 		},
+		{
+			name:         "switches to repository not found without resetting retry budget",
+			errorOutputs: []string{"scanner initialization failed", "Repository not found", "Repository not found", "Repository not found"},
+			runErrors:    []error{errors.New("exit 1"), errors.New("exit 1"), errors.New("exit 1"), errors.New("exit 1")},
+			wantErr:      true,
+			wantAttempts: 4,
+			wantRepoErr:  true,
+		},
 	}
 
 	for _, c := range cases {
