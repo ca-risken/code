@@ -178,9 +178,9 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 	err := cmd.Run()
 	if err != nil {
 		if strings.Contains(strings.ToLower(stderr.String()), "repository not found") {
-			return fmt.Errorf("failed to execute trivy: err=%v, cloneURL=%s, stderr=%s: %w", err, cloneURL, stderr.String(), gittransport.ErrRepositoryNotFound)
+			return fmt.Errorf("failed to execute trivy: err=%v, cloneURL=%s: %w", err, cloneURL, gittransport.ErrRepositoryNotFound)
 		}
-		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s, stderr=%s", err, cloneURL, stderr.String())
+		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)
 	}
 	return nil
 }

@@ -145,6 +145,7 @@ func TestScan(t *testing.T) {
 		scanResult     string
 		scanError      error
 		wantErrContain string
+		wantErrExclude string
 		want           []byte
 		wantErr        bool
 	}{
@@ -161,11 +162,12 @@ func TestScan(t *testing.T) {
 			name:           "NG scan error",
 			wantErr:        true,
 			wantErrContain: "something occurs",
+			wantErrExclude: "sensitive credential diagnostic",
 			cloneURL:       "test",
 			execScript: ExecArgs{
 				command:     "/usr/local/bin/trivy",
 				args:        []string{"repository", "--security-checks", "vuln", "--output", "path", "--format", "json", "url"},
-				errorOutput: "repository not found",
+				errorOutput: "sensitive credential diagnostic",
 				err:         errors.New("something occurs"),
 			},
 		},
@@ -195,6 +197,9 @@ func TestScan(t *testing.T) {
 			}
 			if c.wantErrContain != "" && (err == nil || !strings.Contains(err.Error(), c.wantErrContain)) {
 				t.Fatalf("error = %v, want it to contain %q", err, c.wantErrContain)
+			}
+			if c.wantErrExclude != "" && err != nil && strings.Contains(err.Error(), c.wantErrExclude) {
+				t.Fatalf("error = %v, want it not to contain %q", err, c.wantErrExclude)
 			}
 		})
 	}
