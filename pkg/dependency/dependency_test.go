@@ -278,7 +278,7 @@ func TestScanGitHubAppRepositoryNotFoundRetry(t *testing.T) {
 	}
 }
 
-func TestScanRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
+func TestScanRetryPreparationFailureIsNotRepositoryNotFound(t *testing.T) {
 	fakeExec := &fakeexec.FakeExec{}
 	fakeCmd := &fakeexec.FakeCmd{}
 	var stdout bytes.Buffer
@@ -292,8 +292,8 @@ func TestScanRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
 	client.wait = func(context.Context, time.Duration) error { return context.Canceled }
 
 	err := client.Scan(context.Background(), "https://github.com/owner/repo.git", "token", filepathForTest(t), true)
-	if !errors.Is(err, gittransport.ErrRepositoryNotFound) {
-		t.Fatalf("Scan() error = %v, want repository not found classification", err)
+	if errors.Is(err, gittransport.ErrRepositoryNotFound) {
+		t.Fatalf("Scan() error = %v, do not want repository not found classification", err)
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Scan() error = %v, want context canceled", err)

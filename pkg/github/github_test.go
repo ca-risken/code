@@ -407,7 +407,7 @@ func TestPrepareCloneDestinationRejectsUnsafePaths(t *testing.T) {
 	}
 }
 
-func TestCloneRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
+func TestCloneRetryPreparationFailureIsNotRepositoryNotFound(t *testing.T) {
 	cases := []struct {
 		name    string
 		dstDir  func(*testing.T) string
@@ -433,8 +433,8 @@ func TestCloneRetryPreservesRepositoryNotFoundClassification(t *testing.T) {
 			}
 
 			err := client.Clone(WithRepositoryNotFoundRetry(context.Background()), "token", "https://github.com/owner/repo.git", c.dstDir(t))
-			if !errors.Is(err, gittransport.ErrRepositoryNotFound) {
-				t.Fatalf("Clone() error = %v, want repository not found classification", err)
+			if errors.Is(err, gittransport.ErrRepositoryNotFound) {
+				t.Fatalf("Clone() error = %v, do not want repository not found classification", err)
 			}
 			if c.waitErr != nil && !errors.Is(err, c.waitErr) {
 				t.Fatalf("Clone() error = %v, want %v", err, c.waitErr)

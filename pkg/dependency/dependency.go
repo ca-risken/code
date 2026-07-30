@@ -133,10 +133,10 @@ func (t *trivyClient) retry(ctx context.Context, cloneURL, token, outputPath str
 		}
 		t.newRetryLogger(ctx, "trivy scan")(err, interval)
 		if waitErr := t.wait(ctx, interval); waitErr != nil {
-			return errors.Join(err, waitErr)
+			return fmt.Errorf("failed to wait before retrying trivy scan: %w", waitErr)
 		}
 		if resetErr := resetTrivyOutput(outputPath); resetErr != nil {
-			return errors.Join(err, resetErr)
+			return fmt.Errorf("failed to prepare trivy output for retry: %w", resetErr)
 		}
 		err = t.scan(ctx, cloneURL, token, outputPath)
 		if err == nil {
