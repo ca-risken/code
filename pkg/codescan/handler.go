@@ -168,14 +168,18 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 		}
 
 		// Scan source code
-		scanResult, err := s.scanForRepository(ctx, r, token, gitHubSetting.BaseUrl)
+		scanCtx := ctx
+		if gitHubSetting.AuthMode == code.GitHubAuthModeGitHubApp {
+			scanCtx = githubcli.WithRepositoryNotFoundRetry(ctx)
+		}
+		scanResult, err := s.scanForRepository(scanCtx, r, token, gitHubSetting.BaseUrl)
 		if err != nil {
-			// Scan failed - update status to ERROR
 			s.logger.Errorf(ctx, "failed to codeScan scan: repository_name=%s, err=%+v", repoFullName, err)
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 			if common.ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting, err, receiveCount) {
+				s.updateRepositoryStatusRetryingWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName)
 				return semgrepFindings, successfullyScannedRepos, err
 			}
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 			// Continue to next repository instead of returning error
 			continue
 		}
@@ -276,6 +280,12 @@ func (s *sqsHandler) getGitHubSetting(ctx context.Context, projectID, GitHubSett
 
 func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
 	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatusRetryingWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) {
+	if err := s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, common.GitHubAppRepositoryNotFoundRetryStatusDetail); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status retrying: repository_name=%s, err=%+v", repositoryFullName, err)
+	}
 }
 
 func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {

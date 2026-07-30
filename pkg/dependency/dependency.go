@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"k8s.io/utils/exec"
@@ -14,12 +16,20 @@ import (
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/cenkalti/backoff/v4"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
+	"golang.org/x/sys/unix"
 )
 
 const RETRY_NUM uint64 = 3
 
+var gitHubAppRepositoryNotFoundRetryIntervals = []time.Duration{
+	3 * time.Second,
+	10 * time.Second,
+	30 * time.Second,
+}
+
 type dependencyServiceClient interface {
-	getResult(ctx context.Context, cloneURL, token, outputPath string) (*trivytypes.Report, error)
+	getResult(ctx context.Context, cloneURL, token, outputPath string, retryRepositoryNotFound bool) (*trivytypes.Report, error)
 }
 
 type dependencyConfig struct {
@@ -32,14 +42,15 @@ type dependencyClient struct {
 }
 
 type trivyScanner interface {
-	Scan(ctx context.Context, cloneURL, token, outputPath string) error
+	Scan(ctx context.Context, cloneURL, token, outputPath string, retryRepositoryNotFound bool) error
 }
 
 type trivyClient struct {
 	trivyPath string
 	exec      exec.Interface
-	retryer   backoff.BackOff
+	retryNum  uint64
 	logger    logging.Logger
+	wait      func(context.Context, time.Duration) error
 }
 
 func newTrivyClient(trivyPath string, exec exec.Interface, retryNum *uint64, l logging.Logger) trivyScanner {
@@ -50,8 +61,9 @@ func newTrivyClient(trivyPath string, exec exec.Interface, retryNum *uint64, l l
 	return &trivyClient{
 		trivyPath: trivyPath,
 		exec:      exec,
-		retryer:   backoff.WithMaxRetries(backoff.NewExponentialBackOff(), retry),
+		retryNum:  retry,
 		logger:    l,
+		wait:      waitForTrivyRetry,
 	}
 }
 
@@ -62,9 +74,9 @@ func newDependencyClient(conf *dependencyConfig, l logging.Logger) dependencySer
 	}
 }
 
-func (d *dependencyClient) getResult(ctx context.Context, cloneURL, token, outputPath string) (*trivytypes.Report, error) {
+func (d *dependencyClient) getResult(ctx context.Context, cloneURL, token, outputPath string, retryRepositoryNotFound bool) (*trivytypes.Report, error) {
 	defer os.Remove(outputPath)
-	err := d.trivy.Scan(ctx, cloneURL, token, outputPath)
+	err := d.trivy.Scan(ctx, cloneURL, token, outputPath, retryRepositoryNotFound)
 	if err != nil {
 		return nil, err
 	}
@@ -81,11 +93,84 @@ func (d *dependencyClient) getResult(ctx context.Context, cloneURL, token, outpu
 	return &dependency, nil
 }
 
-func (t *trivyClient) Scan(ctx context.Context, cloneURL, token string, outputPath string) error {
-	operation := func() error {
-		return t.scan(ctx, cloneURL, token, outputPath)
+func waitForTrivyRetry(ctx context.Context, interval time.Duration) error {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
 	}
-	return backoff.RetryNotify(operation, t.retryer, t.newRetryLogger(ctx, "trivy scan"))
+}
+
+func (t *trivyClient) Scan(ctx context.Context, cloneURL, token string, outputPath string, retryRepositoryNotFound bool) error {
+	err := t.scan(ctx, cloneURL, token, outputPath)
+	if err == nil {
+		return nil
+	}
+	return t.retry(ctx, cloneURL, token, outputPath, err, retryRepositoryNotFound)
+}
+
+func (t *trivyClient) retry(ctx context.Context, cloneURL, token, outputPath string, initialErr error, retryRepositoryNotFound bool) error {
+	err := initialErr
+	retryer := backoff.NewExponentialBackOff()
+	retryer.Reset()
+	repositoryNotFoundRetryIndex := 0
+	for range t.retryNum {
+		var interval time.Duration
+		if retryRepositoryNotFound && errors.Is(err, gittransport.ErrRepositoryNotFound) {
+			if repositoryNotFoundRetryIndex >= len(gitHubAppRepositoryNotFoundRetryIntervals) {
+				break
+			}
+			interval = gitHubAppRepositoryNotFoundRetryIntervals[repositoryNotFoundRetryIndex]
+			repositoryNotFoundRetryIndex++
+		} else {
+			interval = retryer.NextBackOff()
+			if interval == backoff.Stop {
+				break
+			}
+		}
+		t.newRetryLogger(ctx, "trivy scan")(err, interval)
+		if waitErr := t.wait(ctx, interval); waitErr != nil {
+			return fmt.Errorf("failed to wait before retrying trivy scan: %w", waitErr)
+		}
+		if resetErr := resetTrivyOutput(outputPath); resetErr != nil {
+			return fmt.Errorf("failed to prepare trivy output for retry: %w", resetErr)
+		}
+		err = t.scan(ctx, cloneURL, token, outputPath)
+		if err == nil {
+			return nil
+		}
+	}
+	return err
+}
+
+func resetTrivyOutput(outputPath string) error {
+	fd, err := unix.Open(outputPath, unix.O_WRONLY|unix.O_TRUNC|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
+	if errors.Is(err, unix.ENOENT) {
+		fd, err = unix.Open(outputPath, unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to reset trivy output %s: %w", outputPath, err)
+	}
+	file := os.NewFile(uintptr(fd), outputPath)
+	if file == nil {
+		if closeErr := unix.Close(fd); closeErr != nil {
+			return fmt.Errorf("failed to open trivy output %s: %w", outputPath, closeErr)
+		}
+		return fmt.Errorf("failed to open trivy output %s", outputPath)
+	}
+	if err := file.Chmod(0600); err != nil {
+		return errors.Join(
+			fmt.Errorf("failed to secure trivy output %s: %w", outputPath, err),
+			file.Close(),
+		)
+	}
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("failed to close trivy output %s: %w", outputPath, err)
+	}
+	return nil
 }
 
 func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPath string) error {
@@ -99,9 +184,26 @@ func (t *trivyClient) scan(ctx context.Context, cloneURL, token string, outputPa
 	cmd.SetStderr(&stderr)
 	err := cmd.Run()
 	if err != nil {
+		if isRepositoryNotFoundOutput(stderr.String()) {
+			return fmt.Errorf(
+				"failed to execute trivy for %s: %w",
+				cloneURL,
+				errors.Join(err, gittransport.ErrRepositoryNotFound),
+			)
+		}
 		return fmt.Errorf("failed to execute trivy: err=%w, cloneURL=%s", err, cloneURL)
 	}
 	return nil
+}
+
+func isRepositoryNotFoundOutput(output string) bool {
+	for _, line := range strings.Split(strings.ToLower(output), "\n") {
+		normalized := strings.TrimSuffix(strings.TrimSpace(line), ".")
+		if normalized == "repository not found" || strings.HasSuffix(normalized, ": repository not found") {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *trivyClient) newRetryLogger(ctx context.Context, funcName string) func(error, time.Duration) {

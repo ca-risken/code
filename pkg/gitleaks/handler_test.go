@@ -79,6 +79,35 @@ func TestGetRepositoriesFromCodeQueueMessage(t *testing.T) {
 	}
 }
 
+func TestUpdateRepositoryStatusRetrying(t *testing.T) {
+	cases := []struct {
+		name string
+	}{
+		{name: "keeps retryable failure in progress"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			mockCode := mocks.CodeServiceClient{}
+			mockCode.
+				On("PutGitleaksRepository", mock.Anything, mock.MatchedBy(func(req *code.PutGitleaksRepositoryRequest) bool {
+					return req.ProjectId == 1 &&
+						req.GitleaksRepository.GithubSettingId == 2 &&
+						req.GitleaksRepository.RepositoryFullName == "owner/repo" &&
+						req.GitleaksRepository.Status == code.Status_IN_PROGRESS &&
+						req.GitleaksRepository.StatusDetail == common.GitHubAppRepositoryNotFoundRetryStatusDetail &&
+						req.GitleaksRepository.ScanAt > 0
+				})).
+				Return(&emptypb.Empty{}, nil).
+				Once()
+			s := sqsHandler{codeClient: &mockCode, logger: logging.NewLogger()}
+
+			s.updateRepositoryStatusRetryingWithWarn(context.Background(), 1, 2, "owner/repo")
+
+			mockCode.AssertExpectations(t)
+		})
+	}
+}
+
 func TestValidateRepository(t *testing.T) {
 	now := time.Now()
 	tests := []struct {

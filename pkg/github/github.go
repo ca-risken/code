@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -12,8 +14,15 @@ import (
 	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-git/go-git/v5"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 	"github.com/go-git/go-git/v5/plumbing/transport/http"
 )
+
+var gitHubAppRepositoryNotFoundRetryIntervals = []time.Duration{
+	3 * time.Second,
+	10 * time.Second,
+	30 * time.Second,
+}
 
 const RETRY_NUM uint64 = 3
 
@@ -25,23 +34,29 @@ type GithubServiceClient interface {
 }
 
 type AppAuthConfig = githubappauth.Config
+type retryRepositoryNotFoundContextKey struct{}
+
+func WithRepositoryNotFoundRetry(ctx context.Context) context.Context {
+	return context.WithValue(ctx, retryRepositoryNotFoundContextKey{}, true)
+}
 
 type riskenGitHubClient struct {
 	defaultToken string
 	appAuth      *githubappauth.Client
-	retryer      backoff.BackOff
 	logger       logging.Logger
+	clone        func(token, cloneURL, dstDir string) error
+	wait         func(context.Context, time.Duration) error
 }
 
 func NewGithubClient(defaultToken string, logger logging.Logger) *riskenGitHubClient {
 	client, err := NewGithubClientWithAppAuth(defaultToken, nil, logger)
 	if err != nil {
 		logger.Warnf(context.Background(), "failed to initialize GitHub App auth; using PAT-only client: %+v", err)
-		retry := RETRY_NUM
 		return &riskenGitHubClient{
 			defaultToken: defaultToken,
-			retryer:      backoff.WithMaxRetries(backoff.NewExponentialBackOff(), retry),
 			logger:       logger,
+			clone:        cloneRepository,
+			wait:         waitForRetry,
 		}
 	}
 	return client
@@ -55,12 +70,12 @@ func NewGithubClientWithAppAuth(defaultToken string, appAuthCfg *AppAuthConfig, 
 	if !appAuth.Enabled() {
 		appAuth = nil
 	}
-	retry := RETRY_NUM
 	return &riskenGitHubClient{
 		defaultToken: defaultToken,
 		appAuth:      appAuth,
-		retryer:      backoff.WithMaxRetries(backoff.NewExponentialBackOff(), retry),
 		logger:       logger,
+		clone:        cloneRepository,
+		wait:         waitForRetry,
 	}, nil
 }
 
@@ -71,22 +86,101 @@ func getToken(token, defaultToken string) string {
 	return defaultToken
 }
 
+func cloneRepository(token, cloneURL, dstDir string) error {
+	_, err := git.PlainClone(dstDir, false, &git.CloneOptions{
+		URL: cloneURL,
+		Auth: &http.BasicAuth{
+			Username: "dummy", // anything except an empty string
+			Password: token,
+		},
+	})
+	return err
+}
+
+func waitForRetry(ctx context.Context, interval time.Duration) error {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
 func (g *riskenGitHubClient) Clone(ctx context.Context, token string, cloneURL string, dstDir string) error {
-	operation := func() error {
-		_, err := git.PlainClone(dstDir, false, &git.CloneOptions{
-			URL: cloneURL,
-			Auth: &http.BasicAuth{
-				Username: "dummy", // anything except an empty string
-				Password: getToken(token, g.defaultToken),
-			},
-		})
-		return err
+	retryRepositoryNotFound, _ := ctx.Value(retryRepositoryNotFoundContextKey{}).(bool)
+	resolvedToken := getToken(token, g.defaultToken)
+	err := g.clone(resolvedToken, cloneURL, dstDir)
+	if err == nil {
+		return nil
 	}
+	return g.retryClone(ctx, resolvedToken, cloneURL, dstDir, err, retryRepositoryNotFound)
+}
 
-	if err := backoff.RetryNotify(operation, g.retryer, g.newRetryLogger(ctx, "github clone")); err != nil {
-		return fmt.Errorf("failed to clone %s to %s: %w", cloneURL, dstDir, err)
+func (g *riskenGitHubClient) retryClone(ctx context.Context, token, cloneURL, dstDir string, initialErr error, retryRepositoryNotFound bool) error {
+	err := initialErr
+	retryer := backoff.NewExponentialBackOff()
+	retryer.Reset()
+	repositoryNotFoundRetryIndex := 0
+	for range RETRY_NUM {
+		var interval time.Duration
+		if retryRepositoryNotFound && errors.Is(err, gittransport.ErrRepositoryNotFound) {
+			if repositoryNotFoundRetryIndex >= len(gitHubAppRepositoryNotFoundRetryIntervals) {
+				break
+			}
+			interval = gitHubAppRepositoryNotFoundRetryIntervals[repositoryNotFoundRetryIndex]
+			repositoryNotFoundRetryIndex++
+		} else {
+			interval = retryer.NextBackOff()
+			if interval == backoff.Stop {
+				break
+			}
+		}
+		g.newRetryLogger(ctx, "github clone")(err, interval)
+		if waitErr := g.wait(ctx, interval); waitErr != nil {
+			return fmt.Errorf("failed to wait before retrying clone %s: %w", cloneURL, waitErr)
+		}
+		if prepareErr := prepareCloneDestination(dstDir); prepareErr != nil {
+			return fmt.Errorf("failed to prepare clone destination %s: %w", dstDir, prepareErr)
+		}
+		err = g.clone(token, cloneURL, dstDir)
+		if err == nil {
+			return nil
+		}
 	}
+	return fmt.Errorf("failed to clone %s to %s: %w", cloneURL, dstDir, err)
+}
 
+func prepareCloneDestination(dstDir string) error {
+	cleanedDstDir := filepath.Clean(dstDir)
+	tempDir := filepath.Clean(os.TempDir())
+	relativePath, err := filepath.Rel(tempDir, cleanedDstDir)
+	if err != nil || !filepath.IsAbs(cleanedDstDir) || relativePath == "." || relativePath == ".." || strings.HasPrefix(relativePath, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("unsafe clone destination: %s", dstDir)
+	}
+	info, err := os.Lstat(cleanedDstDir)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("unsafe clone destination: %s", dstDir)
+	}
+	resolvedDstDir, err := filepath.EvalSymlinks(cleanedDstDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve clone destination %s: %w", dstDir, err)
+	}
+	resolvedTempDir, err := filepath.EvalSymlinks(tempDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve temporary directory %s: %w", tempDir, err)
+	}
+	resolvedRelativePath, err := filepath.Rel(resolvedTempDir, resolvedDstDir)
+	if err != nil || resolvedRelativePath == "." || resolvedRelativePath == ".." || strings.HasPrefix(resolvedRelativePath, ".."+string(os.PathSeparator)) {
+		return fmt.Errorf("unsafe resolved clone destination: %s", dstDir)
+	}
+	if err := os.RemoveAll(cleanedDstDir); err != nil {
+		return fmt.Errorf("failed to clean clone destination %s: %w", dstDir, err)
+	}
+	if err := os.MkdirAll(cleanedDstDir, 0700); err != nil {
+		return fmt.Errorf("failed to recreate clone destination %s: %w", dstDir, err)
+	}
 	return nil
 }
 

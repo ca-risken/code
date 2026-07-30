@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
@@ -114,6 +115,35 @@ func TestUpdateRepositoryStatusInProgress(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("updateRepositoryStatusInProgress() error = %v, wantErr %v", err, tt.wantErr)
 			}
+			mockCode.AssertExpectations(t)
+		})
+	}
+}
+
+func TestUpdateRepositoryStatusRetrying(t *testing.T) {
+	tests := []struct {
+		name string
+	}{
+		{name: "keeps retryable failure in progress"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockCode := mocks.CodeServiceClient{}
+			mockCode.
+				On("PutDependencyRepository", mock.Anything, mock.MatchedBy(func(req *code.PutDependencyRepositoryRequest) bool {
+					return req.ProjectId == 1 &&
+						req.DependencyRepository.GithubSettingId == 2 &&
+						req.DependencyRepository.RepositoryFullName == "owner/repo" &&
+						req.DependencyRepository.Status == code.Status_IN_PROGRESS &&
+						req.DependencyRepository.StatusDetail == common.GitHubAppRepositoryNotFoundRetryStatusDetail &&
+						req.DependencyRepository.ScanAt > 0
+				})).
+				Return(&emptypb.Empty{}, nil).
+				Once()
+			s := sqsHandler{codeClient: &mockCode, logger: logging.NewLogger()}
+
+			s.updateRepositoryStatusRetryingWithWarn(context.Background(), 1, 2, "owner/repo")
+
 			mockCode.AssertExpectations(t)
 		})
 	}

@@ -6,10 +6,18 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/datasource-api/proto/code"
+	gittransport "github.com/go-git/go-git/v5/plumbing/transport"
 )
 
 func generateRSAPrivateKeyPEM(t *testing.T) string {
@@ -198,5 +206,273 @@ func TestResolveAccessTokenGitHubAppRequiresAppAuth(t *testing.T) {
 	}
 	if err.Error() != "github app auth is not configured" {
 		t.Fatalf("Unexpected error: %v", err)
+	}
+}
+
+func TestCloneRetryPolicy(t *testing.T) {
+	cases := []struct {
+		name        string
+		ctx         context.Context
+		cloneErr    error
+		wantAttempt int32
+	}{
+		{
+			name:        "GitHub App repository not found retries independently",
+			ctx:         WithRepositoryNotFoundRetry(context.Background()),
+			cloneErr:    gittransport.ErrRepositoryNotFound,
+			wantAttempt: 4,
+		},
+		{
+			name:        "repository not found without GitHub App retry",
+			ctx:         context.Background(),
+			cloneErr:    gittransport.ErrRepositoryNotFound,
+			wantAttempt: 4,
+		},
+		{
+			name:        "non retryable error",
+			ctx:         WithRepositoryNotFoundRetry(context.Background()),
+			cloneErr:    errors.New("permanent"),
+			wantAttempt: 4,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var attempts atomic.Int32
+			client := &riskenGitHubClient{
+				logger: logging.NewLogger(),
+				clone: func(token, cloneURL, dstDir string) error {
+					attempts.Add(1)
+					return c.cloneErr
+				},
+				wait: func(context.Context, time.Duration) error { return nil },
+			}
+			dir := t.TempDir()
+
+			err := client.Clone(c.ctx, "token", "https://github.com/owner/repo.git", dir)
+			if err == nil {
+				t.Fatal("Clone() error = nil, want error")
+			}
+			if got := attempts.Load(); got != c.wantAttempt {
+				t.Fatalf("Clone() attempts = %d, want %d", got, c.wantAttempt)
+			}
+		})
+	}
+}
+
+func TestCloneRetryPolicyTransitions(t *testing.T) {
+	cases := []struct {
+		name      string
+		cloneErrs []error
+		wantErr   error
+		wantWaits []time.Duration
+	}{
+		{
+			name:      "generic error changes to repository not found without resetting retry budget",
+			cloneErrs: []error{errors.New("temporary"), gittransport.ErrRepositoryNotFound, gittransport.ErrRepositoryNotFound, gittransport.ErrRepositoryNotFound},
+			wantErr:   gittransport.ErrRepositoryNotFound,
+			wantWaits: []time.Duration{0, 3 * time.Second, 10 * time.Second},
+		},
+		{
+			name:      "repository not found changes to generic error without resetting retry budget",
+			cloneErrs: []error{gittransport.ErrRepositoryNotFound, errors.New("temporary"), errors.New("temporary"), errors.New("permanent")},
+			wantErr:   errors.New("permanent"),
+			wantWaits: []time.Duration{3 * time.Second, 0, 0},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			var attempts int
+			var waits []time.Duration
+			client := &riskenGitHubClient{
+				logger: logging.NewLogger(),
+				clone: func(token, cloneURL, dstDir string) error {
+					err := c.cloneErrs[attempts]
+					attempts++
+					return err
+				},
+				wait: func(_ context.Context, interval time.Duration) error {
+					waits = append(waits, interval)
+					return nil
+				},
+			}
+
+			err := client.Clone(WithRepositoryNotFoundRetry(context.Background()), "token", "https://github.com/owner/repo.git", t.TempDir())
+			if err == nil {
+				t.Fatal("Clone() error = nil, want error")
+			}
+			if attempts != len(c.cloneErrs) {
+				t.Fatalf("Clone() attempts = %d, want %d", attempts, len(c.cloneErrs))
+			}
+			if !errors.Is(err, c.wantErr) && !strings.Contains(err.Error(), c.wantErr.Error()) {
+				t.Fatalf("Clone() error = %v, want %v", err, c.wantErr)
+			}
+			if len(waits) != len(c.wantWaits) {
+				t.Fatalf("Clone() waits = %v, want %v", waits, c.wantWaits)
+			}
+			for i, wantWait := range c.wantWaits {
+				if wantWait == 0 {
+					if waits[i] == 3*time.Second || waits[i] == 10*time.Second || waits[i] == 30*time.Second {
+						t.Fatalf("Clone() wait[%d] = %v, want short exponential backoff", i, waits[i])
+					}
+					continue
+				}
+				if waits[i] != wantWait {
+					t.Fatalf("Clone() wait[%d] = %v, want %v", i, waits[i], wantWait)
+				}
+			}
+		})
+	}
+}
+
+func TestCloneRetryIsolationUnderConcurrency(t *testing.T) {
+	const concurrentCalls = 10
+	var attempts atomic.Int32
+	client := &riskenGitHubClient{
+		logger: logging.NewLogger(),
+		clone: func(token, cloneURL, dstDir string) error {
+			attempts.Add(1)
+			return gittransport.ErrRepositoryNotFound
+		},
+		wait: func(context.Context, time.Duration) error { return nil },
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(concurrentCalls)
+	for range concurrentCalls {
+		go func() {
+			defer wg.Done()
+			err := client.Clone(
+				WithRepositoryNotFoundRetry(context.Background()),
+				"token",
+				"https://github.com/owner/repo.git",
+				t.TempDir(),
+			)
+			if err == nil {
+				t.Errorf("Clone() error = nil, want error")
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got, want := attempts.Load(), int32(concurrentCalls*(len(gitHubAppRepositoryNotFoundRetryIntervals)+1)); got != want {
+		t.Fatalf("Clone() total attempts = %d, want %d", got, want)
+	}
+}
+
+func TestPrepareCloneDestinationRejectsUnsafePaths(t *testing.T) {
+	cases := []struct {
+		name string
+		path func(*testing.T) string
+	}{
+		{name: "empty", path: func(*testing.T) string { return "" }},
+		{name: "relative", path: func(*testing.T) string { return "relative/path" }},
+		{name: "temporary directory root", path: func(*testing.T) string { return os.TempDir() }},
+		{
+			name: "regular file",
+			path: func(t *testing.T) string {
+				file, err := os.CreateTemp("", "clone-destination-file-*")
+				if err != nil {
+					t.Fatalf("CreateTemp() error = %v", err)
+				}
+				if err := file.Close(); err != nil {
+					t.Fatalf("Close() error = %v", err)
+				}
+				t.Cleanup(func() { os.Remove(file.Name()) })
+				return file.Name()
+			},
+		},
+		{
+			name: "symbolic link",
+			path: func(t *testing.T) string {
+				target := t.TempDir()
+				link := filepath.Join(os.TempDir(), "clone-destination-link-"+filepath.Base(target))
+				if err := os.Symlink(target, link); err != nil {
+					t.Fatalf("Symlink() error = %v", err)
+				}
+				t.Cleanup(func() { os.Remove(link) })
+				return link
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path := c.path(t)
+			if err := prepareCloneDestination(path); err == nil {
+				t.Fatalf("prepareCloneDestination(%q) error = nil, want error", path)
+			}
+		})
+	}
+}
+
+func TestCloneRetryPreparationFailureIsNotRepositoryNotFound(t *testing.T) {
+	cases := []struct {
+		name    string
+		dstDir  func(*testing.T) string
+		waitErr error
+	}{
+		{
+			name:    "wait failure",
+			dstDir:  func(t *testing.T) string { return t.TempDir() },
+			waitErr: context.Canceled,
+		},
+		{
+			name:   "destination reset failure",
+			dstDir: func(*testing.T) string { return "relative/path" },
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			client := &riskenGitHubClient{
+				logger: logging.NewLogger(),
+				clone:  func(token, cloneURL, dstDir string) error { return gittransport.ErrRepositoryNotFound },
+				wait:   func(context.Context, time.Duration) error { return c.waitErr },
+			}
+
+			err := client.Clone(WithRepositoryNotFoundRetry(context.Background()), "token", "https://github.com/owner/repo.git", c.dstDir(t))
+			if errors.Is(err, gittransport.ErrRepositoryNotFound) {
+				t.Fatalf("Clone() error = %v, do not want repository not found classification", err)
+			}
+			if c.waitErr != nil && !errors.Is(err, c.waitErr) {
+				t.Fatalf("Clone() error = %v, want %v", err, c.waitErr)
+			}
+		})
+	}
+}
+
+func TestCloneCleansDestinationBeforeRetry(t *testing.T) {
+	var attempts int
+	client := &riskenGitHubClient{
+		logger: logging.NewLogger(),
+		clone: func(token, cloneURL, dstDir string) error {
+			attempts++
+			partialPath := filepath.Join(dstDir, "partial")
+			if attempts == 1 {
+				if err := os.WriteFile(partialPath, []byte("partial"), 0600); err != nil {
+					t.Fatalf("WriteFile() error = %v", err)
+				}
+				return gittransport.ErrRepositoryNotFound
+			}
+			if _, err := os.Stat(partialPath); !os.IsNotExist(err) {
+				t.Fatalf("partial clone data remains before retry: err=%v", err)
+			}
+			return nil
+		},
+		wait: func(context.Context, time.Duration) error { return nil },
+	}
+
+	if err := client.Clone(
+		WithRepositoryNotFoundRetry(context.Background()),
+		"token",
+		"https://github.com/owner/repo.git",
+		t.TempDir(),
+	); err != nil {
+		t.Fatalf("Clone() error = %v", err)
+	}
+	if attempts != 2 {
+		t.Fatalf("Clone() attempts = %d, want 2", attempts)
 	}
 }

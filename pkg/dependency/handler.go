@@ -212,7 +212,7 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 			continue
 		}
 
-		if err := s.scanRepository(ctx, msg, gitHubSetting, beforeScanAt, r, token); err != nil {
+		if err := s.scanRepository(ctx, msg, gitHubSetting, beforeScanAt, r, token, receiveCount); err != nil {
 			return successfullyScannedRepos, err
 		}
 		successfullyScannedRepos = append(successfullyScannedRepos, repoFullName)
@@ -220,7 +220,7 @@ func (s *sqsHandler) scanAllRepositories(ctx context.Context, msg *message.CodeQ
 	return successfullyScannedRepos, nil
 }
 
-func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, r *github.Repository, token string) error {
+func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueMessage, gitHubSetting *code.GitHubSetting, beforeScanAt time.Time, r *github.Repository, token string, receiveCount int) error {
 	repoFullName := r.GetFullName()
 	resultFile, err := os.CreateTemp("", "dependency-*.json")
 	if err != nil {
@@ -235,9 +235,13 @@ func (s *sqsHandler) scanRepository(ctx context.Context, msg *message.CodeQueueM
 	}
 	defer os.Remove(resultFilePath)
 
-	result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, token, resultFilePath)
+	result, err := s.dependencyClient.getResult(ctx, *r.CloneURL, token, resultFilePath, gitHubSetting.AuthMode == code.GitHubAuthModeGitHubApp)
 	if err != nil {
 		s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, err=%+v", msg.GitHubSettingID, err)
+		if common.ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting, err, receiveCount) {
+			s.updateRepositoryStatusRetryingWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName)
+			return err
+		}
 		s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 		return mimosasqs.WrapNonRetryable(err)
 	}
@@ -312,6 +316,12 @@ func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID,
 
 func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {
 	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
+}
+
+func (s *sqsHandler) updateRepositoryStatusRetryingWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) {
+	if err := s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, common.GitHubAppRepositoryNotFoundRetryStatusDetail); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status retrying: repository_name=%s, err=%+v", repositoryFullName, err)
+	}
 }
 
 func (s *sqsHandler) updateRepositoryStatusSuccess(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) error {

@@ -186,6 +186,12 @@ func (s *sqsHandler) updateRepositoryStatusInProgress(ctx context.Context, proje
 	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, "")
 }
 
+func (s *sqsHandler) updateRepositoryStatusRetryingWithWarn(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName string) {
+	if err := s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_IN_PROGRESS, common.GitHubAppRepositoryNotFoundRetryStatusDetail); err != nil {
+		s.logger.Warnf(ctx, "Failed to update repository status retrying: repository_name=%s, err=%+v", repositoryFullName, err)
+	}
+}
+
 func (s *sqsHandler) updateRepositoryStatusError(ctx context.Context, projectID, githubSettingID uint32, repositoryFullName, statusDetail string) error {
 	return s.updateRepositoryStatus(ctx, projectID, githubSettingID, repositoryFullName, code.Status_ERROR, statusDetail)
 }
@@ -288,13 +294,18 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		}
 
 		// Scan per repository
-		results, scanAt, err := s.scanRepository(ctx, r, token, lastScannedAt, msg)
+		scanCtx := ctx
+		if gitHubSetting.AuthMode == code.GitHubAuthModeGitHubApp {
+			scanCtx = githubcli.WithRepositoryNotFoundRetry(ctx)
+		}
+		results, scanAt, err := s.scanRepository(scanCtx, r, token, lastScannedAt, msg)
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
-			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 			if common.ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting, err, receiveCount) {
+				s.updateRepositoryStatusRetryingWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName)
 				return err
 			}
+			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 			return mimosasqs.WrapNonRetryable(err)
 		}
 
