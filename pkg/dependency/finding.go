@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
+	"github.com/ca-risken/code/pkg/common"
 	triage "github.com/ca-risken/core/pkg/server/finding"
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/pkg/message"
@@ -114,6 +115,11 @@ func (s *sqsHandler) makeFindings(ctx context.Context, msg *message.CodeQueueMes
 				OriginalMaxScore: 1.0,
 				Data:             string(data),
 			}
+			repositoryFullName := ""
+			if msg.Repository != nil {
+				repositoryFullName = msg.Repository.FullName
+			}
+			common.SetGitHubProvider(&f, repositoryFullName, msg.RepositoryName)
 			findings = append(findings, &finding.FindingBatchForUpsert{
 				Finding:   &f,
 				Recommend: getRecommend(vi.packageName),
