@@ -9,10 +9,18 @@ import (
 const ProviderGitHub = "github"
 
 func SetGitHubProvider(f *finding.FindingForUpsert, repositoryFullName, repositoryName string) {
-	providerTarget := strings.TrimSpace(repositoryFullName)
+	providerTarget := githubOrganization(repositoryFullName)
 	if providerTarget == "" {
-		providerTarget = strings.TrimSpace(repositoryName)
+		providerTarget = githubOrganization(repositoryName)
 	}
 	f.Provider = ProviderGitHub
 	f.ProviderTarget = providerTarget
+}
+
+func githubOrganization(repository string) string {
+	organization, _, found := strings.Cut(strings.TrimSpace(repository), "/")
+	if !found {
+		return ""
+	}
+	return strings.TrimSpace(organization)
 }

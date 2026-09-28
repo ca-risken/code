@@ -114,7 +114,7 @@ func TestGeneratePutFindingRequest(t *testing.T) {
 				ProjectId: 1,
 				Finding: &finding.FindingForUpsert{
 					Provider:         "github",
-					ProviderTarget:   "owner/repo_name",
+					ProviderTarget:   "owner",
 					Description:      "Detected a rule_description secret. (public=true, lang=go)",
 					DataSource:       "code:gitleaks",
 					DataSourceId:     "93527870b4fd88037267c21cdd91173d6961b9e1465d329304fa3955be4f50e9",

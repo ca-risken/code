@@ -14,15 +14,20 @@ func TestSetGitHubProvider(t *testing.T) {
 		wantTarget         string
 	}{
 		{
-			name:               "repository full name",
+			name:               "organization from repository full name",
 			repositoryFullName: " owner/repo ",
 			repositoryName:     "legacy-repo",
-			wantTarget:         "owner/repo",
+			wantTarget:         "owner",
 		},
 		{
-			name:           "legacy repository name",
-			repositoryName: " legacy-repo ",
-			wantTarget:     "legacy-repo",
+			name:           "organization from legacy repository name",
+			repositoryName: " legacy-owner/legacy-repo ",
+			wantTarget:     "legacy-owner",
+		},
+		{
+			name:           "repository name without organization",
+			repositoryName: "legacy-repo",
+			wantTarget:     "",
 		},
 	}
 	for _, tt := range tests {
