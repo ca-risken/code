@@ -1,20 +1,13 @@
 package common
 
-import (
-	"strings"
+import "strings"
 
-	"github.com/ca-risken/core/proto/finding"
-)
-
-const ProviderGitHub = "github"
-
-func SetGitHubProvider(f *finding.FindingForUpsert, repositoryFullName, repositoryName string) {
-	providerTarget := githubOrganization(repositoryFullName)
-	if providerTarget == "" {
-		providerTarget = githubOrganization(repositoryName)
+func GetGitHubOrganization(repositoryFullName, repositoryName string) string {
+	organization := githubOrganization(repositoryFullName)
+	if organization == "" {
+		organization = githubOrganization(repositoryName)
 	}
-	f.Provider = ProviderGitHub
-	f.ProviderTarget = providerTarget
+	return organization
 }
 
 func githubOrganization(repository string) string {

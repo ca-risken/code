@@ -91,6 +91,8 @@ func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.P
 			toString(f.Visibility) == "public",
 			toString(f.Language),
 		),
+		Provider:         "github",
+		ProviderTarget:   common.GetGitHubOrganization(toString(f.FullName), f.Result.Repo),
 		DataSource:       message.GitleaksDataSource,
 		DataSourceId:     f.Result.DataSourceID,
 		ResourceName:     toString(f.FullName),
@@ -99,7 +101,6 @@ func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.P
 		OriginalMaxScore: 1.0,
 		Data:             string(buf),
 	}
-	common.SetGitHubProvider(findingForUpsert, toString(f.FullName), f.Result.Repo)
 	return &finding.PutFindingRequest{
 		ProjectId: projectID,
 		Finding:   findingForUpsert,

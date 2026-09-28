@@ -105,7 +105,13 @@ func (s *sqsHandler) makeFindings(ctx context.Context, msg *message.CodeQueueMes
 			if err != nil {
 				return nil, err
 			}
+			repositoryFullName := ""
+			if msg.Repository != nil {
+				repositoryFullName = msg.Repository.FullName
+			}
 			f := finding.FindingForUpsert{
+				Provider:         "github",
+				ProviderTarget:   common.GetGitHubOrganization(repositoryFullName, msg.RepositoryName),
 				Description:      getDescription(vi.vulnID, vi.packageName, report.ArtifactName),
 				DataSource:       message.DependencyDataSource,
 				DataSourceId:     generateDataSourceID(fmt.Sprintf("%s_%s_%s_%s", report.ArtifactName, result.Target, vi.packageName, vi.vulnID)),
@@ -115,11 +121,6 @@ func (s *sqsHandler) makeFindings(ctx context.Context, msg *message.CodeQueueMes
 				OriginalMaxScore: 1.0,
 				Data:             string(data),
 			}
-			repositoryFullName := ""
-			if msg.Repository != nil {
-				repositoryFullName = msg.Repository.FullName
-			}
-			common.SetGitHubProvider(&f, repositoryFullName, msg.RepositoryName)
 			findings = append(findings, &finding.FindingBatchForUpsert{
 				Finding:   &f,
 				Recommend: getRecommend(vi.packageName),
