@@ -4,33 +4,30 @@ import "testing"
 
 func TestGetGitHubOrganization(t *testing.T) {
 	tests := []struct {
-		name               string
-		repositoryFullName string
-		repositoryName     string
-		wantTarget         string
+		name       string
+		repository string
+		want       string
 	}{
 		{
-			name:               "organization from repository full name",
-			repositoryFullName: " owner/repo ",
-			repositoryName:     "legacy-repo",
-			wantTarget:         "owner",
+			name:       "organization from repository full name",
+			repository: " owner/repo ",
+			want:       "owner",
 		},
 		{
-			name:           "organization from legacy repository name",
-			repositoryName: " legacy-owner/legacy-repo ",
-			wantTarget:     "legacy-owner",
+			name:       "repository name without organization",
+			repository: "repo",
+			want:       "",
 		},
 		{
-			name:           "repository name without organization",
-			repositoryName: "legacy-repo",
-			wantTarget:     "",
+			name: "empty repository",
+			want: "",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetGitHubOrganization(tt.repositoryFullName, tt.repositoryName)
-			if got != tt.wantTarget {
-				t.Errorf("GetGitHubOrganization() = %q, want %q", got, tt.wantTarget)
+			got := GetGitHubOrganization(tt.repository)
+			if got != tt.want {
+				t.Errorf("GetGitHubOrganization() = %q, want %q", got, tt.want)
 			}
 		})
 	}

@@ -111,7 +111,7 @@ func (s *sqsHandler) makeFindings(ctx context.Context, msg *message.CodeQueueMes
 			}
 			f := finding.FindingForUpsert{
 				Provider:         "github",
-				ProviderTarget:   common.GetGitHubOrganization(repositoryFullName, msg.RepositoryName),
+				ProviderTarget:   common.GetGitHubOrganization(repositoryFullName),
 				Description:      getDescription(vi.vulnID, vi.packageName, report.ArtifactName),
 				DataSource:       message.DependencyDataSource,
 				DataSourceId:     generateDataSourceID(fmt.Sprintf("%s_%s_%s_%s", report.ArtifactName, result.Target, vi.packageName, vi.vulnID)),

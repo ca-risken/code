@@ -92,7 +92,7 @@ func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.P
 			toString(f.Language),
 		),
 		Provider:         "github",
-		ProviderTarget:   common.GetGitHubOrganization(toString(f.FullName), f.Result.Repo),
+		ProviderTarget:   common.GetGitHubOrganization(toString(f.FullName)),
 		DataSource:       message.GitleaksDataSource,
 		DataSourceId:     f.Result.DataSourceID,
 		ResourceName:     toString(f.FullName),

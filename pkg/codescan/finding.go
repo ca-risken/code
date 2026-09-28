@@ -75,7 +75,7 @@ func GeneratePutFindingRequest(projectID uint32, f *SemgrepFinding) (*finding.Pu
 	meta := extractSemgrepMetadata(f.Extra.Metadata)
 	findingForUpsert := &finding.FindingForUpsert{
 		Provider:         "github",
-		ProviderTarget:   common.GetGitHubOrganization(f.Repository, ""),
+		ProviderTarget:   common.GetGitHubOrganization(f.Repository),
 		Description:      fmt.Sprintf("Detect source code finding (%s)", f.CheckID),
 		DataSource:       message.CodeScanDataSource,
 		DataSourceId:     GenerateDataSourceIDForSemgrep(f),
