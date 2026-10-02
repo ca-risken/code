@@ -2,19 +2,19 @@ package common
 
 import "testing"
 
-func TestGetGitHubOrganization(t *testing.T) {
+func TestGetGitHubOwner(t *testing.T) {
 	tests := []struct {
 		name       string
 		repository string
 		want       string
 	}{
 		{
-			name:       "organization from repository full name",
+			name:       "owner from repository full name",
 			repository: " owner/repo ",
 			want:       "owner",
 		},
 		{
-			name:       "repository name without organization",
+			name:       "repository name without owner",
 			repository: "repo",
 			want:       "",
 		},
@@ -25,9 +25,9 @@ func TestGetGitHubOrganization(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := GetGitHubOrganization(tt.repository)
+			got := GetGitHubOwner(tt.repository)
 			if got != tt.want {
-				t.Errorf("GetGitHubOrganization() = %q, want %q", got, tt.want)
+				t.Errorf("GetGitHubOwner() = %q, want %q", got, tt.want)
 			}
 		})
 	}
