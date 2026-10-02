@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/google/go-github/v44/github"
@@ -83,23 +84,26 @@ func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.P
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal user data: project_id=%d, repository=%s, err=%w", projectID, toString(f.FullName), err)
 	}
+	findingForUpsert := &finding.FindingForUpsert{
+		Description: fmt.Sprintf(
+			"Detected a %s secret. (public=%t, lang=%s)",
+			f.Result.RuleDescription,
+			toString(f.Visibility) == "public",
+			toString(f.Language),
+		),
+		Provider:         "github",
+		ProviderTarget:   common.GetGitHubOwner(toString(f.FullName)),
+		DataSource:       message.GitleaksDataSource,
+		DataSourceId:     f.Result.DataSourceID,
+		ResourceName:     toString(f.FullName),
+		ProjectId:        projectID,
+		OriginalScore:    getGitleaksScore(toString(f.Visibility)),
+		OriginalMaxScore: 1.0,
+		Data:             string(buf),
+	}
 	return &finding.PutFindingRequest{
 		ProjectId: projectID,
-		Finding: &finding.FindingForUpsert{
-			Description: fmt.Sprintf(
-				"Detected a %s secret. (public=%t, lang=%s)",
-				f.Result.RuleDescription,
-				toString(f.Visibility) == "public",
-				toString(f.Language),
-			),
-			DataSource:       message.GitleaksDataSource,
-			DataSourceId:     f.Result.DataSourceID,
-			ResourceName:     toString(f.FullName),
-			ProjectId:        projectID,
-			OriginalScore:    getGitleaksScore(toString(f.Visibility)),
-			OriginalMaxScore: 1.0,
-			Data:             string(buf),
-		},
+		Finding:   findingForUpsert,
 	}, nil
 }
 

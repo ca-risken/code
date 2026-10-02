@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	trivytypes "github.com/aquasecurity/trivy/pkg/types"
+	"github.com/ca-risken/code/pkg/common"
 	triage "github.com/ca-risken/core/pkg/server/finding"
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/pkg/message"
@@ -104,7 +105,13 @@ func (s *sqsHandler) makeFindings(ctx context.Context, msg *message.CodeQueueMes
 			if err != nil {
 				return nil, err
 			}
+			repositoryFullName := ""
+			if msg.Repository != nil {
+				repositoryFullName = msg.Repository.FullName
+			}
 			f := finding.FindingForUpsert{
+				Provider:         "github",
+				ProviderTarget:   common.GetGitHubOwner(repositoryFullName),
 				Description:      getDescription(vi.vulnID, vi.packageName, report.ArtifactName),
 				DataSource:       message.DependencyDataSource,
 				DataSourceId:     generateDataSourceID(fmt.Sprintf("%s_%s_%s_%s", report.ArtifactName, result.Target, vi.packageName, vi.vulnID)),
