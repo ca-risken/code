@@ -117,6 +117,9 @@ func TestMakeFinding(t *testing.T) {
 				GitHubSettingID: 1001,
 				ProjectID:       1001,
 				ScanOnly:        false,
+				Repository: &message.RepositoryMetadata{
+					FullName: "owner/repo",
+				},
 			},
 			report: &types.Report{
 				ArtifactName: "artifact_name",
@@ -139,6 +142,8 @@ func TestMakeFinding(t *testing.T) {
 			want: []*finding.FindingBatchForUpsert{
 				{
 					Finding: &finding.FindingForUpsert{
+						Provider:         "github",
+						ProviderTarget:   "owner",
 						Description:      "One or more vulnerabilities are discovered in pkg. Repository: artifact_name",
 						DataSource:       "code:dependency",
 						DataSourceId:     generateDataSourceID("artifact_name_target_pkg"),
@@ -187,6 +192,7 @@ func TestMakeFinding(t *testing.T) {
 			want: []*finding.FindingBatchForUpsert{
 				{
 					Finding: &finding.FindingForUpsert{
+						Provider:         "github",
 						Description:      "One or more vulnerabilities are discovered in pkg. Repository: artifact_name",
 						DataSource:       "code:dependency",
 						DataSourceId:     generateDataSourceID("artifact_name_target_pkg"),
@@ -201,6 +207,7 @@ func TestMakeFinding(t *testing.T) {
 				},
 				{
 					Finding: &finding.FindingForUpsert{
+						Provider:         "github",
 						Description:      "One or more vulnerabilities are discovered in pkg2. Repository: artifact_name",
 						DataSource:       "code:dependency",
 						DataSourceId:     generateDataSourceID("artifact_name_target_pkg2"),
@@ -249,6 +256,7 @@ func TestMakeFinding(t *testing.T) {
 			want: []*finding.FindingBatchForUpsert{
 				{
 					Finding: &finding.FindingForUpsert{
+						Provider:         "github",
 						Description:      "One or more vulnerabilities are discovered in pkg. Repository: artifact_name",
 						DataSource:       "code:dependency",
 						DataSourceId:     generateDataSourceID("artifact_name_target_pkg"),

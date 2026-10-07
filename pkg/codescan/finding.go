@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/pkg/message"
 )
@@ -72,17 +73,20 @@ func GeneratePutFindingRequest(projectID uint32, f *SemgrepFinding) (*finding.Pu
 		return nil, fmt.Errorf("failed to marshal data: project_id=%d, repository=%s, err=%w", projectID, f.Repository, err)
 	}
 	meta := extractSemgrepMetadata(f.Extra.Metadata)
+	findingForUpsert := &finding.FindingForUpsert{
+		Provider:         "github",
+		ProviderTarget:   common.GetGitHubOwner(f.Repository),
+		Description:      fmt.Sprintf("Detect source code finding (%s)", f.CheckID),
+		DataSource:       message.CodeScanDataSource,
+		DataSourceId:     GenerateDataSourceIDForSemgrep(f),
+		ResourceName:     f.Repository,
+		ProjectId:        projectID,
+		OriginalScore:    GetScoreSemgrep(f.Extra.Severity, meta.Likelihood, meta.Impact),
+		OriginalMaxScore: 1.0,
+		Data:             string(buf),
+	}
 	return &finding.PutFindingRequest{
 		ProjectId: projectID,
-		Finding: &finding.FindingForUpsert{
-			Description:      fmt.Sprintf("Detect source code finding (%s)", f.CheckID),
-			DataSource:       message.CodeScanDataSource,
-			DataSourceId:     GenerateDataSourceIDForSemgrep(f),
-			ResourceName:     f.Repository,
-			ProjectId:        projectID,
-			OriginalScore:    GetScoreSemgrep(f.Extra.Severity, meta.Likelihood, meta.Impact),
-			OriginalMaxScore: 1.0,
-			Data:             string(buf),
-		},
+		Finding:   findingForUpsert,
 	}, nil
 }
