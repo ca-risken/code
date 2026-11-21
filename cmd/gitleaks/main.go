@@ -112,6 +112,10 @@ func main() {
 	if err != nil {
 		appLogger.Fatalf(ctx, "failed to create alert client, err=%+v", err)
 	}
+	aiClient, err := grpc.NewSensitiveContentClient(ctx, conf.CoreSvcAddr)
+	if err != nil {
+		appLogger.Fatalf(ctx, "failed to create sensitive content client, err=%+v", err)
+	}
 	cc, err := grpc.NewCodeClient(ctx, conf.DataSourceAPISvcAddr)
 	if err != nil {
 		appLogger.Fatalf(ctx, "failed to create alert client, err=%+v", err)
@@ -121,6 +125,7 @@ func main() {
 		fc,
 		ac,
 		cc,
+		aiClient,
 		conf.CodeDataKey,
 		conf.GithubDefaultToken,
 		&githubcli.AppAuthConfig{
