@@ -301,7 +301,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		if gitHubSetting.AuthMode == code.GitHubAuthModeGitHubApp {
 			scanCtx = githubcli.WithRepositoryNotFoundRetry(ctx)
 		}
-		findings, scanAt, err := s.scanRepository(scanCtx, r, token, lastScannedAt)
+		findings, scanAt, err := s.scanRepository(scanCtx, r, token, lastScannedAt, gitHubSetting.GetGitleaksSetting())
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			if common.ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting, err, receiveCount) {
@@ -348,7 +348,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 	return nil
 }
 
-func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time) ([]*GitleaksFinding, time.Time, error) {
+func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, setting *code.GitleaksSetting) ([]*GitleaksFinding, time.Time, error) {
 	// Clone repository
 	dir, err := common.CreateCloneDir(*r.Name)
 	if err != nil {
@@ -373,7 +373,7 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 		return nil, time.Time{}, fmt.Errorf("failed to scan %s: %w", *r.FullName, err)
 	}
 	findings := GenrateGitleaksFinding(r, results.findings)
-	s.classifyFindings(ctx, dir, findings, results)
+	s.classifyFindings(ctx, dir, findings, results, setting)
 	return findings, cloneDate, nil
 }
 

@@ -100,7 +100,7 @@ func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.P
 		DataSourceId:     f.Result.DataSourceID,
 		ResourceName:     toString(f.FullName),
 		ProjectId:        projectID,
-		OriginalScore:    getGitleaksScore(toString(f.Visibility)),
+		OriginalScore:    getGitleaksScore(toString(f.Visibility), f.AIClassification),
 		OriginalMaxScore: 1.0,
 		Data:             string(buf),
 	}
@@ -207,7 +207,15 @@ func toString(str *string) string {
 	return *str
 }
 
-func getGitleaksScore(visibility string) float32 {
+func getGitleaksScore(visibility string, decision *classification) float32 {
+	if decision != nil {
+		if decision.Sensitivity != nil && !*decision.Sensitivity {
+			return 0.3
+		}
+		if decision.TestData != nil && *decision.TestData {
+			return 0.6
+		}
+	}
 	if visibility == "public" {
 		return 1.0
 	}

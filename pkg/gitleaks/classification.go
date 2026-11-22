@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/ca-risken/core/proto/ai"
+	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/go-git/go-git/v5"
-	"github.com/zricethezav/gitleaks/v8/config"
 	"github.com/zricethezav/gitleaks/v8/report"
 	"google.golang.org/grpc/status"
 )
@@ -27,8 +27,8 @@ type classification struct {
 	ContentKind string   `json:"content_kind,omitempty"`
 }
 
-func (s *sqsHandler) classifyFindings(ctx context.Context, dir string, findings []*GitleaksFinding, scan scanReport) {
-	if len(findings) == 0 {
+func (s *sqsHandler) classifyFindings(ctx context.Context, dir string, findings []*GitleaksFinding, scan scanReport, setting *code.GitleaksSetting) {
+	if !setting.GetAiScan() || len(findings) == 0 {
 		return
 	}
 	repo, err := git.PlainOpen(dir)
@@ -44,28 +44,31 @@ func (s *sqsHandler) classifyFindings(ctx context.Context, dir string, findings 
 			break
 		}
 		leak := scan.findings[i]
-		classification, err := s.classifyFinding(ctx, repo, leak, scan.rules[leak.RuleID])
+		req, err := readFindingSample(ctx, repo, leak, scan.rules[leak.RuleID])
 		if err != nil {
-			s.logger.Warnf(ctx, "Failed to classify Gitleaks finding, data_source_id=%s, err=%v", f.Result.DataSourceID, err)
+			s.logger.Warnf(ctx, "Failed to read Gitleaks finding sample, data_source_id=%s, err=%v", f.Result.DataSourceID, err)
 			continue
 		}
-		f.AIClassification = classification
+		if req == nil || req.Validate() != nil {
+			continue
+		}
+		// Recheck on every submission so an opt-out also takes effect between
+		// findings in an already queued or running scan.
+		current, err := s.getGitHubSetting(ctx, setting.GetProjectId(), setting.GetGithubSettingId())
+		if err != nil {
+			s.logger.Warnf(ctx, "Could not confirm Gitleaks AI scan setting, github_setting_id=%d", setting.GetGithubSettingId())
+			return
+		}
+		if !current.GetGitleaksSetting().GetAiScan() {
+			return
+		}
+		result, err := s.aiClient.ClassifySensitiveContent(ctx, req)
+		if err != nil {
+			s.logger.Warnf(ctx, "Failed to classify Gitleaks finding, data_source_id=%s, code=%s", f.Result.DataSourceID, status.Code(err))
+			continue
+		}
+		f.AIClassification = newClassification(result)
 	}
-}
-
-func (s *sqsHandler) classifyFinding(ctx context.Context, repo *git.Repository, leak report.Finding, rule *config.Rule) (*classification, error) {
-	req, err := readFindingSample(ctx, repo, leak, rule)
-	if err != nil || req == nil {
-		return nil, err
-	}
-	if err := req.Validate(); err != nil {
-		return nil, nil
-	}
-	result, err := s.aiClient.ClassifySensitiveContent(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("sensitive content RPC failed: %s", status.Code(err))
-	}
-	return newClassification(result), nil
 }
 
 func newClassification(result *ai.ClassifySensitiveContentResponse) *classification {

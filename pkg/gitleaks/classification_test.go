@@ -17,6 +17,7 @@ import (
 	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
 	"github.com/ca-risken/core/proto/ai"
+	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/google/go-cmp/cmp"
@@ -32,6 +33,15 @@ type classificationClient func(*ai.ClassifySensitiveContentRequest) (*ai.Classif
 
 func (f classificationClient) ClassifySensitiveContent(_ context.Context, req *ai.ClassifySensitiveContentRequest, _ ...grpc.CallOption) (*ai.ClassifySensitiveContentResponse, error) {
 	return f(req)
+}
+
+type classificationSettingsClient struct {
+	code.CodeServiceClient
+	get func(*code.GetGitHubSettingRequest) (*code.GetGitHubSettingResponse, error)
+}
+
+func (c classificationSettingsClient) GetGitHubSetting(_ context.Context, req *code.GetGitHubSettingRequest, _ ...grpc.CallOption) (*code.GetGitHubSettingResponse, error) {
+	return c.get(req)
 }
 
 type classificationScan func() []report.Finding
@@ -75,37 +85,41 @@ func TestScanRepository_ClassifiesFinding(t *testing.T) {
 		"content_kind": "CONFIGURATION",
 		"test_data":    true,
 	}
+	on, off := new(true), new(false)
 	tests := []struct {
-		name         string
-		visibility   string
-		result       *ai.ClassifySensitiveContentResponse
-		classifyErr  error
-		endLine      int
-		wantCalls    int
-		wantScore    float32
-		wantDecision map[string]any
+		name          string
+		visibility    string
+		result        *ai.ClassifySensitiveContentResponse
+		classifyErr   error
+		settingErr    error
+		initialAIScan *bool
+		turnedOff     bool
+		endLine       int
+		wantCalls     int
+		wantScore     float32
+		wantDecision  map[string]any
 	}{
 		{
-			name: "public", visibility: "public", endLine: 3, result: classification,
-			wantCalls: 1, wantScore: 1, wantDecision: wantClassification,
+			name: "public test data", visibility: "public", initialAIScan: on, endLine: 3, result: classification,
+			wantCalls: 1, wantScore: 0.6, wantDecision: wantClassification,
 		},
 		{
-			name: "internal", visibility: "internal", endLine: 3, result: classification,
-			wantCalls: 1, wantScore: 0.8, wantDecision: wantClassification,
+			name: "internal test data", visibility: "internal", initialAIScan: on, endLine: 3, result: classification,
+			wantCalls: 1, wantScore: 0.6, wantDecision: wantClassification,
 		},
 		{
-			name: "private", visibility: "private", endLine: 3, result: classification,
-			wantCalls: 1, wantScore: 0.8, wantDecision: wantClassification,
+			name: "private test data", visibility: "private", initialAIScan: on, endLine: 3, result: classification,
+			wantCalls: 1, wantScore: 0.6, wantDecision: wantClassification,
 		},
 		{
-			name: "inconclusive decision", visibility: "private", endLine: 3,
+			name: "inconclusive decision", visibility: "private", initialAIScan: on, endLine: 3,
 			result: &ai.ClassifySensitiveContentResponse{}, wantCalls: 1, wantScore: 0.8,
 			wantDecision: map[string]any{
 				"categories": []any{}, "content_kind": "UNSPECIFIED",
 			},
 		},
 		{
-			name: "real value in an example configuration", visibility: "private", endLine: 3,
+			name: "real value in an example configuration", visibility: "private", initialAIScan: on, endLine: 3,
 			wantCalls: 1, wantScore: 0.8,
 			result: &ai.ClassifySensitiveContentResponse{
 				Sensitivity: ai.Sensitivity_SENSITIVITY_TRUE,
@@ -117,28 +131,62 @@ func TestScanRepository_ClassifiesFinding(t *testing.T) {
 			},
 		},
 		{
-			name: "non-sensitive value", visibility: "private", endLine: 3,
-			wantCalls: 1, wantScore: 0.8,
+			name: "non-sensitive value", visibility: "private", initialAIScan: on, endLine: 3,
+			wantCalls: 1, wantScore: 0.3,
 			result: &ai.ClassifySensitiveContentResponse{Sensitivity: ai.Sensitivity_SENSITIVITY_FALSE},
 			wantDecision: map[string]any{
 				"sensitivity": false, "categories": []any{}, "content_kind": "UNSPECIFIED",
 			},
 		},
 		{
-			name: "no matching source lines", visibility: "private", endLine: 8,
+			name: "no matching source lines", visibility: "private", initialAIScan: on, endLine: 8,
 			wantScore: 0.8,
 		},
 		{
-			name: "Core unavailable", visibility: "internal", endLine: 3,
+			name: "Core unavailable", visibility: "internal", initialAIScan: on, endLine: 3,
 			classifyErr: status.Error(codes.Unavailable, "unavailable"), wantCalls: 1, wantScore: 0.8,
+		},
+		{
+			name: "existing setting defaults to off", visibility: "private", endLine: 3,
+			wantScore: 0.8,
+		},
+		{
+			name: "explicitly disabled", visibility: "public", initialAIScan: off, endLine: 3,
+			wantScore: 1.0,
+		},
+		{
+			name: "setting turned off during scan", visibility: "private", initialAIScan: on, endLine: 3,
+			turnedOff: true, wantScore: 0.8,
+		},
+		{
+			name: "setting could not be confirmed", visibility: "private", initialAIScan: on, endLine: 3,
+			settingErr: status.Error(codes.Unavailable, "unavailable"), wantScore: 0.8,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			calls := 0
+			settingReads := 0
+			setting := &code.GitleaksSetting{GithubSettingId: 123, ProjectId: 456, AiScan: tt.initialAIScan}
 			handler := &sqsHandler{
 				logger:       logging.NewLogger(),
 				githubClient: classificationClone{sourceDir: sourceDir},
+				codeClient: classificationSettingsClient{get: func(req *code.GetGitHubSettingRequest) (*code.GetGitHubSettingResponse, error) {
+					settingReads++
+					if req.GetGithubSettingId() != setting.GetGithubSettingId() || req.GetProjectId() != setting.GetProjectId() {
+						t.Fatal("latest setting was read for a different GitHub setting")
+					}
+					if tt.settingErr != nil {
+						return nil, tt.settingErr
+					}
+					latestAIScan := tt.initialAIScan
+					if tt.turnedOff {
+						latestAIScan = off
+					}
+					return &code.GetGitHubSettingResponse{GithubSetting: &code.GitHubSetting{
+						GitleaksSetting: &code.GitleaksSetting{AiScan: latestAIScan},
+					}}, nil
+				}},
 				gitleaksClient: classificationScan(func() []report.Finding {
 					return []report.Finding{{
 						Commit: commit, File: file, StartLine: 2, EndLine: tt.endLine,
@@ -173,7 +221,7 @@ func TestScanRepository_ClassifiesFinding(t *testing.T) {
 				CreatedAt:  &now,
 				PushedAt:   &now,
 			}
-			findings, _, err := handler.scanRepository(t.Context(), repo, "", nil)
+			findings, _, err := handler.scanRepository(t.Context(), repo, "", nil, setting)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -182,6 +230,13 @@ func TestScanRepository_ClassifiesFinding(t *testing.T) {
 			}
 			if calls != tt.wantCalls {
 				t.Errorf("Core calls = %d, want %d", calls, tt.wantCalls)
+			}
+			wantReads := 0
+			if setting.GetAiScan() && tt.endLine == 3 {
+				wantReads = 1
+			}
+			if settingReads != wantReads {
+				t.Errorf("consent checks = %d, want %d", settingReads, wantReads)
 			}
 			original := &LeakFinding{
 				Repo: "owner/repo", Commit: commit, Secret: secret, File: file,
@@ -195,8 +250,8 @@ func TestScanRepository_ClassifiesFinding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if score := req.GetFinding().GetOriginalScore(); score != tt.wantScore {
-				t.Errorf("score = %v, want %v", score, tt.wantScore)
+			if diff := cmp.Diff(tt.wantScore, req.GetFinding().GetOriginalScore()); diff != "" {
+				t.Errorf("unexpected score (-want +got):\n%s", diff)
 			}
 			var data struct {
 				AIClassification map[string]any `json:"ai_classification"`
@@ -213,6 +268,31 @@ func TestScanRepository_ClassifiesFinding(t *testing.T) {
 				t.Error("finding JSON contains evidence or lacks the redaction marker")
 			}
 		})
+	}
+}
+
+func TestClassifyFindingsStopsAfterOptOut(t *testing.T) {
+	dir, commit := createClassificationRepository(t, "example.env", "TOKEN=example-only\n")
+	leak := report.Finding{Commit: commit, File: "example.env", StartLine: 1, EndLine: 1}
+	findings := []*GitleaksFinding{{Result: &LeakFinding{}}, {Result: &LeakFinding{}}}
+	settingReads, aiCalls := 0, 0
+	handler := &sqsHandler{
+		logger: logging.NewLogger(),
+		codeClient: classificationSettingsClient{get: func(_ *code.GetGitHubSettingRequest) (*code.GetGitHubSettingResponse, error) {
+			settingReads++
+			return &code.GetGitHubSettingResponse{GithubSetting: &code.GitHubSetting{
+				GitleaksSetting: &code.GitleaksSetting{AiScan: new(settingReads == 1)},
+			}}, nil
+		}},
+		aiClient: classificationClient(func(_ *ai.ClassifySensitiveContentRequest) (*ai.ClassifySensitiveContentResponse, error) {
+			aiCalls++
+			return &ai.ClassifySensitiveContentResponse{}, nil
+		}),
+	}
+	handler.classifyFindings(t.Context(), dir, findings, scanReport{findings: []report.Finding{leak, leak}},
+		&code.GitleaksSetting{GithubSettingId: 123, ProjectId: 456, AiScan: new(true)})
+	if settingReads != 2 || aiCalls != 1 || findings[0].AIClassification == nil || findings[1].AIClassification != nil {
+		t.Fatalf("expected only the finding sent before opt-out to be classified, reads = %d, calls = %d", settingReads, aiCalls)
 	}
 }
 
