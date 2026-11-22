@@ -12,7 +12,12 @@ import (
 )
 
 type gitleaksServiceClient interface {
-	scan(ctx context.Context, source string, duration *scanDuration) ([]report.Finding, error)
+	scan(ctx context.Context, source string, duration *scanDuration) (scanReport, error)
+}
+
+type scanReport struct {
+	findings []report.Finding
+	rules    map[string]*config.Rule
 }
 
 type gitleaksConfig struct {
@@ -31,25 +36,25 @@ func newGitleaksClient(conf *gitleaksConfig) gitleaksServiceClient {
 	}
 }
 
-func (g *gitleaksClient) scan(ctx context.Context, source string, duration *scanDuration) ([]report.Finding, error) {
+func (g *gitleaksClient) scan(ctx context.Context, source string, duration *scanDuration) (scanReport, error) {
 	d, err := detect.NewDetectorDefaultConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize detector: %w", err)
+		return scanReport{}, fmt.Errorf("failed to initialize detector: %w", err)
 	}
 
 	if g.config.configPath != "" {
 		viper.SetConfigFile(g.config.configPath)
 		if err := viper.ReadInConfig(); err != nil {
-			return nil, fmt.Errorf("failed to read gitleaks config: %w", err)
+			return scanReport{}, fmt.Errorf("failed to read gitleaks config: %w", err)
 		}
 
 		var vc config.ViperConfig
 		if err := viper.Unmarshal(&vc); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal gitleaks config: %w", err)
+			return scanReport{}, fmt.Errorf("failed to unmarshal gitleaks config: %w", err)
 		}
 		cfg, err := vc.Translate()
 		if err != nil {
-			return nil, fmt.Errorf("failed to translate gitleaks config: %w", err)
+			return scanReport{}, fmt.Errorf("failed to translate gitleaks config: %w", err)
 		}
 
 		d = detect.NewDetector(cfg)
@@ -65,10 +70,14 @@ func (g *gitleaksClient) scan(ctx context.Context, source string, duration *scan
 
 	findings, err := d.DetectGit(source, logOps, detect.DetectType)
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect %s: %w", source, err)
+		return scanReport{}, fmt.Errorf("failed to detect %s: %w", source, err)
 	}
 
-	return findings, nil
+	rules := make(map[string]*config.Rule, len(d.Config.Rules))
+	for _, rule := range d.Config.Rules {
+		rules[rule.RuleID] = rule
+	}
+	return scanReport{findings: findings, rules: rules}, nil
 }
 
 type scanDuration struct {

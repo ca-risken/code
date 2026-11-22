@@ -17,18 +17,19 @@ import (
 	githubcli "github.com/ca-risken/code/pkg/github"
 	"github.com/ca-risken/common/pkg/logging"
 	mimosasqs "github.com/ca-risken/common/pkg/sqs"
+	"github.com/ca-risken/core/proto/ai"
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/pkg/message"
 	"github.com/ca-risken/datasource-api/proto/code"
 	"github.com/google/go-github/v44/github"
-	"github.com/zricethezav/gitleaks/v8/report"
 )
 
 type sqsHandler struct {
 	cipherBlock           cipher.Block
 	githubClient          githubcli.GithubServiceClient
 	gitleaksClient        gitleaksServiceClient
+	aiClient              ai.SensitiveContentServiceClient
 	findingClient         finding.FindingServiceClient
 	alertClient           alert.AlertServiceClient
 	codeClient            code.CodeServiceClient
@@ -41,6 +42,7 @@ func NewHandler(
 	fc finding.FindingServiceClient,
 	ac alert.AlertServiceClient,
 	cc code.CodeServiceClient,
+	aiClient ai.SensitiveContentServiceClient,
 	codeDataKey string,
 	githubDefaultToken string,
 	appAuth *githubcli.AppAuthConfig,
@@ -67,6 +69,7 @@ func NewHandler(
 		cipherBlock:           block,
 		githubClient:          githubClient,
 		gitleaksClient:        newGitleaksClient(gitleaksConf),
+		aiClient:              aiClient,
 		findingClient:         fc,
 		alertClient:           ac,
 		codeClient:            cc,
@@ -298,7 +301,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		if gitHubSetting.AuthMode == code.GitHubAuthModeGitHubApp {
 			scanCtx = githubcli.WithRepositoryNotFoundRetry(ctx)
 		}
-		results, scanAt, err := s.scanRepository(scanCtx, r, token, lastScannedAt, msg)
+		findings, scanAt, err := s.scanRepository(scanCtx, r, token, lastScannedAt, gitHubSetting.GetGitleaksSetting())
 		if err != nil {
 			s.logger.Errorf(ctx, "Failed to scan repositories: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			if common.ShouldRetryGitHubAppRepositoryNotFound(gitHubSetting, err, receiveCount) {
@@ -310,7 +313,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 		}
 
 		// Put Resource
-		if len(results) == 0 {
+		if len(findings) == 0 {
 			if err := s.putResource(ctx, msg.ProjectID, repoFullName); err != nil {
 				s.logger.Errorf(ctx, "Failed to put resource: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 				s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
@@ -326,8 +329,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 			continue
 		}
 
-		// Put findings
-		if err := s.putFindings(ctx, msg.ProjectID, GenrateGitleaksFinding(r, results)); err != nil {
+		if err := s.putFindings(ctx, msg.ProjectID, findings); err != nil {
 			s.logger.Errorf(ctx, "failed to put findings: github_setting_id=%d, repository_full_name=%s, err=%+v", msg.GitHubSettingID, repoFullName, err)
 			s.updateRepositoryStatusErrorWithWarn(ctx, msg.ProjectID, msg.GitHubSettingID, repoFullName, err.Error())
 			return mimosasqs.WrapNonRetryable(err)
@@ -346,7 +348,7 @@ func (s *sqsHandler) scanDiffRepositories(ctx context.Context, msg *message.Code
 	return nil
 }
 
-func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, msg *message.CodeQueueMessage) ([]report.Finding, time.Time, error) {
+func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, token string, lastScannedAt *time.Time, setting *code.GitleaksSetting) ([]*GitleaksFinding, time.Time, error) {
 	// Clone repository
 	dir, err := common.CreateCloneDir(*r.Name)
 	if err != nil {
@@ -370,7 +372,9 @@ func (s *sqsHandler) scanRepository(ctx context.Context, r *github.Repository, t
 	if err != nil {
 		return nil, time.Time{}, fmt.Errorf("failed to scan %s: %w", *r.FullName, err)
 	}
-	return results, cloneDate, nil
+	findings := GenrateGitleaksFinding(r, results.findings)
+	s.classifyFindings(ctx, dir, findings, results, setting)
+	return findings, cloneDate, nil
 }
 
 // Cache the scan only after its resources or findings have been stored successfully.

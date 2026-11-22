@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/ca-risken/core/proto/ai"
 	"github.com/ca-risken/core/proto/alert"
 	"github.com/ca-risken/core/proto/finding"
 	"github.com/ca-risken/datasource-api/proto/code"
@@ -26,6 +27,14 @@ func NewAlertClient(ctx context.Context, svcAddr string) (alert.AlertServiceClie
 		return nil, err
 	}
 	return alert.NewAlertServiceClient(conn), nil
+}
+
+func NewSensitiveContentClient(ctx context.Context, svcAddr string) (ai.SensitiveContentServiceClient, error) {
+	conn, err := getGRPCConn(ctx, svcAddr)
+	if err != nil {
+		return nil, err
+	}
+	return ai.NewSensitiveContentServiceClient(conn), nil
 }
 
 func NewCodeClient(ctx context.Context, svcAddr string) (code.CodeServiceClient, error) {

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/ca-risken/code/pkg/common"
 	"github.com/ca-risken/core/proto/finding"
@@ -15,11 +16,13 @@ import (
 
 const (
 	defaultGitleaksScore = 0.8
+	redactedSecret       = "REDACT"
 )
 
 type GitleaksFinding struct {
 	*RepositoryMetadata `json:"repository_metadata,omitempty"`
-	Result              *LeakFinding `json:"results,omitempty"`
+	Result              *LeakFinding    `json:"results,omitempty"`
+	AIClassification    *classification `json:"ai_classification,omitempty"`
 }
 
 type RepositoryMetadata struct {
@@ -97,7 +100,7 @@ func GeneratePutFindingRequest(projectID uint32, f *GitleaksFinding) (*finding.P
 		DataSourceId:     f.Result.DataSourceID,
 		ResourceName:     toString(f.FullName),
 		ProjectId:        projectID,
-		OriginalScore:    getGitleaksScore(toString(f.Visibility)),
+		OriginalScore:    getGitleaksScore(toString(f.Visibility), f.AIClassification),
 		OriginalMaxScore: 1.0,
 		Data:             string(buf),
 	}
@@ -152,6 +155,11 @@ func GenrateGitleaksFinding(repo *github.Repository, leaks []report.Finding) []*
 			Tags:            leak.Tags,
 		}
 		l.DataSourceID = l.GenerateDataSourceID()
+		// Preserve the ID for scans that run with Gitleaks redaction disabled.
+		if l.Secret != "" && l.Secret != redactedSecret {
+			l.Message = strings.ReplaceAll(l.Message, l.Secret, redactedSecret)
+			l.Secret = redactedSecret
+		}
 		l.URL = l.GenerateGitHubURL(*repo.HTMLURL)
 		findings = append(findings, &GitleaksFinding{
 			RepositoryMetadata: m,
@@ -199,7 +207,15 @@ func toString(str *string) string {
 	return *str
 }
 
-func getGitleaksScore(visibility string) float32 {
+func getGitleaksScore(visibility string, decision *classification) float32 {
+	if decision != nil {
+		if decision.Sensitivity != nil && !*decision.Sensitivity {
+			return 0.3
+		}
+		if decision.TestData != nil && *decision.TestData {
+			return 0.6
+		}
+	}
 	if visibility == "public" {
 		return 1.0
 	}

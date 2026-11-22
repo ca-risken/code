@@ -311,40 +311,39 @@ func TestGetRecommend(t *testing.T) {
 }
 
 func TestGetGitleaksScore(t *testing.T) {
-	type args struct {
-		visibility string
-	}
+	t.Parallel()
+
 	tests := []struct {
-		name string
-		args args
-		want float32
+		name       string
+		visibility string
+		decision   *classification
+		want       float32
 	}{
+		{name: "public without classification", visibility: "public", want: 1.0},
+		{name: "internal without classification", visibility: "internal", want: 0.8},
+		{name: "private without classification", visibility: "private", want: 0.8},
 		{
-			name: "OK public",
-			args: args{
-				visibility: "public",
-			},
-			want: 1.0,
+			name: "non-sensitive takes precedence over test data", visibility: "public",
+			decision: &classification{Sensitivity: new(false), TestData: new(true)},
+			want:     0.3,
 		},
 		{
-			name: "OK internal",
-			args: args{
-				visibility: "internal",
-			},
-			want: 0.8,
+			name: "test data with unknown sensitivity", visibility: "private",
+			decision: &classification{TestData: new(true)},
+			want:     0.6,
 		},
 		{
-			name: "OK private",
-			args: args{
-				visibility: "private",
-			},
-			want: 0.8,
+			name: "sensitive value with unknown test data", visibility: "public",
+			decision: &classification{Sensitivity: new(true)},
+			want:     1.0,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getGitleaksScore(tt.args.visibility); got != tt.want {
-				t.Errorf("getGitleaksScore() = %v, want %v", got, tt.want)
+			t.Parallel()
+
+			if diff := cmp.Diff(tt.want, getGitleaksScore(tt.visibility, tt.decision)); diff != "" {
+				t.Errorf("unexpected score (-want +got):\n%s", diff)
 			}
 		})
 	}

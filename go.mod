@@ -1,8 +1,6 @@
 module github.com/ca-risken/code
 
-go 1.24.0
-
-toolchain go1.24.2
+go 1.27.3
 
 // patch https://github.com/ca-risken/go-git/pull/1
 replace github.com/go-git/go-git/v5 v5.4.3-0.20220529141257-bc1f419cebcf => github.com/ca-risken/go-git/v5 v5.4.3-0.20220715100214-652d3d7d4a0e
@@ -22,13 +20,13 @@ require (
 	github.com/aquasecurity/trivy-db v0.0.0-20220801073337-2c0339bb9085
 	github.com/aws/aws-sdk-go-v2 v1.39.6
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.42.15
-	github.com/ca-risken/common/pkg/githubappauth v0.0.0-20260526083813-abb480971dcf
+	github.com/ca-risken/common/pkg/githubappauth v0.0.0-20260626093828-921e296c6587
 	github.com/ca-risken/common/pkg/logging v0.0.0-20251104095036-403011f05377
 	github.com/ca-risken/common/pkg/profiler v0.0.0-20251104095036-403011f05377
 	github.com/ca-risken/common/pkg/sqs v0.0.0-20221119073224-9db027bda6f8
 	github.com/ca-risken/common/pkg/tracer v0.0.0-20251104095036-403011f05377
-	github.com/ca-risken/core v0.16.1-0.20261002050808-7575b0301069
-	github.com/ca-risken/datasource-api v0.16.1-0.20260526125641-a72727ec867f
+	github.com/ca-risken/core v0.16.1-0.20261121152029-58e701f2327c
+	github.com/ca-risken/datasource-api v0.16.1-0.20261122013058-3e9fe96effb6
 	github.com/ca-risken/go-sqs-poller/worker/v5 v5.0.0-20220525093235-9148d33b6aee
 	github.com/ca-risken/vulnerability v0.0.0-20250207144506-e2bcae88c3dc
 	github.com/cenkalti/backoff/v4 v4.3.0
